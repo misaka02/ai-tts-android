@@ -1,0 +1,170 @@
+package com.aitts.engine.ui
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Spellcheck
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.aitts.engine.data.ConfigDataStore
+import com.aitts.engine.permission.PermissionManager
+import com.aitts.engine.ui.screens.HomeScreen
+import com.aitts.engine.ui.screens.ProviderConfigScreen
+import com.aitts.engine.ui.screens.ProviderListScreen
+import com.aitts.engine.ui.screens.RulesScreen
+import com.aitts.engine.ui.screens.SettingsScreen
+import com.aitts.engine.ui.screens.TestBenchScreen
+import com.aitts.engine.ui.theme.AiTtsEngineTheme
+import com.aitts.engine.ui.theme.PrimaryBlue
+
+class MainActivity : ComponentActivity() {
+
+    private lateinit var configDataStore: ConfigDataStore
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        configDataStore = ConfigDataStore.getInstance(this)
+
+        // 启动时自动申请必要权限
+        PermissionManager.requestBasicPermissions(this)
+
+        setContent {
+            AiTtsEngineTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    MainAppNavHost(configDataStore)
+                }
+            }
+        }
+    }
+}
+
+sealed class Screen(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    object Home : Screen("home", "首页", Icons.Default.Home)
+    object Providers : Screen("providers", "模型", Icons.Default.RecordVoiceOver)
+    object Rules : Screen("rules", "规则", Icons.Default.Spellcheck)
+    object TestBench : Screen("testbench", "沙盒", Icons.Default.GraphicEq)
+    object Settings : Screen("settings", "设置", Icons.Default.Settings)
+}
+
+@Composable
+fun MainAppNavHost(configDataStore: ConfigDataStore) {
+    val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    val bottomNavItems = listOf(
+        Screen.Home,
+        Screen.Providers,
+        Screen.Rules,
+        Screen.TestBench,
+        Screen.Settings
+    )
+
+    Scaffold(
+        bottomBar = {
+            if (bottomNavItems.any { it.route == currentRoute }) {
+                NavigationBar {
+                    bottomNavItems.forEach { screen ->
+                        NavigationBarItem(
+                            icon = { Icon(screen.icon, contentDescription = screen.title) },
+                            label = { Text(screen.title) },
+                            selected = currentRoute == screen.route,
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = PrimaryBlue,
+                                selectedTextColor = PrimaryBlue
+                            ),
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Home.route,
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            composable(Screen.Home.route) {
+                HomeScreen(
+                    configDataStore = configDataStore,
+                    onNavigateToEditProvider = { id ->
+                        navController.navigate("provider_edit/$id")
+                    },
+                    onNavigateToTestBench = {
+                        navController.navigate(Screen.TestBench.route)
+                    }
+                )
+            }
+            composable(Screen.Providers.route) {
+                ProviderListScreen(
+                    configDataStore = configDataStore,
+                    onNavigateToEditProvider = { id ->
+                        navController.navigate("provider_edit/$id")
+                    }
+                )
+            }
+            composable(
+                route = "provider_edit/{providerId}",
+                arguments = listOf(navArgument("providerId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val providerId = backStackEntry.arguments?.getString("providerId") ?: ""
+                ProviderConfigScreen(
+                    providerId = providerId,
+                    configDataStore = configDataStore,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+            composable(Screen.Rules.route) {
+                RulesScreen(configDataStore = configDataStore)
+            }
+            composable(Screen.TestBench.route) {
+                TestBenchScreen(configDataStore = configDataStore)
+            }
+            composable(Screen.Settings.route) {
+                SettingsScreen(configDataStore = configDataStore)
+            }
+        }
+    }
+}

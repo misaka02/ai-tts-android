@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">AI TTS 语音引擎</string>
+    <string name="tts_service_name">AI TTS 系统级语音服务</string>
+    <string name="tts_settings">AI TTS 设置</string>
+    <string name="perm_storage_title">存储读写权限</string>
+    <string name="perm_storage_desc">用于缓存合成音频文件以及导入导出规则词典。</string>
+    <string name="perm_battery_title">后台电池优化白名单</string>
+    <string name="perm_battery_desc">防止听书或长时间阅读时后台被系统清理中断。</string>
+</resources>

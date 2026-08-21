@@ -1,0 +1,71 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run Unit Tests
+        run: ./gradlew test
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Copy & Rename APK
+        run: |
+          mkdir -p release_assets
+          cp app/build/outputs/apk/debug/app-debug.apk release_assets/ai-tts-engine-${{ github.ref_name }}.apk
+          cp app/build/outputs/apk/debug/app-debug.apk release_assets/ai-tts-engine-latest.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-tts-engine-apk
+          path: release_assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release_assets/ai-tts-engine-${{ github.ref_name }}.apk
+            release_assets/ai-tts-engine-latest.apk
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## 🤖 AI 智能发布公告 (AI Automated Release)
+            
+            本版本由 AI 智能编程助手全自主架构、编码、测试与自动化打包构建。
+            
+            ### ✨ 核心特性
+            - 🚀 原生安卓系统级 `TextToSpeechService` 引擎替代，无缝支持「阅读 (Legado)」、微信读书、静读天下等阅读器。
+            - 🎙️ 深度集成 **小米 MiMo** 官方语音大模型（支持「导演模式」提示词控制语速、音调、情感风格与官方真实音色如茉莉等）。
+            - 🧠 原生集成 **Google Gemini 2.5 / 3.1** 多模态语音生成（内置 30 款官方预置音色与 PCM $\to$ WAV 动态封包）。
+            - 🌊 集成 **MiniMax (海螺语音)**、**火山引擎 / 豆包大模型**、**硅基流动 CosyVoice2**、**阶跃星辰 StepAudio**、**Fish Audio** 等。
+            - ⚡ 内置**微软 Edge TTS 逆向引擎**，完全免费免 Key，数百款晓晓、云希等高质量神经网络音色开箱即用。
+            - 🛠️ 纯 Jetpack Compose + Material 3 现代化 UI、可视化音色搜索选择器、一键官方参数重置、低延迟断句切分与文本替换规则。
