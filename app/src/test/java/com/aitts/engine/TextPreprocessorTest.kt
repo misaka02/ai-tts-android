@@ -48,4 +48,11 @@ class TextPreprocessorTest {
         val output = TextPreprocessor.process(input, rules)
         assertEquals("这是一个测试", output)
     }
+
+    @Test
+    fun testMarkdownAndHtmlCleaning() {
+        val input = "<b>你好</b>，请访问 https://example.com/test **加粗文本**&nbsp;&amp;&nbsp;内容"
+        val output = TextPreprocessor.process(input, emptyList())
+        assertEquals("你好 ，请访问 网址链接 加粗文本 & 内容", output.trim())
+    }
 }

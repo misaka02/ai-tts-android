@@ -3,26 +3,29 @@ package com.aitts.engine.provider
 import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
+import com.aitts.engine.network.SharedHttpClient
 
 /**
  * TTS 提供商统一管理调度中心
+ * 统一复用 SharedHttpClient 全局 HTTP/2 连接池
  */
 class TtsProviderManager {
 
     private val providers = mutableMapOf<ProviderType, TtsProvider>()
 
     init {
-        providers[ProviderType.MIMO] = MimoTtsProvider()
-        providers[ProviderType.MINIMAX] = MiniMaxTtsProvider()
-        providers[ProviderType.DOUBAO] = DoubaoTtsProvider()
-        providers[ProviderType.EDGE_TTS] = EdgeTtsProvider()
-        providers[ProviderType.SILICONFLOW] = SiliconFlowTtsProvider()
-        providers[ProviderType.FISH_AUDIO] = FishAudioTtsProvider()
-        providers[ProviderType.STEPFUN] = StepFunTtsProvider()
-        providers[ProviderType.OPENAI] = OpenAiTtsProvider()
-        providers[ProviderType.AZURE] = AzureTtsProvider()
-        providers[ProviderType.GEMINI] = GeminiTtsProvider()
-        providers[ProviderType.CUSTOM_HTTP] = CustomHttpTtsProvider()
+        val client = SharedHttpClient.instance
+        providers[ProviderType.MIMO] = MimoTtsProvider(client)
+        providers[ProviderType.MINIMAX] = MiniMaxTtsProvider(client)
+        providers[ProviderType.DOUBAO] = DoubaoTtsProvider(client)
+        providers[ProviderType.EDGE_TTS] = EdgeTtsProvider(client)
+        providers[ProviderType.SILICONFLOW] = SiliconFlowTtsProvider(client)
+        providers[ProviderType.FISH_AUDIO] = FishAudioTtsProvider(client)
+        providers[ProviderType.STEPFUN] = StepFunTtsProvider(client)
+        providers[ProviderType.OPENAI] = OpenAiTtsProvider(client)
+        providers[ProviderType.AZURE] = AzureTtsProvider(client)
+        providers[ProviderType.GEMINI] = GeminiTtsProvider(client)
+        providers[ProviderType.CUSTOM_HTTP] = CustomHttpTtsProvider(client)
     }
 
     fun getProvider(type: ProviderType): TtsProvider {
