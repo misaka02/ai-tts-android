@@ -1,45 +1,31 @@
 package com.aitts.engine.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.RecordVoiceOver
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
+import com.aitts.engine.ui.components.ProviderCard
 import com.aitts.engine.ui.components.SectionHeader
-import com.aitts.engine.ui.theme.PrimaryBlue
+import com.aitts.engine.ui.theme.PrimaryIndigo
 import java.util.UUID
 
 @Composable
@@ -47,6 +33,7 @@ fun ProviderListScreen(
     configDataStore: ConfigDataStore,
     onNavigateToEditProvider: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val providers by configDataStore.providersFlow.collectAsState()
     val settings by configDataStore.settingsFlow.collectAsState()
 
@@ -59,12 +46,15 @@ fun ProviderListScreen(
                         id = newId,
                         type = ProviderType.MIMO,
                         name = "新建 AI 模型配置",
-                        enabled = true
+                        enabled = true,
+                        baseUrl = "https://api.xiaomimimo.com/v1/chat/completions",
+                        modelName = "mimo-v2.5-tts",
+                        voiceId = "茉莉"
                     )
                     configDataStore.updateProvider(newConfig)
                     onNavigateToEditProvider(newId)
                 },
-                containerColor = PrimaryBlue,
+                containerColor = PrimaryIndigo,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "新增模型")
@@ -81,64 +71,47 @@ fun ProviderListScreen(
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 SectionHeader(
-                    title = "AI 语音模型服务列表",
-                    subtitle = "支持 MIMO、MiniMax、火山豆包、Edge TTS、OpenAI 及自定义 HTTP"
+                    title = "AI 语音模型服务管理",
+                    subtitle = "支持上下拖动/移动顺序、一键置顶与克隆多音色副本"
                 )
             }
 
-            items(providers) { provider ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (provider.id == settings.activeProviderId) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            items(providers, key = { it.id }) { provider ->
+                ProviderCard(
+                    provider = provider,
+                    isActive = provider.id == settings.activeProviderId,
+                    onSelect = {
+                        configDataStore.setActiveProviderId(provider.id)
+                    },
+                    onEdit = {
+                        onNavigateToEditProvider(provider.id)
+                    },
+                    onTest = {
+                        onNavigateToEditProvider(provider.id)
+                    },
+                    onPinTop = {
+                        configDataStore.pinProviderToTop(provider.id)
+                        Toast.makeText(context, "已将 ${provider.name} 置顶", Toast.LENGTH_SHORT).show()
+                    },
+                    onMoveUp = {
+                        configDataStore.moveProviderUp(provider.id)
+                    },
+                    onMoveDown = {
+                        configDataStore.moveProviderDown(provider.id)
+                    },
+                    onDuplicate = {
+                        configDataStore.duplicateProvider(provider.id)
+                        Toast.makeText(context, "已复制配置副本", Toast.LENGTH_SHORT).show()
+                    },
+                    onDelete = {
+                        if (providers.size <= 1) {
+                            Toast.makeText(context, "至少需要保留一个音色配置", Toast.LENGTH_SHORT).show()
                         } else {
-                            MaterialTheme.colorScheme.surface
-                        }
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = provider.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "${provider.type.displayName} · ${provider.voiceId.ifBlank { "默认" }}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            if (provider.baseUrl.isNotBlank()) {
-                                Text(
-                                    text = provider.baseUrl,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                        }
-
-                        IconButton(onClick = { onNavigateToEditProvider(provider.id) }) {
-                            Icon(Icons.Default.Edit, contentDescription = "编辑", tint = PrimaryBlue)
-                        }
-
-                        if (providers.size > 1) {
-                            IconButton(onClick = { configDataStore.deleteProvider(provider.id) }) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "删除",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
+                            configDataStore.deleteProvider(provider.id)
+                            Toast.makeText(context, "已删除 ${provider.name}", Toast.LENGTH_SHORT).show()
                         }
                     }
-                }
+                )
             }
 
             item {

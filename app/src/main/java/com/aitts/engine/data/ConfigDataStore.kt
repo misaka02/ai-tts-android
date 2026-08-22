@@ -116,9 +116,55 @@ class ConfigDataStore(private val context: Context) {
         if (index >= 0) {
             current[index] = provider
         } else {
-            current.add(provider)
+            // 新增引擎直接添加到列表顶部，方便用户立即配置
+            current.add(0, provider)
         }
         saveProviders(current)
+    }
+
+    fun moveProviderUp(id: String) {
+        val current = _providersFlow.value.toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index > 0) {
+            val item = current.removeAt(index)
+            current.add(index - 1, item)
+            saveProviders(current)
+        }
+    }
+
+    fun moveProviderDown(id: String) {
+        val current = _providersFlow.value.toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index >= 0 && index < current.size - 1) {
+            val item = current.removeAt(index)
+            current.add(index + 1, item)
+            saveProviders(current)
+        }
+    }
+
+    fun pinProviderToTop(id: String) {
+        val current = _providersFlow.value.toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index > 0) {
+            val item = current.removeAt(index)
+            current.add(0, item)
+            saveProviders(current)
+        }
+    }
+
+    fun duplicateProvider(id: String) {
+        val current = _providersFlow.value.toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            val source = current[index]
+            val newId = "${source.type.name.lowercase()}_${java.util.UUID.randomUUID().toString().take(6)}"
+            val cloned = source.copy(
+                id = newId,
+                name = "${source.name} (副本)"
+            )
+            current.add(index + 1, cloned)
+            saveProviders(current)
+        }
     }
 
     fun deleteProvider(id: String) {

@@ -101,8 +101,8 @@ fun MainAppNavHost(configDataStore: ConfigDataStore) {
                             label = { Text(screen.title) },
                             selected = currentRoute == screen.route,
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = PrimaryBlue,
-                                selectedTextColor = PrimaryBlue
+                                selectedIconColor = com.aitts.engine.ui.theme.PrimaryIndigo,
+                                selectedTextColor = com.aitts.engine.ui.theme.PrimaryIndigo
                             ),
                             onClick = {
                                 navController.navigate(screen.route) {

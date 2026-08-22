@@ -48,7 +48,7 @@ import com.aitts.engine.audio.AudioCacheManager
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.permission.PermissionManager
 import com.aitts.engine.ui.components.SectionHeader
-import com.aitts.engine.ui.theme.PrimaryBlue
+import com.aitts.engine.ui.theme.PrimaryIndigo
 
 @Composable
 fun SettingsScreen(configDataStore: ConfigDataStore) {
@@ -288,7 +288,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         onClick = {
                             activity?.let { PermissionManager.openSystemTtsSettings(it) }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Settings, contentDescription = null)
@@ -379,7 +379,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                             Toast.makeText(context, "导入失败，格式错误", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo)
                 ) {
                     Text("确认导入")
                 }

@@ -80,7 +80,7 @@ import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.ui.components.SectionHeader
-import com.aitts.engine.ui.theme.PrimaryBlue
+import com.aitts.engine.ui.theme.PrimaryIndigo
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -264,7 +264,7 @@ fun ProviderConfigScreen(
             },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = PrimaryBlue)
+                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = PrimaryIndigo)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (isPickingDialogueVoice) "选择对话专属角色音色" else "选择官方音色 / 旁白角色")
                 }
@@ -281,10 +281,36 @@ fun ProviderConfigScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    val filteredVoices = availableVoices.filter {
-                        it.name.contains(voiceSearchQuery, ignoreCase = true) ||
-                        it.id.contains(voiceSearchQuery, ignoreCase = true) ||
-                        it.description.contains(voiceSearchQuery, ignoreCase = true)
+                    var selectedVoiceFilter by remember { mutableStateOf("全部") }
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf("全部", "中文", "女声", "男声", "英文").forEach { filter ->
+                            FilterChip(
+                                selected = selectedVoiceFilter == filter,
+                                onClick = { selectedVoiceFilter = filter },
+                                label = { Text(filter, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val filteredVoices = availableVoices.filter { voice ->
+                        val matchesSearch = voice.name.contains(voiceSearchQuery, ignoreCase = true) ||
+                                voice.id.contains(voiceSearchQuery, ignoreCase = true) ||
+                                voice.description.contains(voiceSearchQuery, ignoreCase = true)
+
+                        val matchesFilter = when (selectedVoiceFilter) {
+                            "中文" -> voice.locale.startsWith("zh", ignoreCase = true) || voice.name.contains("Chinese", ignoreCase = true)
+                            "英文" -> voice.locale.startsWith("en", ignoreCase = true)
+                            "女声" -> voice.gender.equals("Female", ignoreCase = true) || voice.name.contains("女")
+                            "男声" -> voice.gender.equals("Male", ignoreCase = true) || voice.name.contains("男")
+                            else -> true
+                        }
+
+                        matchesSearch && matchesFilter
                     }
 
                     if (filteredVoices.isEmpty()) {
@@ -314,7 +340,7 @@ fun ProviderConfigScreen(
                                             showVoiceDialog = false
                                         },
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (isCurrentSelected) PrimaryBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                                        containerColor = if (isCurrentSelected) PrimaryIndigo.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 ) {
                                     Row(
@@ -381,7 +407,7 @@ fun ProviderConfigScreen(
                                             if (previewingVoiceId == voice.id) {
                                                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                                             } else {
-                                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "试听", tint = PrimaryBlue)
+                                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "试听", tint = PrimaryIndigo)
                                             }
                                         }
                                     }
@@ -419,7 +445,7 @@ fun ProviderConfigScreen(
                         Toast.makeText(context, "配置已保存", Toast.LENGTH_SHORT).show()
                         onNavigateBack()
                     }) {
-                        Icon(Icons.Default.Check, contentDescription = "保存", tint = PrimaryBlue)
+                        Icon(Icons.Default.Check, contentDescription = "保存", tint = PrimaryIndigo)
                     }
                 }
             )
@@ -645,7 +671,7 @@ fun ProviderConfigScreen(
 
                     Button(
                         onClick = { loadVoices(forDialogue = false) },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo)
                     ) {
                         if (isFetchingVoices && !isPickingDialogueVoice) {
                             CircularProgressIndicator(
@@ -734,7 +760,7 @@ fun ProviderConfigScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Psychology, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Psychology, contentDescription = null, tint = PrimaryIndigo, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("提示词指令控制语气、情感与语速", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
@@ -873,7 +899,7 @@ fun ProviderConfigScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (isTesting) {
@@ -896,7 +922,7 @@ fun ProviderConfigScreen(
                     Text(
                         text = testMessage ?: "",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (testMessage?.startsWith("✅") == true) PrimaryBlue else MaterialTheme.colorScheme.error
+                        color = if (testMessage?.startsWith("✅") == true) PrimaryIndigo else MaterialTheme.colorScheme.error
                     )
                 }
 

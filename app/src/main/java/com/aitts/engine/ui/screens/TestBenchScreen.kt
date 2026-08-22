@@ -65,7 +65,7 @@ import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.SentenceSplitter
 import com.aitts.engine.rules.TextPreprocessor
 import com.aitts.engine.ui.components.SectionHeader
-import com.aitts.engine.ui.theme.PrimaryBlue
+import com.aitts.engine.ui.theme.PrimaryIndigo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 
@@ -245,7 +245,7 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                         onClick = {
                             if (isRunning) stopTest() else startTest()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = if (isRunning) MaterialTheme.colorScheme.error else PrimaryBlue),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isRunning) MaterialTheme.colorScheme.error else PrimaryIndigo),
                         modifier = Modifier.weight(1f)
                     ) {
                         if (isRunning) {
@@ -264,7 +264,7 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                             Text(
                                 text = "TTFB: ${latencyMs}ms",
                                 fontWeight = FontWeight.Bold,
-                                color = PrimaryBlue,
+                                color = PrimaryIndigo,
                                 fontSize = 13.sp
                             )
                             if (totalSentences > 0) {
