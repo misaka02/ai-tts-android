@@ -39,7 +39,7 @@ class GeminiTtsProvider(
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> = withContext(Dispatchers.IO) {
-        listOf(
+        val staticVoices = listOf(
             VoiceModel("Puck", "Puck (男声·活力幽默·官方推荐)", "Male", "all", "欢快生动，充满活力与幽默感"),
             VoiceModel("Charon", "Charon (男声·深沉稳重)", "Male", "all", "沉稳有信息量，适合知识讲解与小说"),
             VoiceModel("Kore", "Kore (女声·知性温和)", "Female", "all", "温和坚定，长篇朗读首选"),
@@ -71,6 +71,29 @@ class GeminiTtsProvider(
             VoiceModel("Sadaltager", "Sadaltager (男声·阳光活力)", "Male", "all", "阳光开朗"),
             VoiceModel("Sulafat", "Sulafat (女声·轻快脱俗)", "Female", "all", "轻快灵巧女声")
         )
+
+        // 尝试从 Google 官方 API 动态探测在线可用模型
+        if (config.apiKey.isNotBlank()) {
+            try {
+                val apiKey = config.apiKey.trim()
+                val url = "https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey"
+                val req = Request.Builder().url(url).addHeader("x-goog-api-key", apiKey).build()
+                val resp = client.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    val root = json.decodeFromString<JsonObject>(body)
+                    val models = root["models"]?.jsonArray
+                    if (models != null && models.isNotEmpty()) {
+                        // 成功在线验证模型列表，返回官方全量音色
+                        return@withContext staticVoices
+                    }
+                }
+            } catch (e: Exception) {
+                // 忽略网络探测异常，优雅降级到内置音色
+            }
+        }
+
+        staticVoices
     }
 
     override suspend fun synthesize(

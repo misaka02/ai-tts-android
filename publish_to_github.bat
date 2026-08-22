@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-set "PATH=C:\Users\s1356\scoop\shims;%PATH%"
+set "PATH=%USERPROFILE%\scoop\shims;%LOCALAPPDATA%\Programs\GitHub CLI;%ProgramFiles%\GitHub CLI;%PATH%"
 
 echo ========================================================
 echo   AI Text-To-Speech Engine for Android - GitHub Publisher

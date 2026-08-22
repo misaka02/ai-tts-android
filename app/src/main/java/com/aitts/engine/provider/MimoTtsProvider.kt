@@ -47,6 +47,32 @@ class MimoTtsProvider(
             VoiceModel("Dean", "Dean (English Male)", "Male", "en-US", "Deep Resonant English Male")
         )
 
+        if (config.apiKey.isNotBlank()) {
+            try {
+                val apiKey = config.apiKey.trim()
+                val baseUrl = if (config.baseUrl.isNotBlank()) config.baseUrl.trim() else "https://api.xiaomimimo.com/v1"
+                val cleanUrl = if (baseUrl.endsWith("/chat/completions")) baseUrl.substringBefore("/chat/completions") else baseUrl
+                val modelsUrl = if (cleanUrl.endsWith("/")) "${cleanUrl}models" else "$cleanUrl/models"
+                val req = Request.Builder()
+                    .url(modelsUrl)
+                    .addHeader("Authorization", "Bearer $apiKey")
+                    .addHeader("api-key", apiKey)
+                    .build()
+                val resp = client.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    val root = json.decodeFromString<JsonObject>(body)
+                    val data = root["data"]?.jsonArray
+                    if (data != null && data.isNotEmpty()) {
+                        // 成功在线获取官方响应
+                        return@withContext officialVoices
+                    }
+                }
+            } catch (e: Exception) {
+                // 忽略异常，降级到内置音色
+            }
+        }
+
         officialVoices
     }
 
