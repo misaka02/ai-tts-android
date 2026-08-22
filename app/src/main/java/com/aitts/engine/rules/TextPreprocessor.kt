@@ -96,6 +96,14 @@ object TextPreprocessor {
         if (res.contains("http://") || res.contains("https://")) {
             res = res.replace(Regex("https?://\\S+"), " 网址链接 ")
         }
+        // 清洗零宽字符与特殊乱码空格
+        res = res.replace(Regex("[\\u200B-\\u200F\\uFEFF\\u00A0]"), " ")
+
+        // 清洗重复标点（如 ？？？ -> ？，！！！ -> ！）
+        res = res.replace(Regex("？{2,}"), "？")
+            .replace(Regex("！{2,}"), "！")
+            .replace(Regex("，{2,}"), "，")
+
         // 清洗长省略号为自然呼吸顿号，防止 TTS 发出怪音
         res = res.replace(Regex("…{2,}"), "，")
             .replace(Regex("\\.{3,}"), "，")

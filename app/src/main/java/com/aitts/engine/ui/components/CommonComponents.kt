@@ -1,7 +1,7 @@
 package com.aitts.engine.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -52,7 +50,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -225,27 +222,15 @@ fun ProviderCard(
     val brandColor = remember(provider.type) { BrandTheme.getColorForType(provider.type) }
     val primaryColor = MaterialTheme.colorScheme.primary
     val haptic = LocalHapticFeedback.current
-    var dragAccumulatedY by remember { mutableFloatStateOf(0f) }
 
-    Card(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .clip(CardCornerShape)
-            .border(
-                width = if (isActive) 1.5.dp else 1.dp,
-                color = if (isActive) primaryColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                shape = CardCornerShape
-            )
-            .clickable { onSelect() },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isActive) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
-        ),
-        shape = CardCornerShape
+            .padding(vertical = 3.dp),
+        shape = CardCornerShape,
+        color = if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f) else MaterialTheme.colorScheme.surface,
+        border = if (isActive) BorderStroke(1.5.dp, primaryColor) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        onClick = onSelect
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -266,6 +251,7 @@ fun ProviderCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isReorderMode) {
+                    var dragAccumulatedY by remember { mutableFloatStateOf(0f) }
                     // 排序模式：显示拖动手柄 + 快捷上下置顶按键
                     Box(
                         modifier = Modifier
@@ -313,15 +299,13 @@ fun ProviderCard(
                 Spacer(modifier = Modifier.width(6.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = provider.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
-                            fontSize = 14.5.sp,
-                            maxLines = 1
-                        )
-                    }
+                    Text(
+                        text = provider.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
+                        fontSize = 14.5.sp,
+                        maxLines = 1
+                    )
 
                     Spacer(modifier = Modifier.height(2.dp))
 
@@ -329,45 +313,45 @@ fun ProviderCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        // 品牌厂商小标签
-                        Surface(
-                            color = brandColor.copy(alpha = 0.12f),
-                            shape = TagCornerShape
+                        // 品牌厂商小标签 (轻量级 Box 绘制)
+                        Box(
+                            modifier = Modifier
+                                .background(brandColor.copy(alpha = 0.12f), TagCornerShape)
+                                .padding(horizontal = 4.dp, vertical = 1.5.dp)
                         ) {
                             Text(
                                 text = provider.type.displayName,
                                 color = brandColor,
                                 fontSize = 9.5.sp,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp),
                                 fontWeight = FontWeight.Bold
                             )
                         }
 
                         if (!provider.type.requiresApiKey) {
-                            Surface(
-                                color = SuccessGreen.copy(alpha = 0.15f),
-                                shape = TagCornerShape
+                            Box(
+                                modifier = Modifier
+                                    .background(SuccessGreen.copy(alpha = 0.15f), TagCornerShape)
+                                    .padding(horizontal = 4.dp, vertical = 1.5.dp)
                             ) {
                                 Text(
                                     text = "免Key",
                                     color = SuccessGreen,
                                     fontSize = 9.5.sp,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp),
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                         }
 
                         if (provider.isDualRoleEnabled) {
-                            Surface(
-                                color = primaryColor.copy(alpha = 0.15f),
-                                shape = TagCornerShape
+                            Box(
+                                modifier = Modifier
+                                    .background(primaryColor.copy(alpha = 0.15f), TagCornerShape)
+                                    .padding(horizontal = 4.dp, vertical = 1.5.dp)
                             ) {
                                 Text(
                                     text = "双音色",
                                     color = primaryColor,
                                     fontSize = 9.5.sp,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp),
                                     fontWeight = FontWeight.Bold
                                 )
                             }

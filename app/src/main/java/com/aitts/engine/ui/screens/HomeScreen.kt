@@ -195,21 +195,23 @@ fun HomeScreen(
         }
     }
 
-    val filteredProviders = providers.filter { provider ->
-        val matchesSearch = provider.name.contains(searchQuery, ignoreCase = true) ||
-                provider.voiceId.contains(searchQuery, ignoreCase = true) ||
-                provider.type.displayName.contains(searchQuery, ignoreCase = true)
+    val filteredProviders = remember(providers, searchQuery, selectedFilterTag) {
+        providers.filter { provider ->
+            val matchesSearch = provider.name.contains(searchQuery, ignoreCase = true) ||
+                    provider.voiceId.contains(searchQuery, ignoreCase = true) ||
+                    provider.type.displayName.contains(searchQuery, ignoreCase = true)
 
-        val matchesTag = when (selectedFilterTag) {
-            "官方免Key" -> !provider.type.requiresApiKey
-            "小米MiMo" -> provider.type == ProviderType.MIMO
-            "微软Edge" -> provider.type == ProviderType.EDGE_TTS
-            "Google" -> provider.type == ProviderType.GEMINI
-            "已启用" -> provider.enabled
-            else -> true
+            val matchesTag = when (selectedFilterTag) {
+                "官方免Key" -> !provider.type.requiresApiKey
+                "小米MiMo" -> provider.type == ProviderType.MIMO
+                "微软Edge" -> provider.type == ProviderType.EDGE_TTS
+                "Google" -> provider.type == ProviderType.GEMINI
+                "已启用" -> provider.enabled
+                else -> true
+            }
+
+            matchesSearch && matchesTag
         }
-
-        matchesSearch && matchesTag
     }
 
     LazyColumn(
@@ -260,7 +262,9 @@ fun HomeScreen(
                 subtitle = "阅读/小说/读屏等所有第三方 App 将默认调用此配置"
             )
 
-            val activeBrandColor = activeProvider?.let { BrandTheme.getColorForType(it.type) } ?: MaterialTheme.colorScheme.primary
+            val activeBrandColor = remember(activeProvider?.type) {
+                activeProvider?.let { BrandTheme.getColorForType(it.type) }
+            } ?: MaterialTheme.colorScheme.primary
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
