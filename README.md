@@ -5,9 +5,9 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://developer.android.com)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-purple.svg)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-purple.svg)](https://kotlinlang.org/)
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-blueviolet.svg)](https://developer.android.com/jetpack/compose)
-[![AI Autonomous](https://img.shields.io/badge/Created_&_Published_by-100%25_AI_Agent-orange.svg)](https://deepmind.google)
+[![AI Autonomous](https://img.shields.io/badge/Created_&_Published_by-100%25_AI_Agent-orange.svg)](https://deepmind.google/)
 [![Latest Release](https://img.shields.io/badge/Release-v1.6.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
 [![Status](https://img.shields.io/badge/Status-Completed_&_Archived-red.svg)](https://github.com/misaka02/ai-tts-android)
 
@@ -39,7 +39,7 @@
 > **关于第三方 App 接入支持的真实情况：**
 > * ✅ **原生完美支持**：任何遵循 Android 标准系统 TTS 接口（`android.speech.tts.TextToSpeech`）的应用均可无缝调用本引擎，包括：
 >   * 📚 **[开源阅读 (Legado)](https://github.com/gedoor/legado)**（国内最流行的高自由度小说阅读器，完美支持断句与语速同步）
->   * 📖 **[静读天下 (Moon+ Reader)](https://www.moondownload.com/)**（支持系统 TTS 朗读 EPUB、TXT 等格式小说）
+>   * 📖 **[静读天下 (Moon+ Reader)](http://www.moondownload.com/)**（支持系统 TTS 朗读 EPUB、TXT 等格式小说）
 >   * 📑 **多看阅读 / 掌阅 / 搜狗阅读** 等支持调用系统语音引擎的阅读软件
 >   * 🌐 **系统级无障碍读屏**（Android 原生 TalkBack、随选朗读 Select to Speak）
 >   * 📱 **各大浏览器网页朗读与系统辅助工具**
@@ -49,18 +49,18 @@
 
 ## ✨ 核心特性矩阵
 
-| 提供商 / 模型 | 官方规范端点 | 核心优势与音色特性 | 实测状态 / 鉴权要求 |
+| 提供商 / 模型 | 官方平台与文档链接 | 核心优势与音色特性 | 实测状态 / 鉴权要求 |
 | :--- | :--- | :--- | :--- |
-| **小米 MiMo** | `api.xiaomimimo.com/v1/chat/completions` | **MiMo-V2.5-TTS** 旗舰模型，支持 Voice Studio 工作室模式、声音克隆接入与「导演提示词」情绪控制 | **✅ 深度实测可用** / 需填 Key (注册送额度) |
-| **微软 Edge TTS** | Bing Speech WebSocket 协议 | 微软官方神经网络大模型语音，集成 `Sec-MS-GEC` 时间戳校验，支持晓晓、云希、云健等 300+ 多国音色 | **✅ 深度实测可用** / **完全免费·免 Key** |
-| **Google Gemini** | `generativelanguage.googleapis.com` | **Gemini 2.0 / Flash 原生 TTS**，原生多模态音频流，内置 Puck, Kore, Fenrir, Aoede 等多角色音色 | 规范适配 / 需填 Key (提供免费额度) |
-| **MiniMax (海螺)** | `api.minimax.chat/v1/t2a_v2` | Speech-02 拟真大模型，支持青涩男声、精英青年、霸道总裁、有声书男女声等 16+ 角色 | 规范适配 / 需填 Key |
-| **火山引擎 / 豆包** | `openspeech.bytedance.com/api/v1/tts` | 字节跳动 BigTTS 语音大模型，内置 `爽快思思`、`灿灿主播`、`甜美小萱` 等高拟真电台音色 | 规范适配 / 需填 Key |
-| **硅基流动** | `api.siliconflow.cn/v1/audio/speech` | 极速低延迟 `FunAudioLLM/CosyVoice2-0.5B` 与 ChatTTS 接入，支持在线动态拉取音色模型 | 规范适配 / 需填 Key |
-| **Fish Audio (鱼音)** | `api.fish.audio/v1/tts` | 高表现力声音大模型，**支持在线动态拉取个人自建声音克隆模型**与社区热门音色 | 规范适配 / 需填 Key |
-| **阶跃星辰** | `api.stepfun.com/v1/audio/speech` | `stepaudio-2.5-tts` 多模态语境感知大模型 | 规范适配 / 需填 Key |
-| **OpenAI / 兼容** | `api.openai.com/v1/audio/speech` | 标准 OpenAI Audio 格式，支持 `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer` 等全系音色 | 规范适配 / 需填 Key |
-| **自定义 HTTP 模板** | 任意自建端点 | 支持私有化部署的 **GPT-SoVITS**、**CosyVoice-v2**、**F5-TTS**、**VITS** 等本地与局域网节点 | 规范适配 / 无需 Key |
+| **小米 MiMo** | [小米 MiMo 开放平台](https://platform.xiaomimimo.com/) | **MiMo-V2.5-TTS** 旗舰模型，支持 Voice Studio 工作室模式、声音克隆接入与「导演提示词」情绪控制 | **✅ 深度实测可用** / 需填 Key (注册送额度) |
+| **微软 Edge TTS** | [Edge-TTS 协议参考 (rany2)](https://github.com/rany2/edge-tts) | 微软官方神经网络大模型语音，集成 `Sec-MS-GEC` 时间戳校验，支持晓晓、云希、云健等 300+ 多国音色 | **✅ 深度实测可用** / **完全免费·免 Key** |
+| **Google Gemini** | [Google AI Studio 官网](https://ai.google.dev/) | **Gemini 2.0 / Flash 原生 TTS**，原生多模态音频流，内置 Puck, Kore, Fenrir, Aoede 等多角色音色 | 规范适配 / 需填 Key (提供免费额度) |
+| **MiniMax (海螺)** | [MiniMax 开放平台](https://www.minimaxi.com/) | Speech-02 拟真大模型，支持青涩男声、精英青年、霸道总裁、有声书男女声等 16+ 角色 | 规范适配 / 需填 Key |
+| **火山引擎 / 豆包** | [火山引擎语音大模型](https://www.volcengine.com/product/voice-technology) | 字节跳动 BigTTS 语音大模型，内置 `爽快思思`、`灿灿主播`、`甜美小萱` 等高拟真电台音色 | 规范适配 / 需填 Key |
+| **硅基流动** | [硅基流动 SiliconFlow 官网](https://www.siliconflow.com/) | 极速低延迟 `FunAudioLLM/CosyVoice2-0.5B` 与 ChatTTS 接入，支持在线动态拉取音色模型 | 规范适配 / 需填 Key |
+| **Fish Audio (鱼音)** | [Fish Audio 官网](https://fish.audio/) | 高表现力声音大模型，**支持在线动态拉取个人自建声音克隆模型**与社区热门音色 | 规范适配 / 需填 Key |
+| **阶跃星辰** | [阶跃星辰开放平台](https://platform.stepfun.com/) | `stepaudio-2.5-tts` 多模态语境感知大模型 | 规范适配 / 需填 Key |
+| **OpenAI / 兼容** | [OpenAI Audio 文档](https://platform.openai.com/docs/guides/text-to-speech) | 标准 OpenAI Audio 格式，支持 `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer` 等全系音色 | 规范适配 / 需填 Key |
+| **自定义 HTTP 模板** | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) / [CosyVoice](https://github.com/FunAudioLLM/CosyVoice) | 支持私有化部署的 **GPT-SoVITS**、**CosyVoice-v2**、**F5-TTS**、**VITS** 等本地与局域网节点 | 规范适配 / 无需 Key |
 
 ---
 
@@ -132,26 +132,30 @@ cd ai-tts-android
 
 ## 💖 致谢与官方链接 (Credits & Acknowledgments)
 
-本项目全生命周期由 **Google DeepMind Antigravity** 全自主研发生成。衷心感谢以下开源项目、开发框架与大模型语音技术提供方：
+本项目全生命周期由 **Google DeepMind Antigravity** 全自主研发生成。衷心感谢以下开源项目、开发框架与大模型语音技术提供方（所有链接均经过真实性验证与有效性测试）：
 
 ### 🤖 AI 研发平台与底层技术
-* **[Google DeepMind](https://deepmind.google/)** - 全球领先的通用人工智能研发团队
+* **[Google DeepMind 官网](https://deepmind.google/)** - 全球领先的通用人工智能研发团队
 * **[Kotlin 语言与官方协程库](https://kotlinlang.org/)** - 现代高效的跨平台编程语言
 * **[Jetpack Compose & Android 开源项目 (AOSP)](https://developer.android.com/jetpack/compose)** - 声明式现代 UI 框架
 * **[Square OkHttp](https://square.github.io/okhttp/)** - 业界标杆级 HTTP/2 & WebSocket 网络通信框架
 
 ### 🎙️ 在线语音大模型与开放平台
-* **[小米 MiMo 大模型平台](https://api.xiaomimimo.com/)** - MiMo-V2.5-TTS 高拟真语音模型与 Voice Studio
-* **[微软 Microsoft Edge TTS 语音服务](https://www.microsoft.com/edge)** - 微软神经网络多国高品质自然语音
-* **[MiniMax (海螺 AI)](https://www.minimaxi.com/)** - MiniMax Speech-02 拟真声音大模型
-* **[火山引擎 (字节跳动豆包语音)](https://www.volcengine.com/product/tts)** - 字节跳动 BigTTS 语音大模型
-* **[硅基流动 (SiliconFlow)](https://siliconflow.cn/)** - CosyVoice2 与 ChatTTS 开源大模型高速推理云
-* **[Fish Audio (鱼音)](https://fish.audio/)** - 表现力极强的人声克隆与 TTS 社区平台
-* **[阶跃星辰 (StepFun)](https://www.stepfun.com/)** - StepAudio 多模态感知大模型
-* **[Google Gemini API](https://ai.google.dev/)** - Gemini 原生多模态音频与语音合成
-* **[OpenAI Audio API](https://platform.openai.com/docs/guides/text-to-speech)** - OpenAI 行业标准 TTS 接口规范
-* **[微软 Azure 认知服务语音平台](https://azure.microsoft.com/services/cognitive-services/text-to-speech/)** - 微软云端企业级语音服务
+* **[小米 MiMo 大模型开放平台](https://platform.xiaomimimo.com/)** - MiMo-V2.5-TTS 高拟真语音模型与开发者控制台
+* **[微软 Edge-TTS 协议参考 (rany2/edge-tts)](https://github.com/rany2/edge-tts)** - 微软神经网络 WebSocket 语音协议与 Sec-MS-GEC 开源逆向参考
+* **[微软 Azure AI 语音服务](https://azure.microsoft.com/products/ai-services/text-to-speech)** - 微软企业级高保真云端语音合成
+* **[MiniMax 开放平台](https://www.minimaxi.com/)** - MiniMax Speech-02 拟真声音大模型开放平台
+* **[火山引擎 语音大模型中心](https://www.volcengine.com/product/voice-technology)** - 字节跳动 BigTTS 豆包语音合成大模型
+* **[硅基流动 (SiliconFlow) 官网](https://www.siliconflow.com/)** - 开源大模型高速推理平台与 API 服务
+* **[Fish Audio (鱼音) 官网](https://fish.audio/)** - 表现力极强的人声克隆与 TTS 社区平台
+* **[阶跃星辰 开放平台](https://platform.stepfun.com/)** - StepAudio 多模态感知大模型开放平台
+* **[Google AI Studio / Gemini API](https://ai.google.dev/)** - Gemini 原生多模态音频与语音合成开发者中心
+* **[OpenAI Audio API 官方文档](https://platform.openai.com/docs/guides/text-to-speech)** - OpenAI 行业标准 TTS 接口规范
+
+### 🔬 开源本地私有化语音模型
+* **[GPT-SoVITS 开源项目](https://github.com/RVC-Boss/GPT-SoVITS)** - 强大多语言少样本声音克隆与合成框架
+* **[CosyVoice 开源语音大模型](https://github.com/FunAudioLLM/CosyVoice)** - 阿里巴巴多语言自回归语音大模型
 
 ### 📚 优秀开源阅读生态
-* **[开源阅读 Legado (gedoor/legado)](https://github.com/gedoor/legado)** - 备受赞誉的 Android 端开源免费阅读软件
-* **[静读天下 (Moon+ Reader)](https://www.moondownload.com/)** - 经典强大的全格式移动端电子书阅读器
+* **[开源阅读 Legado (gedoor/legado)](https://github.com/gedoor/legado)** - 备受赞誉的 Android 端开源免费小说阅读器
+* **[静读天下 (Moon+ Reader) 官网](http://www.moondownload.com/)** - 经典强大的全格式移动端电子书阅读软件
