@@ -760,13 +760,15 @@ fun ProviderConfigScreen(
                                                 val dBytes = dialogueRes.getOrNull() ?: ByteArray(0)
                                                 testMessage = "正在播放双音色剧场效果..."
                                                 audioPlayer.playAudioBytes(nBytes, onCompletion = {
-                                                    audioPlayer.playAudioBytes(dBytes, onCompletion = {
-                                                        isTesting = false
-                                                        testMessage = "剧场双音色试听完毕"
-                                                    }, onError = {
-                                                        isTesting = false
-                                                        testMessage = "对话音色播放失败: $it"
-                                                    })
+                                                    scope.launch {
+                                                        audioPlayer.playAudioBytes(dBytes, onCompletion = {
+                                                            isTesting = false
+                                                            testMessage = "剧场双音色试听完毕"
+                                                        }, onError = {
+                                                            isTesting = false
+                                                            testMessage = "对话音色播放失败: $it"
+                                                        })
+                                                    }
                                                 }, onError = {
                                                     isTesting = false
                                                     testMessage = "旁白音色播放失败: $it"
