@@ -42,6 +42,16 @@ class AudioCacheManager(private val context: Context) {
         }
     }
 
+    fun getAudio(text: String, config: com.aitts.engine.data.TtsProviderConfig): ByteArray? {
+        val key = generateKey(config.id, config.voiceId, config.speed, config.pitch, text)
+        return get(key)
+    }
+
+    fun saveAudio(text: String, config: com.aitts.engine.data.TtsProviderConfig, bytes: ByteArray, maxCacheSizeMb: Int = 500) {
+        val key = generateKey(config.id, config.voiceId, config.speed, config.pitch, text)
+        put(key, bytes, maxCacheSizeMb)
+    }
+
     /**
      * 从磁盘读取缓存音频 (线程安全)
      */

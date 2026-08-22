@@ -70,6 +70,7 @@ class ConfigDataStore(private val context: Context) {
 
     fun updateSettings(settings: GlobalSettings) {
         _settingsFlow.value = settings
+        com.aitts.engine.network.SharedHttpClient.updateConfiguration(settings)
         scope.launch {
             prefs.edit().putString(KEY_SETTINGS, json.encodeToString(settings)).apply()
         }

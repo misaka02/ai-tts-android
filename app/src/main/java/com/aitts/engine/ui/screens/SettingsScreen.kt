@@ -210,6 +210,70 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
 
         item {
             SectionHeader(
+                title = "全局网络代理与连接调优",
+                subtitle = "为 Google Gemini、OpenAI、微软等海外或局域网节点配置代理路由"
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("启用网络代理", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "支持 HTTP / SOCKS5 协议 (如 127.0.0.1:7890)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.proxyEnabled,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(proxyEnabled = it))
+                            }
+                        )
+                    }
+
+                    if (settings.proxyEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = settings.proxyHost,
+                                onValueChange = {
+                                    configDataStore.updateSettings(settings.copy(proxyHost = it))
+                                },
+                                label = { Text("代理服务器地址") },
+                                modifier = Modifier.weight(2f),
+                                singleLine = true
+                            )
+
+                            OutlinedTextField(
+                                value = settings.proxyPort.toString(),
+                                onValueChange = {
+                                    val port = it.toIntOrNull() ?: 7890
+                                    configDataStore.updateSettings(settings.copy(proxyPort = port))
+                                },
+                                label = { Text("端口") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            SectionHeader(
                 title = "系统级联动设置",
                 subtitle = "TTS 引擎注册状态与系统权限快捷入口"
             )

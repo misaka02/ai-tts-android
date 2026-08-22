@@ -77,6 +77,24 @@ data class VoiceModel(
 )
 
 /**
+ * 句子角色类型（旁白 vs 角色对话）
+ */
+@Serializable
+enum class SegmentRole {
+    NARRATOR, // 旁白叙述
+    DIALOGUE  // 引号内角色对话
+}
+
+/**
+ * 分句实体（携带文本与角色属性）
+ */
+@Serializable
+data class SentenceSegment(
+    val text: String,
+    val role: SegmentRole = SegmentRole.NARRATOR
+)
+
+/**
  * Provider 配置实体
  */
 @Serializable
@@ -89,6 +107,8 @@ data class TtsProviderConfig(
     val apiKey: String = "",
     val modelName: String = "",
     val voiceId: String = "",
+    val dialogueVoiceId: String = "", // 智能双角色：小说对话专属音色
+    val isDualRoleEnabled: Boolean = false, // 是否启用旁白/对话智能双音色朗读
     val speed: Float = 1.0f,
     val pitch: Float = 1.0f,
     val volume: Float = 1.0f,
@@ -128,7 +148,13 @@ data class GlobalSettings(
     val isNumberNormalizationEnabled: Boolean = true,
     val globalPitch: Float = 1.0f,
     val globalSpeed: Float = 1.0f,
-    val isDebugLoggingEnabled: Boolean = true
+    val isDebugLoggingEnabled: Boolean = true,
+    val proxyEnabled: Boolean = false, // 全局代理开关
+    val proxyHost: String = "127.0.0.1", // 代理 IP / 域名
+    val proxyPort: Int = 7890, // 代理端口
+    val proxyType: String = "HTTP", // HTTP 或 SOCKS
+    val connectTimeoutSeconds: Int = 15,
+    val readTimeoutSeconds: Int = 60
 )
 
 /**
@@ -162,18 +188,81 @@ object PresetConfigs {
             description = "去除小说中常见的特殊书名或角色对话括号"
         ),
         ReplacementRule(
+            id = "rule_watermark_clean",
+            pattern = "(?:www\\.[a-zA-Z0-9\\.]+\\.(?:com|cn|net|org)|最新章节请访问|首发更新)",
+            replacement = "",
+            isRegex = true,
+            description = "过滤小说盗版与水印防盗后缀"
+        ),
+        ReplacementRule(
             id = "rule_chong_qing",
             pattern = "重庆",
             replacement = "崇庆",
             isRegex = false,
-            description = "修正多音字读音：重庆"
+            description = "修正多音字：重庆 (chóng -> chóng)"
         ),
         ReplacementRule(
-            id = "rule_hang_zhou",
+            id = "rule_yin_hang",
             pattern = "银行",
             replacement = "银航",
             isRegex = false,
-            description = "修正多音字读音：银行"
+            description = "修正多音字：银行 (háng)"
+        ),
+        ReplacementRule(
+            id = "rule_can_ci",
+            pattern = "参差",
+            replacement = "涔呲",
+            isRegex = false,
+            description = "修正多音字：参差 (cēn cī)"
+        ),
+        ReplacementRule(
+            id = "rule_chai_qian",
+            pattern = "差遣",
+            replacement = "拆遣",
+            isRegex = false,
+            description = "修正多音字：差遣 (chāi)"
+        ),
+        ReplacementRule(
+            id = "rule_bian_yi",
+            pattern = "便宜行事",
+            replacement = "便移形事",
+            isRegex = false,
+            description = "修正多音字成语：便宜行事 (biàn yí)"
+        ),
+        ReplacementRule(
+            id = "rule_guan_qia",
+            pattern = "关卡",
+            replacement = "关恰",
+            isRegex = false,
+            description = "修正多音字：关卡 (qiǎ)"
+        ),
+        ReplacementRule(
+            id = "rule_xue_ruo",
+            pattern = "削弱",
+            replacement = "薛弱",
+            isRegex = false,
+            description = "修正多音字：削弱 (xuē)"
+        ),
+        ReplacementRule(
+            id = "rule_mo_sha",
+            pattern = "抹杀",
+            replacement = "莫杀",
+            isRegex = false,
+            description = "修正多音字：抹杀 (mǒ)"
+        ),
+        ReplacementRule(
+            id = "rule_bi_lu",
+            pattern = "秘鲁",
+            replacement = "必鲁",
+            isRegex = false,
+            description = "修正地名多音字：秘鲁 (bì)"
+        ),
+        ReplacementRule(
+            id = "rule_qiu_ci",
+            pattern = "龟兹",
+            replacement = "丘慈",
+            isRegex = false,
+            description = "修正古地名多音字：龟兹 (qiū cí)"
         )
     )
 

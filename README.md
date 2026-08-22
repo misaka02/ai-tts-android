@@ -11,7 +11,7 @@
 [![Status](https://img.shields.io/badge/Status-Completed_&_Archived-red.svg)](https://github.com/misaka02/ai-tts-android)
 
 **一款能够完美替代 Android 系统原生 TTS 的高拟真 AI 语音引擎。**  
-通过标准 Android `TextToSpeechService` 系统服务桥接，无缝接入市面主流在线 AI 语音大模型，为「开源阅读 (Legado)」、微信读书、静读天下、系统辅助朗读提供电影级真人情感拟真发音。
+通过标准 Android `TextToSpeechService` 系统服务桥接，无缝接入市面主流在线 AI 语音大模型，为「开源阅读 (Legado)」、微信读书、静读天下、系统辅助朗读提供广播剧级真人情感拟真发音。
 
 ---
 
@@ -33,39 +33,40 @@
 
 | 提供商 / 模型 | 官方规范端点 | 核心优势与音色特性 | 实测状态 / 鉴权要求 |
 | :--- | :--- | :--- | :--- |
-| **小米 MiMo** | `api.xiaomimimo.com/v1/chat/completions` | **MiMo-V2.5-TTS** 旗舰大模型，支持「导演模式」提示词控制语速/音调/情感，内置 `茉莉`、`冰糖`、`苏打`、`白桦` 等官方真实音色 | **✅ 深度实测可用** / 需填 Key (有免费额度) |
+| **小米 MiMo** | `api.xiaomimimo.com/v1/chat/completions` | **MiMo-V2.5-TTS** 旗舰大模型，内置 Voice Studio 工作室模式（支持标准合成、音色设计模版、个人克隆声音接入），支持「导演模式」情绪控制 | **✅ 深度实测可用** / 需填 Key (有免费额度) |
 | **微软 Edge TTS** | Bing Speech WebSocket 协议 | 微软官方神经网络大模型语音，集成最新 `Sec-MS-GEC` 时间戳散列 DRM，支持 300+ 多国音色（晓晓、云希、云健、晓伊等） | **✅ 深度实测可用** / **完全免费·免 Key** |
 | **Google Gemini** | `generativelanguage.googleapis.com` | **Gemini 2.5 / 3.1 Flash 原生 TTS**，原生多模态生成，内置 `Puck`、`Kore`、`Charon` 等 30 款预置音色，自动 PCM $\to$ WAV 动态封装 | 规范适配 / 需填 Key (提供免费 Tier) |
-| **MiniMax (海螺)** | `api.minimax.chat/v1/t2a_v2` | Speech-02 拟真大模型，支持 16+ 角色音色（青涩男声、精英青年、霸道总裁、有声书男女声等），自适应 Hex/Base64 解码 | 规范适配 / 需填 Key |
+| **MiniMax (海螺)** | `api.minimax.chat/v1/t2a_v2` | Speech-02 拟真大模型，支持 16+ 角色音色（青涩男声、精英青年、霸道总裁、有声书男女声等），自适应动态音调调节 | 规范适配 / 需填 Key |
 | **火山引擎 / 豆包** | `openspeech.bytedance.com/api/v1/tts` | 字节跳动 BigTTS 语音大模型，内置 `爽快思思`、`灿灿主播`、`甜美小萱` 等高拟真电台与网文音色 | 规范适配 / 需填 Key |
 | **硅基流动** | `api.siliconflow.cn/v1/audio/speech` | 极速低延迟 `FunAudioLLM/CosyVoice2-0.5B` 与 ChatTTS 接入，支持在线动态拉取音色模型 | 规范适配 / 需填 Key |
 | **Fish Audio (鱼音)** | `api.fish.audio/v1/tts` | 高表现力声音大模型，**支持在线动态拉取个人自建声音克隆模型**与社区热门音色 | 规范适配 / 需填 Key |
 | **阶跃星辰** | `api.stepfun.com/v1/audio/speech` | `stepaudio-2.5-tts` 多模态语境感知大模型 | 规范适配 / 需填 Key |
-| **OpenAI / 兼容** | `api.openai.com/v1/audio/speech` | 标准 OpenAI 格式，支持官方及各类第三方 One-API / 中转站 | 规范适配 / 需填 Key |
+| **OpenAI / 兼容** | `api.openai.com/v1/audio/speech` | 标准 OpenAI 格式，扩充包含 GPT-4o 旗舰音色 (`coral`, `sage`, `ash`) | 规范适配 / 需填 Key |
 | **自定义 HTTP 模板** | 任意自建端点 | 支持私有化部署的 **GPT-SoVITS**、**CosyVoice-v2**、**F5-TTS**、**VITS** 等本地与局域网节点 | 规范适配 / 无需 Key |
 
 ---
 
 ## 🚀 进阶技术亮点
 
-### 1. 🎵 独创双句滑动窗口并发预加载 (Zero-Gap Prefetch Pipeline)
+### 1. 🎭 小说智能多角色双音色广播剧引擎 (Multi-Role Dual-Voice)
+* 智能识别小说段落中的引号对话 `“...”` 与旁白叙述；
+* 自动路由旁白至主音色（如沉稳沉浸男声），对话至专属角色音色（如灵动少女音/青年音），并发无缝推流，呈现广播剧级听书享受。
+
+### 2. 🎵 独创双句滑动窗口并发预加载 (Zero-Gap Prefetch Pipeline)
 * 当前句子在流式推流播放时，后台协程自动预取并解码下两句音频到内存；
 * 彻底消除传统 TTS 句与句之间尴尬的 0.5s 网络等待空白，实现丝滑连续的拟人发音。
 
-### 2. ⚡ 全局 HTTP/2 长连接池与弱网自动重试 (`SharedHttpClient`)
-* 全局共享连接池，复用 TLS 会话，首字发音网络延迟降低 50% 以上；
-* 内置网络抖动自动重试机制，地铁、弱网等移动场景听书不中断。
+### 3. 🌐 全局 HTTP / SOCKS5 代理路由与网络调优
+* 在 App 设置中直接配置本地或远程代理（如 `127.0.0.1:7890`），无缝打通海外节点（Google Gemini、OpenAI 等）直连与超时重试。
 
-### 3. 🎬 大模型「导演模式 (Director Mode)」智能指令编译器
-* 针对 MiMo、Gemini 等新一代生成式大模型不接受数字 DSP 调速的特点，自动将滑动条与自定义提示词编译为自然语言导演指令；
-* 在 `role: user` 中注入情绪引导（如“*用温柔知性的语气朗读，情感丰富细腻*”），由大模型端到端生成富有表现力的声音。
+### 4. 🔢 小说章节与中文数字发音优化器
+* 自动将生硬的阿拉伯数字转为流畅的中文发音（例如：“第123章” $\to$ “第一百二十三章”，“2026年” $\to$ “二零二六年”，“99.5%” $\to$ “百分之九十九点五”）。
 
-### 4. 🧹 网页小说与 Markdown 文本智能深度清洗
-* 自动清洗 `**加粗**`、HTML 标签（`<p>`、`&nbsp;`）与超链接，规范化发音标点，避免死板读出符号代码。
+### 5. 🔄「阅读 (Legado)」替换规则无缝导入与精品多音字库
+* 支持一键粘贴并导入「阅读 3.0」规则 JSON，内置多音字纠错词典（银行/行长、重庆/重量、参差、差遣、便宜行事、关卡等数十个高频生僻多音字）。
 
-### 5. 🛡️ 稳健的系统级 TextToSpeechService 桥接
-* 严格遵循 Android Framework 的 `SynthThread` 运行机制，采用同步阻塞式推流与生命周期管控；
-* 结合基于 FileDescriptor 的 `MediaCodec` 解码器与原生 PCM/WAV 封包，在各大定制 ROM（MIUI/HyperOS、ColorOS、OriginOS、HarmonyOS）上稳定长久保活。
+### 6. 🧪 全性能测试工作台与律动跳动声波
+* 内置专业实验室面板，提供实时动态声波 Canvas 律动、首字出声延迟 (TTFB) 监控、典型小说预设与一键试听。
 
 ---
 
@@ -100,20 +101,15 @@ cd ai-tts-android
 # 执行单元测试
 ./gradlew test
 
-# 编译 Debug APK
+# 构建 Debug APK
 ./gradlew assembleDebug
 
-# 产物位置：app/build/outputs/apk/debug/app-debug.apk
+# 构建 Release APK
+./gradlew assembleRelease
 ```
 
 ---
 
-## 🙏 致谢 (Acknowledgments)
+## 💖 致谢 (Credits & Acknowledgments)
 
-本项目由 **Google DeepMind** 研发的先进自主编程智能体 **Antigravity (Advanced Agentic Pair Programming by DeepMind)** 深度协作完成。特此向其强大的系统级架构推理、跨层协议逆向及全自主工程构建能力致以诚挚感谢！
-
----
-
-## 📄 开源许可证 (License)
-
-本项目采用 [Apache License 2.0](LICENSE) 开源许可证。
+本项目全生命周期由 **Google DeepMind Antigravity** 全自主代码与架构大模型研发生成，特别感谢开源社区对 AI 驱动软件工程的支持！

@@ -51,6 +51,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -103,6 +104,9 @@ fun ProviderConfigScreen(
     var apiKey by remember { mutableStateOf(initialConfig.apiKey) }
     var modelName by remember { mutableStateOf(initialConfig.modelName) }
     var voiceId by remember { mutableStateOf(initialConfig.voiceId) }
+    var dialogueVoiceId by remember { mutableStateOf(initialConfig.dialogueVoiceId) }
+    var isDualRoleEnabled by remember { mutableStateOf(initialConfig.isDualRoleEnabled) }
+    var isPickingDialogueVoice by remember { mutableStateOf(false) }
     var promptInstruction by remember { mutableStateOf(initialConfig.promptInstruction) }
     var speed by remember { mutableFloatStateOf(initialConfig.speed) }
     var pitch by remember { mutableFloatStateOf(initialConfig.pitch) }
@@ -131,6 +135,8 @@ fun ProviderConfigScreen(
             apiKey = apiKey,
             modelName = modelName,
             voiceId = voiceId,
+            dialogueVoiceId = dialogueVoiceId,
+            isDualRoleEnabled = isDualRoleEnabled,
             promptInstruction = promptInstruction,
             speed = speed,
             pitch = pitch,
@@ -237,7 +243,8 @@ fun ProviderConfigScreen(
         }
     }
 
-    fun loadVoices() {
+    fun loadVoices(forDialogue: Boolean = false) {
+        isPickingDialogueVoice = forDialogue
         isFetchingVoices = true
         scope.launch {
             val config = buildCurrentConfig()
@@ -259,7 +266,7 @@ fun ProviderConfigScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = PrimaryBlue)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("选择官方音色 / 角色")
+                    Text(if (isPickingDialogueVoice) "选择对话专属角色音色" else "选择官方音色 / 旁白角色")
                 }
             },
             text = {
@@ -290,18 +297,24 @@ fun ProviderConfigScreen(
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(filteredVoices) { voice ->
+                                val isCurrentSelected = if (isPickingDialogueVoice) dialogueVoiceId == voice.id else voiceId == voice.id
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            voiceId = voice.id
+                                            if (isPickingDialogueVoice) {
+                                                dialogueVoiceId = voice.id
+                                                Toast.makeText(context, "已选择对话音色: ${voice.name}", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                voiceId = voice.id
+                                                Toast.makeText(context, "已选择主音色: ${voice.name}", Toast.LENGTH_SHORT).show()
+                                            }
                                             audioPlayer.stop()
                                             previewingVoiceId = null
                                             showVoiceDialog = false
-                                            Toast.makeText(context, "已选择音色: ${voice.name}", Toast.LENGTH_SHORT).show()
                                         },
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (voiceId == voice.id) PrimaryBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                                        containerColor = if (isCurrentSelected) PrimaryBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 ) {
                                     Row(
@@ -626,15 +639,15 @@ fun ProviderConfigScreen(
                     OutlinedTextField(
                         value = voiceId,
                         onValueChange = { voiceId = it },
-                        label = { Text("音色标识 (Voice ID)") },
+                        label = { Text("主音色 / 旁白音色 (Voice ID)") },
                         modifier = Modifier.weight(1f)
                     )
 
                     Button(
-                        onClick = { loadVoices() },
+                        onClick = { loadVoices(forDialogue = false) },
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
                     ) {
-                        if (isFetchingVoices) {
+                        if (isFetchingVoices && !isPickingDialogueVoice) {
                             CircularProgressIndicator(
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(16.dp),
@@ -644,6 +657,66 @@ fun ProviderConfigScreen(
                             Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("获取音色", fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("智能小说多角色双音色", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(
+                                    "引号“...”内的对话使用专属角色音色，引号外叙述使用主旁白音色",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            Switch(
+                                checked = isDualRoleEnabled,
+                                onCheckedChange = { isDualRoleEnabled = it }
+                            )
+                        }
+
+                        if (isDualRoleEnabled) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = dialogueVoiceId,
+                                    onValueChange = { dialogueVoiceId = it },
+                                    label = { Text("对话专属音色 (Dialogue ID)") },
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                Button(
+                                    onClick = { loadVoices(forDialogue = true) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                                ) {
+                                    if (isFetchingVoices && isPickingDialogueVoice) {
+                                        CircularProgressIndicator(
+                                            color = MaterialTheme.colorScheme.onSecondary,
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text("选择对话音色", fontSize = 12.sp)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

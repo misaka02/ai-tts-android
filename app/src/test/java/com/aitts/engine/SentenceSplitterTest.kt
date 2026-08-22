@@ -40,12 +40,17 @@ class SentenceSplitterTest {
     }
 
     @Test
-    fun testMaxLengthFallbackSplitting() {
-        val longNoPunctuation = "这是一个非常长非常长非常长非常长非常长非常长非常长非常长非常长非常长非常长非常长非常长的连续文本没有任何主要标点符号"
-        val result = SentenceSplitter.splitText(longNoPunctuation, maxLength = 20)
-        assertTrue(result.size > 1)
-        for (chunk in result) {
-            assertTrue(chunk.isNotEmpty())
-        }
+    fun testMultiRoleSplitting() {
+        val input = "他转过头说道：“我们必须立刻出发！”随后快步向前走去。"
+        val segments = SentenceSplitter.splitTextWithRoles(input, maxLength = 80)
+        assertEquals(3, segments.size)
+        assertEquals("他转过头说道：", segments[0].text)
+        assertEquals(com.aitts.engine.data.SegmentRole.NARRATOR, segments[0].role)
+
+        assertEquals("“我们必须立刻出发！”", segments[1].text)
+        assertEquals(com.aitts.engine.data.SegmentRole.DIALOGUE, segments[1].role)
+
+        assertEquals("随后快步向前走去。", segments[2].text)
+        assertEquals(com.aitts.engine.data.SegmentRole.NARRATOR, segments[2].role)
     }
 }

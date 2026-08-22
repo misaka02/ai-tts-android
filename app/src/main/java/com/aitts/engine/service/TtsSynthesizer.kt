@@ -9,7 +9,10 @@ import com.aitts.engine.audio.AudioCacheManager
 import com.aitts.engine.audio.AudioDecoder
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.GlobalSettings
+import com.aitts.engine.data.SegmentRole
+import com.aitts.engine.data.SentenceSegment
 import com.aitts.engine.data.TtsProviderConfig
+import com.aitts.engine.network.SharedHttpClient
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.SentenceSplitter
 import com.aitts.engine.rules.TextPreprocessor
@@ -28,7 +31,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 语音合成调度器：
  * 1. 负责分句切分、规则替换、缓存读写
  * 2. 独创双句并发滑动窗口预加载（Zero-Gap Prefetch Pipeline），彻底消除句间网络停顿
- * 3. PCM 解码、硬件增益调节与 SynthesisCallback 流式推流
+ * 3. 智能多角色双音色协同播报（旁白沉稳叙述 + 对话灵动角色音）
+ * 4. PCM 解码、硬件增益调节与 SynthesisCallback 流式推流
  */
 class TtsSynthesizer(private val context: Context) {
 
@@ -40,7 +44,7 @@ class TtsSynthesizer(private val context: Context) {
 
     fun stop() {
         isStopped.set(true)
-        com.aitts.engine.network.SharedHttpClient.cancelAll()
+        SharedHttpClient.cancelAll()
     }
 
     /**
@@ -81,20 +85,20 @@ class TtsSynthesizer(private val context: Context) {
             return@withContext
         }
 
-        // 2. 智能长句切分
-        val sentences = if (settings.isSentenceSplittingEnabled) {
-            SentenceSplitter.splitText(preprocessedText, settings.maxSentenceLength)
+        // 2. 智能多角色长句切分 (识别对话与旁白)
+        val segments: List<SentenceSegment> = if (settings.isSentenceSplittingEnabled) {
+            SentenceSplitter.splitTextWithRoles(preprocessedText, settings.maxSentenceLength)
         } else {
-            listOf(preprocessedText)
+            listOf(SentenceSegment(preprocessedText, SegmentRole.NARRATOR))
         }
 
-        if (sentences.isEmpty()) {
+        if (segments.isEmpty()) {
             callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
             callback.done()
             return@withContext
         }
 
-        configDataStore.log("开始合成任务 [${mergedConfig.name}]: ${sentences.size} 句, 首句: \"${sentences.first().take(20)}...\"")
+        configDataStore.log("开始合成任务 [${mergedConfig.name}]: ${segments.size} 句, 首句: \"${segments.first().text.take(20)}...\"")
 
         var callbackInitialized = false
         val bufferChunkSize = 8192
@@ -102,16 +106,25 @@ class TtsSynthesizer(private val context: Context) {
         // 本次合成会话专属内存预取缓存（即使磁盘缓存关闭也能确保流畅无缝）
         val sessionCache = ConcurrentHashMap<Int, Deferred<Result<ByteArray>>>()
 
+        fun getConfigForSegment(segment: SentenceSegment): TtsProviderConfig {
+            return if (mergedConfig.isDualRoleEnabled && segment.role == SegmentRole.DIALOGUE && mergedConfig.dialogueVoiceId.isNotBlank()) {
+                mergedConfig.copy(voiceId = mergedConfig.dialogueVoiceId)
+            } else {
+                mergedConfig
+            }
+        }
+
         try {
             // 预先启动首句及第二句的并发拉取
-            for (lookAhead in 0 until minOf(2, sentences.size)) {
-                val sentence = sentences[lookAhead]
+            for (lookAhead in 0 until minOf(2, segments.size)) {
+                val seg = segments[lookAhead]
+                val segConfig = getConfigForSegment(seg)
                 sessionCache[lookAhead] = async(Dispatchers.IO) {
-                    fetchOrSynthesizeAudio(sentence, mergedConfig, settings)
+                    fetchOrSynthesizeAudio(seg.text, segConfig, settings)
                 }
             }
 
-            for (i in sentences.indices) {
+            for (i in segments.indices) {
                 if (isStopped.get() || !isActive) {
                     configDataStore.log("合成任务已中断")
                     return@withContext
@@ -119,23 +132,25 @@ class TtsSynthesizer(private val context: Context) {
 
                 // 随着进度推进，自动向前预拉取第 i+2 句
                 val nextPrefetchIndex = i + 2
-                if (nextPrefetchIndex < sentences.size && !sessionCache.containsKey(nextPrefetchIndex)) {
-                    val nextSentence = sentences[nextPrefetchIndex]
+                if (nextPrefetchIndex < segments.size && !sessionCache.containsKey(nextPrefetchIndex)) {
+                    val nextSeg = segments[nextPrefetchIndex]
+                    val nextSegConfig = getConfigForSegment(nextSeg)
                     sessionCache[nextPrefetchIndex] = async(Dispatchers.IO) {
-                        fetchOrSynthesizeAudio(nextSentence, mergedConfig, settings)
+                        fetchOrSynthesizeAudio(nextSeg.text, nextSegConfig, settings)
                     }
                 }
 
                 // 取出当前句的异步任务并等待结果
                 val currentDeferred = sessionCache[i] ?: async(Dispatchers.IO) {
-                    fetchOrSynthesizeAudio(sentences[i], mergedConfig, settings)
+                    val seg = segments[i]
+                    fetchOrSynthesizeAudio(seg.text, getConfigForSegment(seg), settings)
                 }
 
                 val audioResult = currentDeferred.await()
 
                 if (audioResult.isFailure) {
                     val err = audioResult.exceptionOrNull()?.message ?: "未知合成错误"
-                    configDataStore.log("第 ${i + 1}/${sentences.size} 句合成失败: $err")
+                    configDataStore.log("第 ${i + 1}/${segments.size} 句合成失败: $err")
                     if (!callbackInitialized) {
                         callback.error()
                         return@withContext
@@ -186,7 +201,7 @@ class TtsSynthesizer(private val context: Context) {
 
             if (callbackInitialized) {
                 callback.done()
-                configDataStore.log("合成任务完成全部 ${sentences.size} 句推流")
+                configDataStore.log("合成任务完成全部 ${segments.size} 句推流")
             } else {
                 callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
                 callback.done()
@@ -198,67 +213,74 @@ class TtsSynthesizer(private val context: Context) {
             if (!callbackInitialized) {
                 callback.error()
             }
+        } finally {
+            sessionCache.values.forEach { it.cancel() }
+            sessionCache.clear()
         }
     }
 
     /**
-     * 优先命中磁盘缓存，未命中则请求网络并回填缓存
+     * 优先从磁盘缓存读取，未命中则调用 Provider 进行远程网络合成，并写入缓存（带自动重试）
      */
     private suspend fun fetchOrSynthesizeAudio(
         text: String,
         config: TtsProviderConfig,
         settings: GlobalSettings
     ): Result<ByteArray> {
-        val cacheKey = audioCacheManager.generateKey(
-            providerId = config.id,
-            voiceId = config.voiceId,
-            speed = config.speed,
-            pitch = config.pitch,
-            text = text
-        )
-
+        // 1. 尝试从本地缓存读取
         if (settings.isAudioCacheEnabled) {
-            val cachedData = audioCacheManager.get(cacheKey)
+            val cachedData = audioCacheManager.getAudio(text, config)
             if (cachedData != null && cachedData.isNotEmpty()) {
                 return Result.success(cachedData)
             }
         }
 
-        // 网络请求（内置重试机制）
-        var lastResult: Result<ByteArray>? = null
-        for (attempt in 0..1) {
-            val netResult = providerManager.synthesize(text, config)
-            if (netResult.isSuccess) {
-                val data = netResult.getOrNull()
-                if (data != null && data.isNotEmpty() && settings.isAudioCacheEnabled) {
-                    audioCacheManager.put(cacheKey, data, settings.maxCacheSizeMb)
-                }
-                return netResult
+        // 2. 网络合成与智能重试机制 (最多尝试 2 次)
+        var lastError: Throwable? = null
+        for (attempt in 1..2) {
+            if (isStopped.get()) {
+                return Result.failure(CancellationException("已中断"))
             }
-            lastResult = netResult
-            if (attempt == 0) {
-                kotlinx.coroutines.delay(200)
+
+            val result = providerManager.synthesize(text, config)
+            if (result.isSuccess) {
+                val audioBytes = result.getOrNull() ?: ByteArray(0)
+                if (audioBytes.isNotEmpty() && settings.isAudioCacheEnabled) {
+                    audioCacheManager.saveAudio(text, config, audioBytes)
+                }
+                return Result.success(audioBytes)
+            } else {
+                lastError = result.exceptionOrNull()
+                if (attempt < 2) {
+                    kotlinx.coroutines.delay(200)
+                }
             }
         }
 
-        return lastResult ?: Result.failure(Exception("合成网络请求异常"))
+        return Result.failure(lastError ?: Exception("合成失败"))
     }
 
     /**
-     * 对 16-bit PCM 字节流进行线性音量增益与防爆音裁剪
+     * 线性 PCM 音量增益调节（带防爆音削峰处理）
      */
     private fun applyPcmVolume(pcm: ByteArray, volume: Float): ByteArray {
-        if (volume == 1.0f || pcm.isEmpty()) return pcm
-        val result = ByteArray(pcm.size)
+        if (pcm.isEmpty() || volume == 1.0f) return pcm
+
+        val output = ByteArray(pcm.size)
         var i = 0
-        while (i + 1 < pcm.size) {
-            val sample = (pcm[i].toInt() and 0xFF) or (pcm[i + 1].toInt() shl 8)
-            val sampleShort = sample.toShort()
-            val newSample = (sampleShort * volume).toInt().coerceIn(-32768, 32767).toShort()
-            result[i] = (newSample.toInt() and 0xFF).toByte()
-            result[i + 1] = ((newSample.toInt() shr 8) and 0xFF).toByte()
+        while (i < pcm.size - 1) {
+            val low = pcm[i].toInt() and 0xFF
+            val high = pcm[i + 1].toInt()
+            var sample = (high shl 8) or low
+
+            var newSample = (sample * volume).toInt()
+            if (newSample > Short.MAX_VALUE) newSample = Short.MAX_VALUE.toInt()
+            if (newSample < Short.MIN_VALUE) newSample = Short.MIN_VALUE.toInt()
+
+            output[i] = (newSample and 0xFF).toByte()
+            output[i + 1] = ((newSample shr 8) and 0xFF).toByte()
             i += 2
         }
-        return result
+        return output
     }
 }

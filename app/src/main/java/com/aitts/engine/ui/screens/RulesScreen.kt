@@ -1,5 +1,6 @@
 package com.aitts.engine.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,7 +16,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -42,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,15 +55,20 @@ import com.aitts.engine.data.ReplacementRule
 import com.aitts.engine.rules.TextPreprocessor
 import com.aitts.engine.ui.components.SectionHeader
 import com.aitts.engine.ui.theme.PrimaryBlue
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.UUID
 
 @Composable
 fun RulesScreen(configDataStore: ConfigDataStore) {
+    val context = LocalContext.current
     val rules by configDataStore.rulesFlow.collectAsState()
 
-    var testInput by remember { mutableStateOf("他在重庆的一家银行工作，【突然】……") }
+    var testInput by remember { mutableStateOf("他在重庆的一家银行工作，参差的关卡前他便宜行事。") }
     var editingRule by remember { mutableStateOf<ReplacementRule?>(null) }
     var showDialog by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var importJsonText by remember { mutableStateOf("") }
 
     val processedOutput = remember(testInput, rules) {
         TextPreprocessor.process(testInput, rules)
@@ -96,7 +105,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                 Spacer(modifier = Modifier.height(8.dp))
                 SectionHeader(
                     title = "文本正则与发音纠正",
-                    subtitle = "用于多音字读音修正、清理小说特殊排版符号等"
+                    subtitle = "多音字纠音、排版符号过滤、兼容「阅读」App 替换规则无缝导入"
                 )
 
                 // 实时规则测试对比卡片
@@ -123,6 +132,39 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // 快捷工具栏
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            showImportDialog = true
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("导入阅读规则", fontSize = 12.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            val merged = (rules + PresetConfigs.defaultRules).distinctBy { it.pattern }
+                            configDataStore.saveRules(merged)
+                            Toast.makeText(context, "已合并官方精品发音词库 (${merged.size}条)", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("合并官方词库", fontSize = 12.sp)
+                    }
+                }
             }
 
             item {
@@ -134,6 +176,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                     Text("规则清单 (${rules.size})", fontWeight = FontWeight.Bold)
                     TextButton(onClick = {
                         configDataStore.saveRules(PresetConfigs.defaultRules)
+                        Toast.makeText(context, "已重置为默认预设", Toast.LENGTH_SHORT).show()
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -253,7 +296,100 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showDialog = false }) {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 导入阅读 (Legado) 规则弹窗
+    if (showImportDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportDialog = false },
+            title = { Text("导入「阅读」或 JSON 替换规则") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "支持直接粘贴「阅读 3.0」导出的替换规则 JSON 数组或对象：",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = importJsonText,
+                        onValueChange = { importJsonText = it },
+                        label = { Text("粘贴规则 JSON") },
+                        modifier = Modifier.fillMaxWidth().height(180.dp),
+                        maxLines = 10
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        try {
+                            val parsedRules = mutableListOf<ReplacementRule>()
+                            val trimmed = importJsonText.trim()
+                            if (trimmed.startsWith("[")) {
+                                val array = JSONArray(trimmed)
+                                for (i in 0 until array.length()) {
+                                    val obj = array.optJSONObject(i) ?: continue
+                                    val pattern = obj.optString("pattern", obj.optString("regex", ""))
+                                    val replacement = obj.optString("replacement", obj.optString("replacement", ""))
+                                    val name = obj.optString("name", obj.optString("description", ""))
+                                    val isRegex = obj.optBoolean("isRegex", obj.optInt("isRegex", 1) == 1)
+                                    if (pattern.isNotBlank()) {
+                                        parsedRules.add(
+                                            ReplacementRule(
+                                                id = "rule_${UUID.randomUUID().toString().take(8)}",
+                                                pattern = pattern,
+                                                replacement = replacement,
+                                                isRegex = isRegex,
+                                                description = name
+                                            )
+                                        )
+                                    }
+                                }
+                            } else if (trimmed.startsWith("{")) {
+                                val obj = JSONObject(trimmed)
+                                val pattern = obj.optString("pattern", obj.optString("regex", ""))
+                                val replacement = obj.optString("replacement", "")
+                                val name = obj.optString("name", "")
+                                val isRegex = obj.optBoolean("isRegex", true)
+                                if (pattern.isNotBlank()) {
+                                    parsedRules.add(
+                                        ReplacementRule(
+                                            id = "rule_${UUID.randomUUID().toString().take(8)}",
+                                            pattern = pattern,
+                                            replacement = replacement,
+                                            isRegex = isRegex,
+                                            description = name
+                                        )
+                                    )
+                                }
+                            }
+
+                            if (parsedRules.isNotEmpty()) {
+                                val merged = (rules + parsedRules).distinctBy { it.pattern }
+                                configDataStore.saveRules(merged)
+                                Toast.makeText(context, "成功导入 ${parsedRules.size} 条规则！", Toast.LENGTH_SHORT).show()
+                                showImportDialog = false
+                                importJsonText = ""
+                            } else {
+                                Toast.makeText(context, "未解析到有效的替换规则", Toast.LENGTH_LONG).show()
+                            }
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "JSON 解析失败: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                ) {
+                    Text("开始导入")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportDialog = false }) {
                     Text("取消")
                 }
             }
