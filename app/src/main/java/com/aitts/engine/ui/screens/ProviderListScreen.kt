@@ -1,6 +1,7 @@
 package com.aitts.engine.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +29,7 @@ import com.aitts.engine.ui.components.SectionHeader
 import com.aitts.engine.ui.theme.PrimaryIndigo
 import java.util.UUID
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ProviderListScreen(
     configDataStore: ConfigDataStore,
@@ -78,6 +80,7 @@ fun ProviderListScreen(
 
             items(providers, key = { it.id }) { provider ->
                 ProviderCard(
+                    modifier = Modifier.animateItemPlacement(),
                     provider = provider,
                     isActive = provider.id == settings.activeProviderId,
                     onSelect = {

@@ -122,6 +122,15 @@ class ConfigDataStore(private val context: Context) {
         saveProviders(current)
     }
 
+    fun reorderProviders(fromIndex: Int, toIndex: Int) {
+        val current = _providersFlow.value.toMutableList()
+        if (fromIndex in current.indices && toIndex in current.indices && fromIndex != toIndex) {
+            val item = current.removeAt(fromIndex)
+            current.add(toIndex, item)
+            saveProviders(current)
+        }
+    }
+
     fun moveProviderUp(id: String) {
         val current = _providersFlow.value.toMutableList()
         val index = current.indexOfFirst { it.id == id }

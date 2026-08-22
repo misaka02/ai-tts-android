@@ -2,6 +2,7 @@ package com.aitts.engine.ui.screens
 
 import android.app.Activity
 import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,7 +75,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     configDataStore: ConfigDataStore,
@@ -453,6 +454,7 @@ fun HomeScreen(
         } else {
             items(filteredProviders, key = { it.id }) { provider ->
                 ProviderCard(
+                    modifier = Modifier.animateItemPlacement(),
                     provider = provider,
                     isActive = provider.id == settings.activeProviderId,
                     latencyMs = latencyMap[provider.id],

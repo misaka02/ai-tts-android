@@ -4,25 +4,32 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import com.aitts.engine.data.ProviderType
 
-// --- 现代化核心主色调 (Electric Indigo & Radiant Azure) ---
+// --- 现代化核心主色调 (Electric Indigo & Radiant Cyan) ---
 val PrimaryIndigo = Color(0xFF6366F1)
 val PrimaryIndigoDark = Color(0xFF4F46E5)
-val PrimaryBlue = Color(0xFF3B82F6)
-val PrimaryBlueDark = Color(0xFF2563EB)
+val PrimaryIndigoLight = Color(0xFF818CF8)
 val AccentCyan = Color(0xFF06B6D4)
 val AccentEmerald = Color(0xFF10B981)
 val AccentRose = Color(0xFFF43F5E)
 val AccentAmber = Color(0xFFF59E0B)
 
-// --- 界面基底色调 (Slate & Obsidian) ---
-val SlateBackgroundLight = Color(0xFFF8FAFC)
-val SlateSurfaceLight = Color(0xFFFFFFFF)
-val SlateBorderLight = Color(0xFFE2E8F0)
+// --- 深色模式色盘 (Deep Obsidian & Night Slate) ---
+val ObsidianBackground = Color(0xFF090D16)
+val ObsidianSurface = Color(0xFF111726)
+val ObsidianCard = Color(0xFF182236)
+val ObsidianCardElevated = Color(0xFF1F2C46)
+val ObsidianBorder = Color(0xFF263554)
+val ObsidianTextPrimary = Color(0xFFF1F5F9)
+val ObsidianTextSecondary = Color(0xFF94A3B8)
 
-val SlateBackgroundDark = Color(0xFF0F172A)
-val SlateSurfaceDark = Color(0xFF1E293B)
-val SlateCardDark = Color(0xFF334155)
-val SlateBorderDark = Color(0xFF475569)
+// --- 浅色模式色盘 (Crisp Snow & Soft Slate) ---
+val SnowBackground = Color(0xFFF4F6F9)
+val SnowSurface = Color(0xFFFFFFFF)
+val SnowCard = Color(0xFFFFFFFF)
+val SnowCardElevated = Color(0xFFF8FAFC)
+val SnowBorder = Color(0xFFE2E8F0)
+val SnowTextPrimary = Color(0xFF0F172A)
+val SnowTextSecondary = Color(0xFF64748B)
 
 // --- 状态提示色 ---
 val SuccessGreen = Color(0xFF22C55E)
@@ -62,7 +69,7 @@ object BrandTheme {
     fun getGradientForType(type: ProviderType): Brush {
         val color = getColorForType(type)
         return Brush.horizontalGradient(
-            colors = listOf(color, color.copy(alpha = 0.75f))
+            colors = listOf(color, color.copy(alpha = 0.7f))
         )
     }
 }

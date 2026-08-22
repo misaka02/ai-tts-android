@@ -3,6 +3,7 @@ package com.aitts.engine.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +22,10 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
@@ -42,6 +46,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,6 +54,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,6 +66,9 @@ import com.aitts.engine.ui.theme.BrandTheme
 import com.aitts.engine.ui.theme.PrimaryIndigo
 import com.aitts.engine.ui.theme.SuccessGreen
 import com.aitts.engine.ui.theme.WarningOrange
+
+private val CardCornerShape = RoundedCornerShape(14.dp)
+private val TagCornerShape = RoundedCornerShape(4.dp)
 
 @Composable
 fun SectionHeader(title: String, subtitle: String? = null) {
@@ -94,7 +105,7 @@ fun PermissionCard(
                 MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
             }
         ),
-        shape = RoundedCornerShape(14.dp)
+        shape = CardCornerShape
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -151,7 +162,7 @@ fun SystemTtsGuideCard(onOpenSettings: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-        shape = RoundedCornerShape(14.dp)
+        shape = CardCornerShape
     ) {
         Row(
             modifier = Modifier.padding(14.dp).fillMaxWidth(),
@@ -196,6 +207,7 @@ fun SystemTtsGuideCard(onOpenSettings: () -> Unit) {
 
 @Composable
 fun ProviderCard(
+    modifier: Modifier = Modifier,
     provider: TtsProviderConfig,
     isActive: Boolean,
     latencyMs: Long? = null,
@@ -209,27 +221,29 @@ fun ProviderCard(
     onDelete: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val brandColor = BrandTheme.getColorForType(provider.type)
+    val brandColor = remember(provider.type) { BrandTheme.getColorForType(provider.type) }
+    val haptic = LocalHapticFeedback.current
+    var dragAccumulatedY by remember { mutableFloatStateOf(0f) }
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .padding(vertical = 3.dp)
+            .clip(CardCornerShape)
             .border(
                 width = if (isActive) 1.5.dp else 1.dp,
-                color = if (isActive) PrimaryIndigo else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(14.dp)
+                color = if (isActive) PrimaryIndigo else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                shape = CardCornerShape
             )
             .clickable { onSelect() },
         colors = CardDefaults.cardColors(
             containerColor = if (isActive) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
             } else {
                 MaterialTheme.colorScheme.surface
             }
         ),
-        shape = RoundedCornerShape(14.dp)
+        shape = CardCornerShape
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -238,20 +252,58 @@ fun ProviderCard(
             // 左侧品牌专属色条
             Box(
                 modifier = Modifier
-                    .width(6.dp)
-                    .height(76.dp)
+                    .width(5.dp)
+                    .height(72.dp)
                     .background(brandColor)
             )
 
             Row(
                 modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .padding(start = 8.dp, end = 6.dp, top = 8.dp, bottom = 8.dp)
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 直接可长按拖拽排序的手柄 (带手势识别与震动触觉反馈)
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .pointerInput(provider.id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    dragAccumulatedY = 0f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragAccumulatedY += dragAmount.y
+                                    if (dragAccumulatedY < -40f) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onMoveUp()
+                                        dragAccumulatedY = 0f
+                                    } else if (dragAccumulatedY > 40f) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onMoveDown()
+                                        dragAccumulatedY = 0f
+                                    }
+                                },
+                                onDragEnd = { dragAccumulatedY = 0f },
+                                onDragCancel = { dragAccumulatedY = 0f }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DragHandle,
+                        contentDescription = "长按上下拖动排序",
+                        tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
                 RadioButton(
                     selected = isActive,
-                    onClick = onSelect
+                    onClick = onSelect,
+                    modifier = Modifier.size(32.dp)
                 )
 
                 Spacer(modifier = Modifier.width(6.dp))
@@ -262,26 +314,27 @@ fun ProviderCard(
                             text = provider.name,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = if (isActive) FontWeight.Bold else FontWeight.SemiBold,
-                            fontSize = 15.sp
+                            fontSize = 14.5.sp,
+                            maxLines = 1
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(3.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // 品牌厂商小标签
                         Surface(
                             color = brandColor.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(4.dp)
+                            shape = TagCornerShape
                         ) {
                             Text(
                                 text = provider.type.displayName,
                                 color = brandColor,
-                                fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                fontSize = 9.5.sp,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp),
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -289,13 +342,13 @@ fun ProviderCard(
                         if (!provider.type.requiresApiKey) {
                             Surface(
                                 color = SuccessGreen.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(4.dp)
+                                shape = TagCornerShape
                             ) {
                                 Text(
                                     text = "免Key",
                                     color = SuccessGreen,
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                    fontSize = 9.5.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp),
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -304,13 +357,13 @@ fun ProviderCard(
                         if (provider.isDualRoleEnabled) {
                             Surface(
                                 color = PrimaryIndigo.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(4.dp)
+                                shape = TagCornerShape
                             ) {
                                 Text(
                                     text = "双音色",
                                     color = PrimaryIndigo,
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                    fontSize = 9.5.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp),
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -325,7 +378,7 @@ fun ProviderCard(
                             Text(
                                 text = "${latencyMs}ms",
                                 color = latencyColor,
-                                fontSize = 10.sp,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -336,32 +389,55 @@ fun ProviderCard(
                         text = "音色: ${provider.voiceId.ifBlank { "默认" }} · 语速 ${provider.speed}x",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        maxLines = 1
                     )
                 }
 
-                IconButton(onClick = onTest, modifier = Modifier.size(36.dp)) {
+                // 快捷单键上下微调 (不用进菜单即可秒速上下移动)
+                IconButton(onClick = onMoveUp, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = "向上移动",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                IconButton(onClick = onMoveDown, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "向下移动",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                IconButton(onClick = onTest, modifier = Modifier.size(32.dp)) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "试听",
-                        tint = PrimaryIndigo
+                        tint = PrimaryIndigo,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "编辑配置",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
                 Box {
-                    IconButton(onClick = { showMenu = true }, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { showMenu = true }, modifier = Modifier.size(30.dp)) {
                         Icon(
                             imageVector = Icons.Default.MoreVert,
                             contentDescription = "更多排序操作",
-                            tint = MaterialTheme.colorScheme.outline
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
@@ -375,22 +451,6 @@ fun ProviderCard(
                             onClick = {
                                 showMenu = false
                                 onPinTop()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("⬆️ 向上移动") },
-                            leadingIcon = { Icon(Icons.Default.ArrowUpward, contentDescription = null) },
-                            onClick = {
-                                showMenu = false
-                                onMoveUp()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("⬇️ 向下移动") },
-                            leadingIcon = { Icon(Icons.Default.ArrowDownward, contentDescription = null) },
-                            onClick = {
-                                showMenu = false
-                                onMoveDown()
                             }
                         )
                         DropdownMenuItem(

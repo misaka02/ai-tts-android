@@ -6,10 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spellcheck
@@ -22,11 +20,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -43,7 +42,7 @@ import com.aitts.engine.ui.screens.RulesScreen
 import com.aitts.engine.ui.screens.SettingsScreen
 import com.aitts.engine.ui.screens.TestBenchScreen
 import com.aitts.engine.ui.theme.AiTtsEngineTheme
-import com.aitts.engine.ui.theme.PrimaryBlue
+import com.aitts.engine.ui.theme.PrimaryIndigo
 
 class MainActivity : ComponentActivity() {
 
@@ -57,7 +56,9 @@ class MainActivity : ComponentActivity() {
         PermissionManager.requestBasicPermissions(this)
 
         setContent {
-            AiTtsEngineTheme {
+            val settings by configDataStore.settingsFlow.collectAsState()
+
+            AiTtsEngineTheme(themeMode = settings.appThemeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -94,15 +95,28 @@ fun MainAppNavHost(configDataStore: ConfigDataStore) {
     Scaffold(
         bottomBar = {
             if (bottomNavItems.any { it.route == currentRoute }) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 8.dp
+                ) {
                     bottomNavItems.forEach { screen ->
+                        val isSelected = currentRoute == screen.route
                         NavigationBarItem(
                             icon = { Icon(screen.icon, contentDescription = screen.title) },
-                            label = { Text(screen.title) },
-                            selected = currentRoute == screen.route,
+                            label = {
+                                Text(
+                                    screen.title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            selected = isSelected,
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = com.aitts.engine.ui.theme.PrimaryIndigo,
-                                selectedTextColor = com.aitts.engine.ui.theme.PrimaryIndigo
+                                selectedIconColor = PrimaryIndigo,
+                                selectedTextColor = PrimaryIndigo,
+                                indicatorColor = PrimaryIndigo.copy(alpha = 0.15f),
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             ),
                             onClick = {
                                 navController.navigate(screen.route) {

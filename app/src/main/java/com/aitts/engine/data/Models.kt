@@ -154,7 +154,8 @@ data class GlobalSettings(
     val proxyPort: Int = 7890, // 代理端口
     val proxyType: String = "HTTP", // HTTP 或 SOCKS
     val connectTimeoutSeconds: Int = 15,
-    val readTimeoutSeconds: Int = 60
+    val readTimeoutSeconds: Int = 60,
+    val appThemeMode: String = "SYSTEM" // SYSTEM / DARK / LIGHT
 )
 
 /**

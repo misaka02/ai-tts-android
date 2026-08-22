@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aitts.engine.audio.AudioCacheManager
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.permission.PermissionManager
@@ -70,6 +71,38 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         item {
             Spacer(modifier = Modifier.height(8.dp))
             SectionHeader(
+                title = "外观与主题风格",
+                subtitle = "支持曜石暗黑模式、纯净浅色与跟随系统外观"
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text("界面显示模式", fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("SYSTEM" to "跟随系统", "DARK" to "曜石深黑", "LIGHT" to "纯净浅色").forEach { (mode, label) ->
+                            androidx.compose.material3.FilterChip(
+                                selected = settings.appThemeMode == mode,
+                                onClick = {
+                                    configDataStore.updateSettings(settings.copy(appThemeMode = mode))
+                                },
+                                label = { Text(label, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            SectionHeader(
                 title = "流式与分句调度",
                 subtitle = "优化大段小说阅读时的出声延迟与流式平滑度"
             )
@@ -77,7 +110,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(
