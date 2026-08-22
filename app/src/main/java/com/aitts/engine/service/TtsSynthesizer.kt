@@ -178,6 +178,9 @@ class TtsSynthesizer(private val context: Context) {
                     callback.audioAvailable(finalPcm, offset, length)
                     offset += length
                 }
+
+                // 及时从会话缓存中移除已推流完成的句子，极大释放内存占用
+                sessionCache.remove(i)
             }
 
             if (callbackInitialized) {

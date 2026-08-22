@@ -53,19 +53,17 @@ jobs:
           files: |
             release_assets/ai-tts-engine-${{ github.ref_name }}.apk
             release_assets/ai-tts-engine-latest.apk
-          name: Release ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }} (Final Release)
           draft: false
           prerelease: false
           generate_release_notes: true
           body: |
-            ## 🤖 AI 智能发布公告 (AI Automated Release)
+            ## 🤖 AI 全自主开发与自动发布公告 (AI Autonomous & Final Release)
             
-            本版本由 AI 智能编程助手全自主架构、编码、测试与自动化打包构建。
+            - **全 AI 自主开发**：本项目从架构、底层 TextToSpeechService 系统桥接、协议逆向、网络连接池、双句预加载管线到 UI 交互，**全量由 AI 编程助手自主设计、编写并自测验证**。
+            - **终态归档声明**：本项目功能已全量就绪且通过全部自动化测试，**作为最终交付版本进行开源归档，后续不会有任何功能更新或维护**。欢迎社区开发者自由 Fork 与二次开发。
             
-            ### ✨ 核心特性
-            - 🚀 原生安卓系统级 `TextToSpeechService` 引擎替代，无缝支持「阅读 (Legado)」、微信读书、静读天下等阅读器。
-            - 🎙️ 深度集成 **小米 MiMo** 官方语音大模型（支持「导演模式」提示词控制语速、音调、情感风格与官方真实音色如茉莉等）。
-            - 🧠 原生集成 **Google Gemini 2.5 / 3.1** 多模态语音生成（内置 30 款官方预置音色与 PCM $\to$ WAV 动态封包）。
-            - 🌊 集成 **MiniMax (海螺语音)**、**火山引擎 / 豆包大模型**、**硅基流动 CosyVoice2**、**阶跃星辰 StepAudio**、**Fish Audio** 等。
-            - ⚡ 内置**微软 Edge TTS 逆向引擎**，完全免费免 Key，数百款晓晓、云希等高质量神经网络音色开箱即用。
-            - 🛠️ 纯 Jetpack Compose + Material 3 现代化 UI、可视化音色搜索选择器、一键官方参数重置、低延迟断句切分与文本替换规则。
+            ### ✨ 核心功能亮点
+            1. **系统级 Android TTS 引擎**：无缝对接「开源阅读 (Legado)」、微信读书、静读天下等应用。
+            2. **顶尖大模型矩阵**：全面支持 **小米 MiMo**（导演模式/官方音色）、**Google Gemini 2.5/3.1**（原生多模态/PCM转WAV/30款音色）、**微软 Edge TTS**（免费免Key）、**MiniMax**、**火山引擎豆包**、**硅基流动**、**Fish Audio** 等。
+            3. **无缝推流体验**：双句并发滑动窗口预取、全局 HTTP/2 长连接复用、弱网自动重试、PCM 硬件增益调节、Markdown/HTML 智能文本清洗。

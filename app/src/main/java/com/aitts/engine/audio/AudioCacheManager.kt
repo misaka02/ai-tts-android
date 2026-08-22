@@ -5,11 +5,16 @@ import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * 基于 LRU 策略的本地音频磁盘缓存管理器
+ * 采用 ReentrantLock 确保高并发预加载时的线程安全
  */
 class AudioCacheManager(private val context: Context) {
+
+    private val lock = ReentrantLock()
 
     private val cacheDir: File by lazy {
         val dir = File(context.cacheDir, "tts_audio_cache")
@@ -38,38 +43,42 @@ class AudioCacheManager(private val context: Context) {
     }
 
     /**
-     * 从磁盘读取缓存音频
+     * 从磁盘读取缓存音频 (线程安全)
      */
     fun get(key: String): ByteArray? {
-        val file = File(cacheDir, "$key.bin")
-        return if (file.exists() && file.length() > 0) {
-            try {
-                file.setLastModified(System.currentTimeMillis())
-                file.readBytes()
-            } catch (e: Exception) {
+        return lock.withLock {
+            val file = File(cacheDir, "$key.bin")
+            if (file.exists() && file.length() > 0) {
+                try {
+                    file.setLastModified(System.currentTimeMillis())
+                    file.readBytes()
+                } catch (e: Exception) {
+                    null
+                }
+            } else {
                 null
             }
-        } else {
-            null
         }
     }
 
     /**
-     * 写入音频缓存
+     * 写入音频缓存 (线程安全 + LRU 自动清理)
      */
     fun put(key: String, data: ByteArray, maxCacheSizeMb: Int = 500) {
         if (data.isEmpty()) return
-        try {
-            val file = File(cacheDir, "$key.bin")
-            FileOutputStream(file).use { it.write(data) }
-            trimCacheIfNeeded(maxCacheSizeMb)
-        } catch (e: Exception) {
-            Log.w("AudioCacheManager", "写入缓存失败: ${e.message}")
+        lock.withLock {
+            try {
+                val file = File(cacheDir, "$key.bin")
+                FileOutputStream(file).use { it.write(data) }
+                trimCacheIfNeeded(maxCacheSizeMb)
+            } catch (e: Exception) {
+                Log.w("AudioCacheManager", "写入缓存失败: ${e.message}")
+            }
         }
     }
 
     /**
-     * 清理超出限额的老旧缓存文件
+     * 清理超出限额的老旧缓存文件 (必须在锁内执行)
      */
     private fun trimCacheIfNeeded(maxCacheSizeMb: Int) {
         if (maxCacheSizeMb <= 0) return
@@ -79,7 +88,6 @@ class AudioCacheManager(private val context: Context) {
         var totalSize = files.sumOf { it.length() }
 
         if (totalSize > maxSizeBytes) {
-            // 按最后修改时间升序排列，优先删除最久未访问的
             val sortedFiles = files.sortedBy { it.lastModified() }
             for (f in sortedFiles) {
                 val size = f.length()
@@ -97,20 +105,24 @@ class AudioCacheManager(private val context: Context) {
      * 获取缓存统计信息 (文件数, 总大小MB)
      */
     fun getStats(): Pair<Int, Float> {
-        val files = cacheDir.listFiles() ?: emptyArray()
-        val count = files.size
-        val sizeBytes = files.sumOf { it.length() }
-        val sizeMb = sizeBytes.toFloat() / (1024 * 1024)
-        return Pair(count, sizeMb)
+        return lock.withLock {
+            val files = cacheDir.listFiles() ?: emptyArray()
+            val count = files.size
+            val sizeBytes = files.sumOf { it.length() }
+            val sizeMb = sizeBytes.toFloat() / (1024 * 1024)
+            Pair(count, sizeMb)
+        }
     }
 
     /**
-     * 清空所有缓存
+     * 清空所有缓存 (线程安全)
      */
     fun clearAll() {
-        val files = cacheDir.listFiles() ?: return
-        for (f in files) {
-            f.delete()
+        lock.withLock {
+            val files = cacheDir.listFiles() ?: return
+            for (f in files) {
+                f.delete()
+            }
         }
     }
 
