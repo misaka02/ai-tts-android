@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import com.aitts.engine.audio.AudioEnhancer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -312,6 +313,29 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                             }
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("小说对白智能情感语气注入 (Emotion Prosody)", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "识别引述语中的情感状态（咆哮/抽泣/惊恐/温婉/耳语），动态指导大模型发音语气",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.isEmotionProsodyEnabled,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(isEmotionProsodyEnabled = it))
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -319,7 +343,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         // 人声清晰度与响度动态增强
         item(contentType = "audio_enhancer_section") {
             SectionHeader(
-                title = "人声清晰度增强与响度均衡 (Clear Voice)",
+                title = "专业声学 EQ 与人声增强 (Audio EQ)",
                 subtitle = "软件级 16-bit PCM 预加重滤波与防爆音动态范围压缩"
             )
 
@@ -329,6 +353,31 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
+                    Text("声学 EQ 音效预设矩阵", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        AudioEnhancer.EqPreset.values().forEach { preset ->
+                            FilterChip(
+                                selected = settings.eqPresetId == preset.name,
+                                onClick = {
+                                    configDataStore.updateSettings(
+                                        settings.copy(
+                                            eqPresetId = preset.name,
+                                            voiceClarityBoostEnabled = preset.enableClarity,
+                                            loudnessGainFactor = preset.gainFactor
+                                        )
+                                    )
+                                },
+                                label = { Text(preset.displayName, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -345,7 +394,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         Switch(
                             checked = settings.voiceClarityBoostEnabled,
                             onCheckedChange = {
-                                configDataStore.updateSettings(settings.copy(voiceClarityBoostEnabled = it))
+                                configDataStore.updateSettings(settings.copy(voiceClarityBoostEnabled = it, eqPresetId = AudioEnhancer.EqPreset.CUSTOM.name))
                             }
                         )
                     }
@@ -364,7 +413,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                     Slider(
                         value = settings.loudnessGainFactor,
                         onValueChange = {
-                            configDataStore.updateSettings(settings.copy(loudnessGainFactor = it))
+                            configDataStore.updateSettings(settings.copy(loudnessGainFactor = it, eqPresetId = AudioEnhancer.EqPreset.CUSTOM.name))
                         },
                         valueRange = 0.8f..2.2f,
                         steps = 14
@@ -386,6 +435,29 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("大模型微秒级自愈重试 (Jittered Retry)", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "遇偶发网络抖动时在毫秒级微延迟自动重试，失败后再降级备用引擎",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.autoRetryOnFailure,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(autoRetryOnFailure = it))
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,

@@ -94,7 +94,8 @@ enum class SegmentRole {
 @Serializable
 data class SentenceSegment(
     val text: String,
-    val role: SegmentRole = SegmentRole.NARRATOR
+    val role: SegmentRole = SegmentRole.NARRATOR,
+    val emotion: com.aitts.engine.rules.EmotionDetector.EmotionType = com.aitts.engine.rules.EmotionDetector.EmotionType.NEUTRAL
 )
 
 /**
@@ -187,10 +188,13 @@ data class GlobalSettings(
     val sentencePauseMs: Int = 200, // 标点分句后注入静音停顿毫秒数，大幅提升小说听感自然度
     val fallbackProviderId: String = "edge_tts_default", // 主引擎异常时全局自动故障转移备用引擎
     val autoFallbackOnFailure: Boolean = true, // 启用自动故障降级
+    val autoRetryOnFailure: Boolean = true, // 大模型 TTS 智能网络自愈抖动重试
     val hapticFeedbackEnabled: Boolean = true, // 触觉震动反馈开关
     val playbackNotificationEnabled: Boolean = true, // 启用后台朗读通知栏状态条与停止控制
     val ultraLowLatencyMode: Boolean = true, // 极速首字直出模式 (Sub-150ms 极低延迟响应)
     val isAcronymNormalizationEnabled: Boolean = true, // 智能英文缩写与专有名词发音规范化 (AI/CPU/WiFi/APP等)
+    val isEmotionProsodyEnabled: Boolean = true, // 小说对白智能情感语气与大模型导演提示词动态注入
+    val eqPresetId: String = "passthrough", // 音效 EQ 预设方案 (clear_voice, warm_broadcast, gentle_ear_protect, passthrough, custom)
     val voiceClarityBoostEnabled: Boolean = false, // 人声清晰度增强滤镜 (Clear Voice EQ)
     val loudnessGainFactor: Float = 1.0f, // 软件级响度增益与动态均衡 (1.0x ~ 2.0x)
     val sleepTimerMinutes: Int = 0 // 听书睡眠定时器 (分钟，0为关闭)
@@ -338,6 +342,41 @@ object PresetConfigs {
             isRegex = true,
             description = "网络缩写纠正：u1s1 ➔ 有一说一"
         )
+    )
+
+    // 精选规则包 1：修仙玄幻高频字音与多音字校正包
+    val xianxiaRulesPreset = listOf(
+        ReplacementRule(id = "xianxia_dan_tian", pattern = "丹田", replacement = "单田", isRegex = false, description = "丹田 (dān tián)"),
+        ReplacementRule(id = "xianxia_zhu_ji", pattern = "筑基", replacement = "住基", isRegex = false, description = "筑基 (zhù jī)"),
+        ReplacementRule(id = "xianxia_jie_jie", pattern = "桀桀", replacement = "节节", isRegex = false, description = "反派怪笑：桀桀 (jié jié)"),
+        ReplacementRule(id = "xianxia_chi_xiao", pattern = "嗤笑", replacement = "吃笑", isRegex = false, description = "嗤笑 (chī xiào)"),
+        ReplacementRule(id = "xianxia_qian_kun", pattern = "乾坤", replacement = "前坤", isRegex = false, description = "乾坤 (qián kūn)"),
+        ReplacementRule(id = "xianxia_shi_hai", pattern = "识海", replacement = "拾海", isRegex = false, description = "识海 (shí hǎi)"),
+        ReplacementRule(id = "xianxia_dun_guang", pattern = "遁光", replacement = "盾光", isRegex = false, description = "遁光 (dùn guāng)"),
+        ReplacementRule(id = "xianxia_kui_lei", pattern = "傀儡", replacement = "魁累", isRegex = false, description = "傀儡 (kuǐ lěi)"),
+        ReplacementRule(id = "xianxia_gui_xi", pattern = "龟息", replacement = "归息", isRegex = false, description = "龟息功 (guī xī)"),
+        ReplacementRule(id = "xianxia_zhi_gu", pattern = "桎梏", replacement = "至固", isRegex = false, description = "桎梏 (zhì gù)"),
+        ReplacementRule(id = "xianxia_pi_ni", pattern = "睥睨", replacement = "辟逆", isRegex = false, description = "睥睨天下 (pì nì)"),
+        ReplacementRule(id = "xianxia_cui_can", pattern = "璀璨", replacement = "翠灿", isRegex = false, description = "璀璨 (cuǐ càn)"),
+        ReplacementRule(id = "xianxia_mo_da", pattern = "莫大", replacement = "墨大", isRegex = false, description = "莫大机缘 (mò)")
+    )
+
+    // 精选规则包 2：网络小说排版特殊符号与防盗乱码净化包
+    val novelSymbolsPreset = listOf(
+        ReplacementRule(id = "symbol_block", pattern = "[▓█■□▲▼◆◇★☆※●○◎▶▷]+", replacement = " ", isRegex = true, description = "清理章节排版装饰特殊方块与星号"),
+        ReplacementRule(id = "symbol_anti_theft", pattern = "[【】〖〗\\[\\]\\{\\}「」『』]", replacement = " ", isRegex = true, description = "净化对话与特殊标题框括号"),
+        ReplacementRule(id = "symbol_separator", pattern = "[-=_~*]{3,}", replacement = "，", isRegex = true, description = "转换章节分割线为自然逗号停顿"),
+        ReplacementRule(id = "symbol_url", pattern = "(?:https?://|www\\.)[a-zA-Z0-9./?=_-]+", replacement = "", isRegex = true, description = "过滤章节内夹带的盗版网址链接")
+    )
+
+    // 精选规则包 3：现代科技与二次元专有名词发音包
+    val techAcronymsPreset = listOf(
+        ReplacementRule(id = "tech_ai", pattern = "\\bAI\\b", replacement = "A-I", isRegex = true, description = "AI ➔ A-I"),
+        ReplacementRule(id = "tech_wifi", pattern = "\\bWiFi\\b", replacement = "W-i-F-i", isRegex = true, isCaseSensitive = false, description = "WiFi ➔ W-i-F-i"),
+        ReplacementRule(id = "tech_cpu", pattern = "\\bCPU\\b", replacement = "C-P-U", isRegex = true, description = "CPU ➔ C-P-U"),
+        ReplacementRule(id = "tech_gpu", pattern = "\\bGPU\\b", replacement = "G-P-U", isRegex = true, description = "GPU ➔ G-P-U"),
+        ReplacementRule(id = "tech_npc", pattern = "\\bNPC\\b", replacement = "N-P-C", isRegex = true, description = "NPC ➔ N-P-C"),
+        ReplacementRule(id = "tech_boss", pattern = "\\bBOSS\\b", replacement = "B-O-S-S", isRegex = true, isCaseSensitive = false, description = "BOSS ➔ B-O-S-S")
     )
 
     fun createDefaultProviders(): List<TtsProviderConfig> {

@@ -83,6 +83,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
     var editingRule by remember { mutableStateOf<ReplacementRule?>(null) }
     var showDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showCuratedDialog by remember { mutableStateOf(false) }
     var importJsonText by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("全部") }
@@ -184,6 +185,15 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                     }
 
                     OutlinedButton(
+                        onClick = { showCuratedDialog = true },
+                        modifier = Modifier.weight(1.1f)
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("精选规则包", fontSize = 11.sp)
+                    }
+
+                    OutlinedButton(
                         onClick = {
                             try {
                                 val json = configDataStore.exportRulesJson()
@@ -200,21 +210,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                     ) {
                         Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(3.dp))
-                        Text("导出文件", fontSize = 11.5.sp)
-                    }
-
-                    Button(
-                        onClick = {
-                            val merged = (rules + PresetConfigs.defaultRules).distinctBy { it.pattern }
-                            configDataStore.saveRules(merged)
-                            Toast.makeText(context, "已合并官方精品发音词库 (${merged.size}条)", Toast.LENGTH_SHORT).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        modifier = Modifier.weight(1.2f)
-                    ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text("合并词库", fontSize = 11.5.sp)
+                        Text("导出文件", fontSize = 11.sp)
                     }
                 }
 
@@ -505,6 +501,107 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
             },
             dismissButton = {
                 TextButton(onClick = { showImportDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 官方精选规则库弹窗
+    if (showCuratedDialog) {
+        var importXianxia by remember { mutableStateOf(true) }
+        var importSymbols by remember { mutableStateOf(true) }
+        var importTech by remember { mutableStateOf(true) }
+
+        AlertDialog(
+            onDismissRequest = { showCuratedDialog = false },
+            title = { Text("📦 官方精选发音与排版规则库") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "勾选您需要合并导入的精品规则包：",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(checked = importXianxia, onCheckedChange = { importXianxia = it })
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text("🔮 修仙玄幻高频多音字校正包", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                Text("校正丹田、筑基、桀桀、嗤笑、乾坤、识海等修仙经典字音", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.outline)
+                            }
+                        }
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(checked = importSymbols, onCheckedChange = { importSymbols = it })
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text("🧹 小说特殊符号与排版乱码净化包", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                Text("清理装饰方块▓█、星号、防盗链接与章节分割线", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.outline)
+                            }
+                        }
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(checked = importTech, onCheckedChange = { importTech = it })
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text("💻 现代科技与网游专有名词包", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                Text("规整 AI、WiFi、CPU、GPU、NPC、BOSS 等自然连读", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.outline)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val toMerge = mutableListOf<ReplacementRule>()
+                        if (importXianxia) toMerge.addAll(PresetConfigs.xianxiaRulesPreset)
+                        if (importSymbols) toMerge.addAll(PresetConfigs.novelSymbolsPreset)
+                        if (importTech) toMerge.addAll(PresetConfigs.techAcronymsPreset)
+
+                        val merged = (rules + toMerge).distinctBy { it.pattern }
+                        configDataStore.saveRules(merged)
+                        Toast.makeText(context, "成功追加导入 ${toMerge.size} 条精选规则！", Toast.LENGTH_SHORT).show()
+                        showCuratedDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("立即合并导入")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCuratedDialog = false }) {
                     Text("取消")
                 }
             }

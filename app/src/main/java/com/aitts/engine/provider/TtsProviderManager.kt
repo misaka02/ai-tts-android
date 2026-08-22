@@ -34,10 +34,20 @@ class TtsProviderManager {
 
     suspend fun synthesize(
         text: String,
-        config: TtsProviderConfig
+        config: TtsProviderConfig,
+        autoRetry: Boolean = true
     ): Result<ByteArray> {
         val provider = getProvider(config.type)
-        return provider.synthesize(text, config)
+        var result = provider.synthesize(text, config)
+
+        if (result.isFailure && autoRetry && config.type != ProviderType.EDGE_TTS) {
+            // 网络抖动或临时性错误，微秒级轻量抖动自愈重试 (80~200ms Jitter)
+            val jitterDelay = 80L + (Math.random() * 120).toLong()
+            kotlinx.coroutines.delay(jitterDelay)
+            result = provider.synthesize(text, config)
+        }
+
+        return result
     }
 
     suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> {

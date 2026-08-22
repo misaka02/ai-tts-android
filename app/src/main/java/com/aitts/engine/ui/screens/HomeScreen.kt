@@ -4,7 +4,10 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.os.Environment
 import android.widget.Toast
+import java.io.File
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -33,14 +36,18 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Timer
 import com.aitts.engine.service.SleepTimerManager
+import com.aitts.engine.audio.AudioEnhancer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,6 +67,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,7 +77,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -119,8 +130,16 @@ fun HomeScreen(
     var isSynthesizing by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     var currentTestingProviderId by remember { mutableStateOf<String?>(null) }
+    var lastSynthesizedBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var lastSynthesizedProviderName by remember { mutableStateOf("") }
 
     var isReorderMode by remember { mutableStateOf(false) }
+    var draggingProviderId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val haptic = LocalHapticFeedback.current
+    val swapThresholdPx = remember(density) { with(density) { 58.dp.toPx() } }
+
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilterTag by remember { mutableStateOf("全部") }
     var isProbingSpeed by remember { mutableStateOf(false) }
@@ -136,6 +155,50 @@ fun HomeScreen(
 
     val activeProvider = providers.find { it.id == settings.activeProviderId }
         ?: providers.firstOrNull()
+
+    fun exportAndShareAudio(bytes: ByteArray, providerName: String) {
+        try {
+            val fileName = "AI_TTS_${providerName.replace(" ", "_").replace("/", "_")}_${System.currentTimeMillis()}.wav"
+            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val targetDir = File(downloadDir, "AI_TTS")
+            targetDir.mkdirs()
+            val targetFile = File(targetDir, fileName)
+
+            AudioEnhancer.writeWavToFile(bytes, targetFile, sampleRate = 24000)
+            Toast.makeText(context, "已成功导出到 Download/AI_TTS/${fileName}", Toast.LENGTH_SHORT).show()
+
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.provider",
+                targetFile
+            )
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "audio/wav"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "分享/导出 AI 朗读音频"))
+        } catch (e: Exception) {
+            Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun handleItemDrag(providerId: String, deltaY: Float) {
+        if (draggingProviderId != providerId) return
+        dragOffsetY += deltaY
+        val currentIndex = providers.indexOfFirst { it.id == providerId }
+        if (currentIndex == -1) return
+
+        if (dragOffsetY > swapThresholdPx && currentIndex < providers.lastIndex) {
+            configDataStore.reorderProviders(currentIndex, currentIndex + 1)
+            dragOffsetY -= swapThresholdPx
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        } else if (dragOffsetY < -swapThresholdPx && currentIndex > 0) {
+            configDataStore.reorderProviders(currentIndex, currentIndex - 1)
+            dragOffsetY += swapThresholdPx
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+    }
 
     fun stopPlayback() {
         audioPlayer.stop()
@@ -157,6 +220,8 @@ fun HomeScreen(
 
                 if (result.isSuccess) {
                     val rawBytes = result.getOrNull() ?: ByteArray(0)
+                    lastSynthesizedBytes = rawBytes
+                    lastSynthesizedProviderName = targetProvider.name
                     configDataStore.log("试听请求成功 [${targetProvider.name}] (${costMs}ms)，音频大小: ${rawBytes.size} 字节，开始播放")
 
                     if (rawBytes.isNotEmpty()) {
@@ -386,6 +451,18 @@ fun HomeScreen(
                         ) {
                             Text("调节参数")
                         }
+
+                        if (lastSynthesizedBytes != null) {
+                            OutlinedButton(
+                                onClick = {
+                                    exportAndShareAudio(lastSynthesizedBytes!!, lastSynthesizedProviderName)
+                                }
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("导出WAV", fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -405,13 +482,13 @@ fun HomeScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "支持上下调整排序、一键置顶与复制配置副本",
+                        text = "长按任意卡片即可拖拽排序，支持一键置顶与复制",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = { showSleepTimerDialog = true }
                     ) {
@@ -481,12 +558,11 @@ fun HomeScreen(
 
                     IconButton(
                         onClick = {
-                            val newId = "custom_${UUID.randomUUID().toString().take(6)}"
+                            val newId = UUID.randomUUID().toString()
                             val newConfig = TtsProviderConfig(
                                 id = newId,
                                 type = ProviderType.MIMO,
-                                name = "新建 AI 音色配置",
-                                enabled = true,
+                                name = "新建 AI 语音模型",
                                 baseUrl = "https://api.xiaomimimo.com/v1/chat/completions",
                                 modelName = "mimo-v2.5-tts",
                                 voiceId = "茉莉"
@@ -496,6 +572,29 @@ fun HomeScreen(
                         }
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "新建引擎", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+
+            if (isReorderMode || draggingProviderId != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.DragHandle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (draggingProviderId != null) "正在悬浮拖拽调整位置，上下移动手指即可换位..." else "长按任意卡片或按住右侧手柄 ≡ 即可上下拖动自由排序",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 }
             }
@@ -547,6 +646,23 @@ fun HomeScreen(
                     isActive = provider.id == settings.activeProviderId,
                     latencyMs = latencyMap[provider.id],
                     isReorderMode = isReorderMode,
+                    isDragging = draggingProviderId == provider.id,
+                    dragOffsetY = if (draggingProviderId == provider.id) dragOffsetY else 0f,
+                    onDragStart = {
+                        draggingProviderId = provider.id
+                        dragOffsetY = 0f
+                    },
+                    onDrag = { delta ->
+                        handleItemDrag(provider.id, delta)
+                    },
+                    onDragEnd = {
+                        draggingProviderId = null
+                        dragOffsetY = 0f
+                    },
+                    onDragCancel = {
+                        draggingProviderId = null
+                        dragOffsetY = 0f
+                    },
                     onSelect = {
                         configDataStore.setActiveProviderId(provider.id)
                     },

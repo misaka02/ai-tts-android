@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.zIndex
 import kotlin.math.roundToInt
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -214,6 +217,12 @@ fun ProviderCard(
     isActive: Boolean,
     latencyMs: Long? = null,
     isReorderMode: Boolean = false,
+    isDragging: Boolean = false,
+    dragOffsetY: Float = 0f,
+    onDragStart: () -> Unit = {},
+    onDrag: (Float) -> Unit = {},
+    onDragEnd: () -> Unit = {},
+    onDragCancel: () -> Unit = {},
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     onTest: () -> Unit,
@@ -229,16 +238,43 @@ fun ProviderCard(
     val primaryColor = MaterialTheme.colorScheme.primary
     val haptic = LocalHapticFeedback.current
 
-    var dragOffsetY by remember { mutableFloatStateOf(0f) }
-
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
-            .offset { IntOffset(0, dragOffsetY.roundToInt()) },
+            .zIndex(if (isDragging) 10f else 1f)
+            .offset { IntOffset(0, if (isDragging) dragOffsetY.roundToInt() else 0) }
+            .shadow(if (isDragging) 12.dp else 1.dp, CardCornerShape)
+            .scale(if (isDragging) 1.025f else 1f)
+            .pointerInput(provider.id, isReorderMode) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onDragStart()
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount.y)
+                    },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragCancel() }
+                )
+            },
         shape = CardCornerShape,
-        color = if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f) else MaterialTheme.colorScheme.surface,
-        border = if (isActive) BorderStroke(1.5.dp, primaryColor) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        color = if (isDragging) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        } else if (isActive) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        border = if (isDragging) {
+            BorderStroke(2.dp, primaryColor)
+        } else if (isActive) {
+            BorderStroke(1.5.dp, primaryColor)
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        },
         onClick = onSelect
     ) {
         Row(
@@ -260,7 +296,7 @@ fun ProviderCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isReorderMode) {
-                    // 排序模式：触控拖拽手柄
+                    // 排序模式：触控拖拽手柄（支持瞬时拖拽无需等待长按）
                     Box(
                         modifier = Modifier
                             .size(38.dp)
@@ -268,23 +304,14 @@ fun ProviderCard(
                                 detectVerticalDragGestures(
                                     onDragStart = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        dragOffsetY = 0f
+                                        onDragStart()
                                     },
                                     onVerticalDrag = { change, dragAmount ->
                                         change.consume()
-                                        dragOffsetY += dragAmount
-                                        if (dragOffsetY < -45f) {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            onMoveUp()
-                                            dragOffsetY = 0f
-                                        } else if (dragOffsetY > 45f) {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            onMoveDown()
-                                            dragOffsetY = 0f
-                                        }
+                                        onDrag(dragAmount)
                                     },
-                                    onDragEnd = { dragOffsetY = 0f },
-                                    onDragCancel = { dragOffsetY = 0f }
+                                    onDragEnd = { onDragEnd() },
+                                    onDragCancel = { onDragCancel() }
                                 )
                             },
                         contentAlignment = Alignment.Center

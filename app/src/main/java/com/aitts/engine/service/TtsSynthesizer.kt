@@ -113,21 +113,34 @@ class TtsSynthesizer(private val context: Context) {
         val sessionCache = ConcurrentHashMap<Int, Deferred<Result<ByteArray>>>()
 
         fun getConfigForSegment(segment: SentenceSegment): TtsProviderConfig {
-            if (!mergedConfig.isDualRoleEnabled) return mergedConfig
-            return when (segment.role) {
-                SegmentRole.FEMALE_DIALOGUE -> {
-                    val femaleVoice = mergedConfig.femaleVoiceId.ifBlank { mergedConfig.dialogueVoiceId }
-                    if (femaleVoice.isNotBlank()) mergedConfig.copy(voiceId = femaleVoice) else mergedConfig
+            var cfg = if (!mergedConfig.isDualRoleEnabled) {
+                mergedConfig
+            } else {
+                when (segment.role) {
+                    SegmentRole.FEMALE_DIALOGUE -> {
+                        val femaleVoice = mergedConfig.femaleVoiceId.ifBlank { mergedConfig.dialogueVoiceId }
+                        if (femaleVoice.isNotBlank()) mergedConfig.copy(voiceId = femaleVoice) else mergedConfig
+                    }
+                    SegmentRole.MALE_DIALOGUE -> {
+                        val maleVoice = mergedConfig.maleVoiceId.ifBlank { mergedConfig.dialogueVoiceId }
+                        if (maleVoice.isNotBlank()) mergedConfig.copy(voiceId = maleVoice) else mergedConfig
+                    }
+                    SegmentRole.DIALOGUE -> {
+                        if (mergedConfig.dialogueVoiceId.isNotBlank()) mergedConfig.copy(voiceId = mergedConfig.dialogueVoiceId) else mergedConfig
+                    }
+                    SegmentRole.NARRATOR -> mergedConfig
                 }
-                SegmentRole.MALE_DIALOGUE -> {
-                    val maleVoice = mergedConfig.maleVoiceId.ifBlank { mergedConfig.dialogueVoiceId }
-                    if (maleVoice.isNotBlank()) mergedConfig.copy(voiceId = maleVoice) else mergedConfig
-                }
-                SegmentRole.DIALOGUE -> {
-                    if (mergedConfig.dialogueVoiceId.isNotBlank()) mergedConfig.copy(voiceId = mergedConfig.dialogueVoiceId) else mergedConfig
-                }
-                SegmentRole.NARRATOR -> mergedConfig
             }
+
+            // 注入大模型智能情感语气导演指令
+            if (settings.isEmotionProsodyEnabled && segment.emotion.promptInstruction.isNotBlank()) {
+                val base = cfg.promptInstruction.trim()
+                val emotionPart = segment.emotion.promptInstruction
+                val blended = if (base.isNotBlank()) "$base $emotionPart" else emotionPart
+                cfg = cfg.copy(promptInstruction = blended)
+            }
+
+            return cfg
         }
 
         try {

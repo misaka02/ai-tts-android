@@ -42,15 +42,17 @@ object SentenceSplitter {
         var inQuote = false
         var quoteStartChar = ' '
         var currentDialogueRole = SegmentRole.DIALOGUE
+        var currentDialogueEmotion = EmotionDetector.EmotionType.NEUTRAL
+        var lastNarratorText = ""
         val currentBlock = StringBuilder()
 
         // 1. 第一阶段：按引号边界拆分为基础的旁白块与对话块
         for (c in trimmed) {
             if (isOpeningQuote(c) && !inQuote) {
                 if (currentBlock.isNotEmpty()) {
-                    val narratorText = currentBlock.toString().trim()
-                    currentDialogueRole = detectSpeakerRole(narratorText)
-                    rawBlocks.add(SentenceSegment(narratorText, SegmentRole.NARRATOR))
+                    lastNarratorText = currentBlock.toString().trim()
+                    currentDialogueRole = detectSpeakerRole(lastNarratorText)
+                    rawBlocks.add(SentenceSegment(lastNarratorText, SegmentRole.NARRATOR, EmotionDetector.EmotionType.NEUTRAL))
                     currentBlock.clear()
                 } else {
                     currentDialogueRole = SegmentRole.DIALOGUE
@@ -60,7 +62,9 @@ object SentenceSplitter {
                 currentBlock.append(c)
             } else if (isMatchingClosingQuote(quoteStartChar, c) && inQuote) {
                 currentBlock.append(c)
-                rawBlocks.add(SentenceSegment(currentBlock.toString().trim(), currentDialogueRole))
+                val dialogText = currentBlock.toString().trim()
+                currentDialogueEmotion = EmotionDetector.detectEmotion(lastNarratorText, dialogText)
+                rawBlocks.add(SentenceSegment(dialogText, currentDialogueRole, currentDialogueEmotion))
                 currentBlock.clear()
                 inQuote = false
             } else {
@@ -69,8 +73,10 @@ object SentenceSplitter {
         }
 
         if (currentBlock.isNotEmpty()) {
+            val text = currentBlock.toString().trim()
             val role = if (inQuote) currentDialogueRole else SegmentRole.NARRATOR
-            rawBlocks.add(SentenceSegment(currentBlock.toString().trim(), role))
+            val emotion = if (inQuote) EmotionDetector.detectEmotion(lastNarratorText, text) else EmotionDetector.EmotionType.NEUTRAL
+            rawBlocks.add(SentenceSegment(text, role, emotion))
         }
 
         // 2. 第二阶段：对每个块内部执行标点短句细分与长度平滑控制
@@ -86,7 +92,7 @@ object SentenceSplitter {
             val sentences = splitBlockIntoSentences(block.text, effectiveMaxLength)
             for (s in sentences) {
                 if (s.isNotBlank()) {
-                    finalResult.add(SentenceSegment(s, block.role))
+                    finalResult.add(SentenceSegment(s, block.role, block.emotion))
                 }
             }
         }
