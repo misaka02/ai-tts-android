@@ -83,7 +83,9 @@ data class VoiceModel(
 @Serializable
 enum class SegmentRole {
     NARRATOR, // 旁白叙述
-    DIALOGUE  // 引号内角色对话
+    DIALOGUE, // 通用角色对话
+    MALE_DIALOGUE, // 男声角色对白
+    FEMALE_DIALOGUE // 女声角色对白
 }
 
 /**
@@ -119,7 +121,28 @@ data class TtsProviderConfig(
     val customHeadersJson: String = "{}",
     val customPayloadTemplate: String = "{\n  \"model\": \"\${model}\",\n  \"input\": \"\${text}\",\n  \"voice\": \"\${voice}\",\n  \"speed\": \${speed}\n}",
     val responseAudioPath: String = "", // 为空表示整个 body 为二进制流，若为 json 路径如 "data.audio_base64" 则自动 Base64 解码
-    val promptInstruction: String = "" // 大模型导演指令 / 提示词 (用于 MiMo、CosyVoice 等大模型调整情感、语速、音调及语境)
+    val promptInstruction: String = "", // 大模型导演指令 / 提示词 (用于 MiMo、CosyVoice 等大模型调整情感、语速、音调及语境)
+    val fallbackProviderId: String? = null, // 专属备用引擎（当主力接口遇到 429/503/超时时无缝自动降级）
+    val maleVoiceId: String = "", // 多角色剧场：男主专属音色
+    val femaleVoiceId: String = "", // 多角色剧场：女主专属音色
+    val elderVoiceId: String = "", // 多角色剧场：长者/反派音色
+    val tags: List<String> = emptyList() // 自定义标签分类（如 "玄幻男主", "知性女主", "悬疑解说" 等）
+)
+
+/**
+ * 历史朗读记录与分析看板模型
+ */
+@Immutable
+@Serializable
+data class SpeechHistoryItem(
+    val id: String,
+    val text: String,
+    val providerName: String,
+    val voiceId: String,
+    val costMs: Long,
+    val characterCount: Int,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isFallbackUsed: Boolean = false
 )
 
 /**
@@ -162,11 +185,15 @@ data class GlobalSettings(
     val appThemeMode: String = "SYSTEM", // SYSTEM / DARK / LIGHT
     val appThemePalette: String = "OCEAN_AZURE", // OCEAN_AZURE, EMERALD_JADE, TITANIUM_SLATE, SUNSET_AMBER, MORANDI_GRAPHITE
     val sentencePauseMs: Int = 200, // 标点分句后注入静音停顿毫秒数，大幅提升小说听感自然度
-    val fallbackProviderId: String = "edge_tts_default", // 主引擎异常时自动故障转移备用引擎
+    val fallbackProviderId: String = "edge_tts_default", // 主引擎异常时全局自动故障转移备用引擎
     val autoFallbackOnFailure: Boolean = true, // 启用自动故障降级
     val hapticFeedbackEnabled: Boolean = true, // 触觉震动反馈开关
     val playbackNotificationEnabled: Boolean = true, // 启用后台朗读通知栏状态条与停止控制
-    val ultraLowLatencyMode: Boolean = true // 极速首字直出模式 (Sub-150ms 极低延迟响应)
+    val ultraLowLatencyMode: Boolean = true, // 极速首字直出模式 (Sub-150ms 极低延迟响应)
+    val isAcronymNormalizationEnabled: Boolean = true, // 智能英文缩写与专有名词发音规范化 (AI/CPU/WiFi/APP等)
+    val voiceClarityBoostEnabled: Boolean = false, // 人声清晰度增强滤镜 (Clear Voice EQ)
+    val loudnessGainFactor: Float = 1.0f, // 软件级响度增益与动态均衡 (1.0x ~ 2.0x)
+    val sleepTimerMinutes: Int = 0 // 听书睡眠定时器 (分钟，0为关闭)
 )
 
 /**

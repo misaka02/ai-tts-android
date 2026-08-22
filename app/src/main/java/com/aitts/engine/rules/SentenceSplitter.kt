@@ -41,21 +41,26 @@ object SentenceSplitter {
         val rawBlocks = mutableListOf<SentenceSegment>()
         var inQuote = false
         var quoteStartChar = ' '
+        var currentDialogueRole = SegmentRole.DIALOGUE
         val currentBlock = StringBuilder()
 
         // 1. 第一阶段：按引号边界拆分为基础的旁白块与对话块
         for (c in trimmed) {
             if (isOpeningQuote(c) && !inQuote) {
                 if (currentBlock.isNotEmpty()) {
-                    rawBlocks.add(SentenceSegment(currentBlock.toString().trim(), SegmentRole.NARRATOR))
+                    val narratorText = currentBlock.toString().trim()
+                    currentDialogueRole = detectSpeakerRole(narratorText)
+                    rawBlocks.add(SentenceSegment(narratorText, SegmentRole.NARRATOR))
                     currentBlock.clear()
+                } else {
+                    currentDialogueRole = SegmentRole.DIALOGUE
                 }
                 inQuote = true
                 quoteStartChar = c
                 currentBlock.append(c)
             } else if (isMatchingClosingQuote(quoteStartChar, c) && inQuote) {
                 currentBlock.append(c)
-                rawBlocks.add(SentenceSegment(currentBlock.toString().trim(), SegmentRole.DIALOGUE))
+                rawBlocks.add(SentenceSegment(currentBlock.toString().trim(), currentDialogueRole))
                 currentBlock.clear()
                 inQuote = false
             } else {
@@ -64,7 +69,7 @@ object SentenceSplitter {
         }
 
         if (currentBlock.isNotEmpty()) {
-            val role = if (inQuote) SegmentRole.DIALOGUE else SegmentRole.NARRATOR
+            val role = if (inQuote) currentDialogueRole else SegmentRole.NARRATOR
             rawBlocks.add(SentenceSegment(currentBlock.toString().trim(), role))
         }
 
@@ -87,6 +92,20 @@ object SentenceSplitter {
         }
 
         return finalResult
+    }
+
+    private val FEMALE_KEYWORDS = listOf("她", "少女", "姑娘", "女子", "师妹", "师姐", "娘亲", "夫人", "小姐", "公主", "丫头", "仙子", "神女", "母后", "美妇", "皇后", "女帝", "妹妹", "姐姐", "老妇", "大娘")
+    private val MALE_KEYWORDS = listOf("他", "少年", "青年", "男子", "师兄", "师弟", "老者", "前辈", "长老", "宗主", "皇帝", "陛下", "兄弟", "父亲", "爹", "掌门", "老头", "大哥", "弟弟", "老汉", "冷笑", "喝道", "哼道")
+
+    private fun detectSpeakerRole(precedingText: String): SegmentRole {
+        val tail = precedingText.takeLast(16)
+        if (FEMALE_KEYWORDS.any { tail.contains(it) }) {
+            return SegmentRole.FEMALE_DIALOGUE
+        }
+        if (MALE_KEYWORDS.any { tail.contains(it) }) {
+            return SegmentRole.MALE_DIALOGUE
+        }
+        return SegmentRole.DIALOGUE
     }
 
     private fun splitBlockIntoSentences(text: String, maxLength: Int): List<String> {

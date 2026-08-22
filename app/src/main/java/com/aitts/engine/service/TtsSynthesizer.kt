@@ -79,17 +79,23 @@ class TtsSynthesizer(private val context: Context) {
 
         // 1. 文本预处理与网页/Markdown/多音字清洗
         val preprocessedText = TextPreprocessor.process(rawText, rules, settings.isNumberNormalizationEnabled)
-        if (preprocessedText.isBlank()) {
+        val finalInputText = if (settings.isAcronymNormalizationEnabled) {
+            com.aitts.engine.rules.AcronymNormalizer.normalize(preprocessedText)
+        } else {
+            preprocessedText
+        }
+
+        if (finalInputText.isBlank()) {
             callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
             callback.done()
             return@withContext
         }
 
-        // 2. 智能多角色长句切分 (识别对话与旁白，支持极速首字秒开)
+        // 2. 智能多角色长句切分 (识别对话与旁白、男女声，支持极速首字秒开)
         val segments: List<SentenceSegment> = if (settings.isSentenceSplittingEnabled) {
-            SentenceSplitter.splitTextWithRoles(preprocessedText, settings.maxSentenceLength, settings.ultraLowLatencyMode)
+            SentenceSplitter.splitTextWithRoles(finalInputText, settings.maxSentenceLength, settings.ultraLowLatencyMode)
         } else {
-            listOf(SentenceSegment(preprocessedText, SegmentRole.NARRATOR))
+            listOf(SentenceSegment(finalInputText, SegmentRole.NARRATOR))
         }
 
         if (segments.isEmpty()) {
@@ -107,10 +113,20 @@ class TtsSynthesizer(private val context: Context) {
         val sessionCache = ConcurrentHashMap<Int, Deferred<Result<ByteArray>>>()
 
         fun getConfigForSegment(segment: SentenceSegment): TtsProviderConfig {
-            return if (mergedConfig.isDualRoleEnabled && segment.role == SegmentRole.DIALOGUE && mergedConfig.dialogueVoiceId.isNotBlank()) {
-                mergedConfig.copy(voiceId = mergedConfig.dialogueVoiceId)
-            } else {
-                mergedConfig
+            if (!mergedConfig.isDualRoleEnabled) return mergedConfig
+            return when (segment.role) {
+                SegmentRole.FEMALE_DIALOGUE -> {
+                    val femaleVoice = mergedConfig.femaleVoiceId.ifBlank { mergedConfig.dialogueVoiceId }
+                    if (femaleVoice.isNotBlank()) mergedConfig.copy(voiceId = femaleVoice) else mergedConfig
+                }
+                SegmentRole.MALE_DIALOGUE -> {
+                    val maleVoice = mergedConfig.maleVoiceId.ifBlank { mergedConfig.dialogueVoiceId }
+                    if (maleVoice.isNotBlank()) mergedConfig.copy(voiceId = maleVoice) else mergedConfig
+                }
+                SegmentRole.DIALOGUE -> {
+                    if (mergedConfig.dialogueVoiceId.isNotBlank()) mergedConfig.copy(voiceId = mergedConfig.dialogueVoiceId) else mergedConfig
+                }
+                SegmentRole.NARRATOR -> mergedConfig
             }
         }
 
@@ -175,12 +191,14 @@ class TtsSynthesizer(private val context: Context) {
                 val decoded = AudioDecoder.decodeToPcm(rawAudioBytes, mergedConfig.sampleRate)
                 if (decoded.pcmData.isEmpty()) continue
 
-                // 应用音量增益
-                val finalPcm = if (mergedConfig.volume != 1.0f) {
-                    applyPcmVolume(decoded.pcmData, mergedConfig.volume)
-                } else {
-                    decoded.pcmData
-                }
+                // 软件级人声增强与睡眠定时音量淡出
+                val sleepFadeFactor = SleepTimerManager.getInstance(context).getFadeVolumeFactor()
+                val effectiveGain = (mergedConfig.volume * settings.loudnessGainFactor * sleepFadeFactor).coerceIn(0.0f, 2.5f)
+                val finalPcm = com.aitts.engine.audio.AudioEnhancer.processPcm(
+                    pcmData = decoded.pcmData,
+                    enableClarity = settings.voiceClarityBoostEnabled,
+                    gainFactor = effectiveGain
+                )
 
                 if (!callbackInitialized) {
                     val startStatus = callback.start(
@@ -254,10 +272,23 @@ class TtsSynthesizer(private val context: Context) {
         config: TtsProviderConfig,
         settings: GlobalSettings
     ): Result<ByteArray> {
+        val startMs = System.currentTimeMillis()
+
         // 1. 尝试从本地缓存读取
         if (settings.isAudioCacheEnabled) {
             val cachedData = audioCacheManager.getAudio(text, config)
             if (cachedData != null && cachedData.isNotEmpty()) {
+                val cost = System.currentTimeMillis() - startMs
+                configDataStore.recordSpeechHistory(
+                    com.aitts.engine.data.SpeechHistoryItem(
+                        id = java.util.UUID.randomUUID().toString().take(8),
+                        text = text.take(60),
+                        providerName = "${config.name} (缓存)",
+                        voiceId = config.voiceId.ifBlank { "默认" },
+                        costMs = cost,
+                        characterCount = text.length
+                    )
+                )
                 return Result.success(cachedData)
             }
         }
@@ -275,6 +306,17 @@ class TtsSynthesizer(private val context: Context) {
                 if (audioBytes.isNotEmpty() && settings.isAudioCacheEnabled) {
                     audioCacheManager.saveAudio(text, config, audioBytes)
                 }
+                val cost = System.currentTimeMillis() - startMs
+                configDataStore.recordSpeechHistory(
+                    com.aitts.engine.data.SpeechHistoryItem(
+                        id = java.util.UUID.randomUUID().toString().take(8),
+                        text = text.take(60),
+                        providerName = config.name,
+                        voiceId = config.voiceId.ifBlank { "默认" },
+                        costMs = cost,
+                        characterCount = text.length
+                    )
+                )
                 return Result.success(audioBytes)
             } else {
                 lastError = result.exceptionOrNull()
@@ -286,13 +328,27 @@ class TtsSynthesizer(private val context: Context) {
 
         // 3. 智能故障转移（若主引擎超额或网络异常，无缝降级备用引擎）
         if (settings.autoFallbackOnFailure) {
-            val fallback = configDataStore.providersFlow.value.find { it.id == settings.fallbackProviderId }
-                ?: configDataStore.providersFlow.value.firstOrNull { it.type == com.aitts.engine.data.ProviderType.EDGE_TTS }
-            if (fallback != null && fallback.id != config.id) {
+            val candidateId = config.fallbackProviderId?.takeIf { it.isNotBlank() } ?: settings.fallbackProviderId
+            val fallback = configDataStore.providersFlow.value.find { it.id == candidateId && it.id != config.id }
+                ?: configDataStore.providersFlow.value.firstOrNull { it.type == com.aitts.engine.data.ProviderType.EDGE_TTS && it.id != config.id }
+
+            if (fallback != null) {
                 configDataStore.log("⚠️ 主引擎 [${config.name}] 失败，自动无缝降级到备用引擎 [${fallback.name}]")
                 val fallbackRes = providerManager.synthesize(text, fallback)
                 if (fallbackRes.isSuccess) {
                     val bytes = fallbackRes.getOrNull() ?: ByteArray(0)
+                    val cost = System.currentTimeMillis() - startMs
+                    configDataStore.recordSpeechHistory(
+                        com.aitts.engine.data.SpeechHistoryItem(
+                            id = java.util.UUID.randomUUID().toString().take(8),
+                            text = text.take(60),
+                            providerName = "${fallback.name} (降级兜底)",
+                            voiceId = fallback.voiceId.ifBlank { "默认" },
+                            costMs = cost,
+                            characterCount = text.length,
+                            isFallbackUsed = true
+                        )
+                    )
                     return Result.success(bytes)
                 }
             }

@@ -48,7 +48,7 @@ class SentenceSplitterTest {
         assertEquals(com.aitts.engine.data.SegmentRole.NARRATOR, segments[0].role)
 
         assertEquals("“我们必须立刻出发！”", segments[1].text)
-        assertEquals(com.aitts.engine.data.SegmentRole.DIALOGUE, segments[1].role)
+        assertEquals(com.aitts.engine.data.SegmentRole.MALE_DIALOGUE, segments[1].role)
 
         assertEquals("随后快步向前走去。", segments[2].text)
         assertEquals(com.aitts.engine.data.SegmentRole.NARRATOR, segments[2].role)

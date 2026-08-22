@@ -289,6 +289,86 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                             }
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("英文缩写与专有名词发音规整", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "自动规范识别 AI、WiFi、CPU、NPC、BOSS、3D、4K 等缩写，字正腔圆朗读",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.isAcronymNormalizationEnabled,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(isAcronymNormalizationEnabled = it))
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // 人声清晰度与响度动态增强
+        item(contentType = "audio_enhancer_section") {
+            SectionHeader(
+                title = "人声清晰度增强与响度均衡 (Clear Voice)",
+                subtitle = "软件级 16-bit PCM 预加重滤波与防爆音动态范围压缩"
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("启用人声清晰度增强 (Voice Clarity Boost)", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "高通预加重滤波，削弱手机扬声器低频发闷，大幅提升齿音和人声通透度",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.voiceClarityBoostEnabled,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(voiceClarityBoostEnabled = it))
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "全局响度增益: ${String.format(java.util.Locale.US, "%.1f", settings.loudnessGainFactor)}x",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "内置 Soft-clipping 软饱和压缩算法，提升弱音音量且极大音量时不破音。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Slider(
+                        value = settings.loudnessGainFactor,
+                        onValueChange = {
+                            configDataStore.updateSettings(settings.copy(loudnessGainFactor = it))
+                        },
+                        valueRange = 0.8f..2.2f,
+                        steps = 14
+                    )
                 }
             }
         }

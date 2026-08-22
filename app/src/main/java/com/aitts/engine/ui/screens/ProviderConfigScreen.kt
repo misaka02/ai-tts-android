@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
@@ -43,6 +44,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -121,6 +123,14 @@ fun ProviderConfigScreen(
     var isFetchingVoices by remember { mutableStateOf(false) }
     var testMessage by remember { mutableStateOf<String?>(null) }
 
+    var fallbackProviderId by remember { mutableStateOf(initialConfig.fallbackProviderId ?: "") }
+    var maleVoiceId by remember { mutableStateOf(initialConfig.maleVoiceId) }
+    var femaleVoiceId by remember { mutableStateOf(initialConfig.femaleVoiceId) }
+    var tags by remember { mutableStateOf(initialConfig.tags) }
+    var newTagInput by remember { mutableStateOf("") }
+
+    val allProviders by configDataStore.providersFlow.collectAsState()
+
     var availableVoices by remember { mutableStateOf<List<VoiceModel>>(emptyList()) }
     var showVoiceDialog by remember { mutableStateOf(false) }
     var voiceSearchQuery by remember { mutableStateOf("") }
@@ -143,7 +153,11 @@ fun ProviderConfigScreen(
             sampleRate = sampleRate.toIntOrNull() ?: 24000,
             audioFormat = audioFormat,
             customHeadersJson = customHeadersJson,
-            customPayloadTemplate = customPayloadTemplate
+            customPayloadTemplate = customPayloadTemplate,
+            fallbackProviderId = fallbackProviderId.ifBlank { null },
+            maleVoiceId = maleVoiceId,
+            femaleVoiceId = femaleVoiceId,
+            tags = tags
         )
     }
 
@@ -743,6 +757,25 @@ fun ProviderConfigScreen(
                                 }
                             }
 
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = maleVoiceId,
+                                    onValueChange = { maleVoiceId = it },
+                                    label = { Text("男主音色 (可选)") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = femaleVoiceId,
+                                    onValueChange = { femaleVoiceId = it },
+                                    label = { Text("女主音色 (可选)") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
                             Spacer(modifier = Modifier.height(8.dp))
                             OutlinedButton(
                                 onClick = {
@@ -788,6 +821,123 @@ fun ProviderConfigScreen(
                                 Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("🎭 试听小说剧场效果（旁白+对话双音色）", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 角色标签与专属备用降级专区
+            item(contentType = "tags_and_fallback") {
+                SectionHeader(title = "角色标签与专属备用引擎 (Tags & Fallback)")
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("自定义分类标签：", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            tags.forEach { tag ->
+                                InputChip(
+                                    selected = true,
+                                    onClick = { tags = tags.filter { it != tag } },
+                                    label = { Text(tag, fontSize = 11.sp) },
+                                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = "删除", modifier = Modifier.size(14.dp)) }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = newTagInput,
+                                onValueChange = { newTagInput = it },
+                                label = { Text("新建标签") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            Button(
+                                onClick = {
+                                    if (newTagInput.isNotBlank() && !tags.contains(newTagInput.trim())) {
+                                        tags = tags + newTagInput.trim()
+                                        newTagInput = ""
+                                    }
+                                }
+                            ) {
+                                Text("添加")
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("快捷预设标签：", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf("玄幻男主", "治愈女主", "悬疑解说", "冷酷反派", "热血少年", "搞笑幽默", "知性主播").forEach { presetTag ->
+                                AssistChip(
+                                    onClick = {
+                                        if (!tags.contains(presetTag)) {
+                                            tags = tags + presetTag
+                                        }
+                                    },
+                                    label = { Text(presetTag, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("专属备用降级引擎 (Fallback)：", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("当此引擎遇到 API 429 限流、503 超载或网络中断时，将自动秒级切换至备用引擎", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        var isFallbackMenuExpanded by remember { mutableStateOf(false) }
+                        val fallbackName = allProviders.find { it.id == fallbackProviderId }?.name ?: "跟随全局默认备用"
+
+                        ExposedDropdownMenuBox(
+                            expanded = isFallbackMenuExpanded,
+                            onExpandedChange = { isFallbackMenuExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = fallbackName,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("故障转移备用引擎") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isFallbackMenuExpanded) },
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isFallbackMenuExpanded,
+                                onDismissRequest = { isFallbackMenuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("跟随全局默认备用") },
+                                    onClick = {
+                                        fallbackProviderId = ""
+                                        isFallbackMenuExpanded = false
+                                    }
+                                )
+                                allProviders.filter { it.id != initialConfig.id }.forEach { p ->
+                                    DropdownMenuItem(
+                                        text = { Text("${p.name} (${p.type.displayName})") },
+                                        onClick = {
+                                            fallbackProviderId = p.id
+                                            isFallbackMenuExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

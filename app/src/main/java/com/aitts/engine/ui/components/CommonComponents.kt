@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,11 +12,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
@@ -225,10 +229,13 @@ fun ProviderCard(
     val primaryColor = MaterialTheme.colorScheme.primary
     val haptic = LocalHapticFeedback.current
 
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp),
+            .padding(vertical = 3.dp)
+            .offset { IntOffset(0, dragOffsetY.roundToInt()) },
         shape = CardCornerShape,
         color = if (isActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f) else MaterialTheme.colorScheme.surface,
         border = if (isActive) BorderStroke(1.5.dp, primaryColor) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
@@ -253,41 +260,40 @@ fun ProviderCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isReorderMode) {
-                    var dragAccumulatedY by remember { mutableFloatStateOf(0f) }
-                    // 排序模式：显示拖动手柄 + 快捷上下置顶按键
+                    // 排序模式：触控拖拽手柄
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(38.dp)
                             .pointerInput(provider.id) {
-                                detectDragGesturesAfterLongPress(
+                                detectVerticalDragGestures(
                                     onDragStart = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        dragAccumulatedY = 0f
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        dragOffsetY = 0f
                                     },
-                                    onDrag = { change, dragAmount ->
+                                    onVerticalDrag = { change, dragAmount ->
                                         change.consume()
-                                        dragAccumulatedY += dragAmount.y
-                                        if (dragAccumulatedY < -40f) {
+                                        dragOffsetY += dragAmount
+                                        if (dragOffsetY < -45f) {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             onMoveUp()
-                                            dragAccumulatedY = 0f
-                                        } else if (dragAccumulatedY > 40f) {
+                                            dragOffsetY = 0f
+                                        } else if (dragOffsetY > 45f) {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             onMoveDown()
-                                            dragAccumulatedY = 0f
+                                            dragOffsetY = 0f
                                         }
                                     },
-                                    onDragEnd = { dragAccumulatedY = 0f },
-                                    onDragCancel = { dragAccumulatedY = 0f }
+                                    onDragEnd = { dragOffsetY = 0f },
+                                    onDragCancel = { dragOffsetY = 0f }
                                 )
                             },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.DragHandle,
-                            contentDescription = "长按拖拽排序",
+                            contentDescription = "按住上下拖拽排序",
                             tint = primaryColor,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 } else {
@@ -351,8 +357,23 @@ fun ProviderCard(
                                     .padding(horizontal = 4.dp, vertical = 1.5.dp)
                             ) {
                                 Text(
-                                    text = "双音色",
+                                    text = "多角色剧场",
                                     color = primaryColor,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        provider.tags.take(2).forEach { tag ->
+                            Box(
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f), TagCornerShape)
+                                    .padding(horizontal = 4.dp, vertical = 1.5.dp)
+                            ) {
+                                Text(
+                                    text = tag,
+                                    color = MaterialTheme.colorScheme.secondary,
                                     fontSize = 9.5.sp,
                                     fontWeight = FontWeight.Bold
                                 )

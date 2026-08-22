@@ -27,14 +27,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import com.aitts.engine.ui.theme.SuccessGreen
+import com.aitts.engine.ui.theme.WarningOrange
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Timer
+import com.aitts.engine.service.SleepTimerManager
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -103,6 +109,11 @@ fun HomeScreen(
 
     val settings by configDataStore.settingsFlow.collectAsState()
     val providers by configDataStore.providersFlow.collectAsState()
+    val historyItems by configDataStore.historyFlow.collectAsState()
+
+    val sleepTimerManager = remember { SleepTimerManager.getInstance(context) }
+    val sleepRemainingSec by sleepTimerManager.remainingSecondsFlow.collectAsState()
+    val isSleepTimerActive by sleepTimerManager.isActiveFlow.collectAsState()
 
     var testText by remember { mutableStateOf("欢迎使用 AI TTS 系统语音引擎！当前正在通过智能大模型为您朗读文本。") }
     var isSynthesizing by remember { mutableStateOf(false) }
@@ -116,6 +127,8 @@ fun HomeScreen(
     val latencyMap = remember { mutableStateMapOf<String, Long>() }
     var showImportTokenDialog by remember { mutableStateOf(false) }
     var importTokenText by remember { mutableStateOf("") }
+    var showSleepTimerDialog by remember { mutableStateOf(false) }
+    var showHistoryDialog by remember { mutableStateOf(false) }
 
     var permissionState by remember {
         mutableStateOf(PermissionManager.checkPermissions(context))
@@ -178,44 +191,49 @@ fun HomeScreen(
     fun probeAllLatencies() {
         if (isProbingSpeed) return
         isProbingSpeed = true
+        latencyMap.clear()
+
         scope.launch {
-            Toast.makeText(context, "正在并发测试各引擎网络延迟...", Toast.LENGTH_SHORT).show()
-            val tasks = providers.map { provider ->
-                async {
+            for (provider in providers) {
+                try {
                     val start = System.currentTimeMillis()
-                    val result = TtsProviderManager.getInstance().synthesize("测试", provider)
-                    val duration = System.currentTimeMillis() - start
-                    if (result.isSuccess) {
-                        provider.id to duration
+                    val res = TtsProviderManager.getInstance().synthesize("测试", provider)
+                    val cost = System.currentTimeMillis() - start
+                    if (res.isSuccess) {
+                        latencyMap[provider.id] = cost
                     } else {
-                        provider.id to -1L
+                        latencyMap[provider.id] = 9999L
                     }
-                }
-            }
-            val results = tasks.awaitAll()
-            results.forEach { (id, duration) ->
-                if (duration > 0) {
-                    latencyMap[id] = duration
+                } catch (e: Exception) {
+                    latencyMap[provider.id] = 9999L
                 }
             }
             isProbingSpeed = false
-            Toast.makeText(context, "网络延迟探测完成！", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // 动态标签集合（内置标签 + 自定义标签）
+    val dynamicTags = remember(providers) {
+        (listOf("全部", "官方免Key", "小米MiMo", "微软Edge", "Google", "已启用") + providers.flatMap { it.tags }).distinct()
     }
 
     val filteredProviders = remember(providers, searchQuery, selectedFilterTag) {
         providers.filter { provider ->
-            val matchesSearch = provider.name.contains(searchQuery, ignoreCase = true) ||
+            val matchesSearch = searchQuery.isBlank() ||
+                    provider.name.contains(searchQuery, ignoreCase = true) ||
                     provider.voiceId.contains(searchQuery, ignoreCase = true) ||
+                    provider.modelName.contains(searchQuery, ignoreCase = true) ||
+                    provider.tags.any { it.contains(searchQuery, ignoreCase = true) } ||
                     provider.type.displayName.contains(searchQuery, ignoreCase = true)
 
             val matchesTag = when (selectedFilterTag) {
+                "全部" -> true
                 "官方免Key" -> !provider.type.requiresApiKey
                 "小米MiMo" -> provider.type == ProviderType.MIMO
                 "微软Edge" -> provider.type == ProviderType.EDGE_TTS
                 "Google" -> provider.type == ProviderType.GEMINI
                 "已启用" -> provider.enabled
-                else -> true
+                else -> provider.tags.contains(selectedFilterTag)
             }
 
             matchesSearch && matchesTag
@@ -393,7 +411,27 @@ fun HomeScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { showSleepTimerDialog = true }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bedtime,
+                            contentDescription = "听书睡眠倒计时",
+                            tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { showHistoryDialog = true }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "朗读历史与统计",
+                            tint = MaterialTheme.colorScheme.outline
+                        )
+                    }
+
                     IconButton(
                         onClick = { isReorderMode = !isReorderMode }
                     ) {
@@ -468,7 +506,7 @@ fun HomeScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("搜索引擎名称 / 音色 / 模型...") },
+                placeholder = { Text("搜索引擎名称 / 音色 / 模型 / 角色标签...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
@@ -476,13 +514,12 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // 快捷分类过滤 Tag 栏
+            // 快捷分类过滤 Tag 栏 (支持动态自定义标签)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                val tags = listOf("全部", "官方免Key", "小米MiMo", "微软Edge", "Google", "已启用")
-                tags.forEach { tag ->
+                dynamicTags.forEach { tag ->
                     FilterChip(
                         selected = selectedFilterTag == tag,
                         onClick = { selectedFilterTag = tag },
@@ -594,6 +631,132 @@ fun HomeScreen(
             dismissButton = {
                 TextButton(onClick = { showImportTokenDialog = false }) {
                     Text("取消")
+                }
+            }
+        )
+    }
+
+    if (showSleepTimerDialog) {
+        AlertDialog(
+            onDismissRequest = { showSleepTimerDialog = false },
+            title = { Text("🌙 听书睡眠倒计时器") },
+            text = {
+                Column {
+                    if (isSleepTimerActive) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("正在倒计时", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    text = "${sleepRemainingSec / 60} 分 ${sleepRemainingSec % 60} 秒",
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedButton(onClick = { sleepTimerManager.stopTimer() }) {
+                                    Text("取消定时")
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
+                    Text("设置定时关闭时长（结束前自动音量淡出并释放资源）：", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(15, 30, 45, 60, 90).forEach { mins ->
+                            Button(
+                                onClick = {
+                                    sleepTimerManager.startTimer(mins)
+                                    Toast.makeText(context, "已设置 ${mins} 分钟后停止朗读", Toast.LENGTH_SHORT).show()
+                                    showSleepTimerDialog = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                            ) {
+                                Text("${mins} 分钟", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSleepTimerDialog = false }) {
+                    Text("关闭")
+                }
+            }
+        )
+    }
+
+    if (showHistoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showHistoryDialog = false },
+            title = { Text("📜 朗读历史与性能看板 (${historyItems.size})") },
+            text = {
+                if (historyItems.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                        Text("暂无朗读历史记录", color = MaterialTheme.colorScheme.outline)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().height(320.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(historyItems, key = { it.id }) { item ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(8.dp).fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(item.text, fontSize = 12.sp, maxLines = 2, fontWeight = FontWeight.SemiBold)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Text("${item.costMs}ms", fontSize = 10.sp, color = if (item.costMs < 500) SuccessGreen else WarningOrange, fontWeight = FontWeight.Bold)
+                                            Text("· ${item.characterCount}字", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                                            Text("· ${item.providerName}", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                                            if (item.isFallbackUsed) {
+                                                Text("⚠️ 降级兜底", fontSize = 10.sp, color = WarningOrange, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            activeProvider?.let { playSpeechWithProvider(it, item.text) }
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = "重播试听", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHistoryDialog = false }) {
+                    Text("关闭")
+                }
+            },
+            dismissButton = {
+                if (historyItems.isNotEmpty()) {
+                    TextButton(onClick = {
+                        configDataStore.clearHistory()
+                        Toast.makeText(context, "已清空朗读历史", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Text("清空历史", color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         )

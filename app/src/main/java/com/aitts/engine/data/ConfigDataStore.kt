@@ -37,6 +37,9 @@ class ConfigDataStore(private val context: Context) {
     private val _rulesFlow = MutableStateFlow(loadRules())
     val rulesFlow: StateFlow<List<ReplacementRule>> = _rulesFlow.asStateFlow()
 
+    private val _historyFlow = MutableStateFlow(loadHistory())
+    val historyFlow: StateFlow<List<SpeechHistoryItem>> = _historyFlow.asStateFlow()
+
     private val _logsFlow = MutableStateFlow<List<String>>(emptyList())
     val logsFlow: StateFlow<List<String>> = _logsFlow.asStateFlow()
 
@@ -52,6 +55,39 @@ class ConfigDataStore(private val context: Context) {
 
     fun clearLogs() {
         _logsFlow.value = emptyList()
+    }
+
+    // --- History ---
+    private fun loadHistory(): List<SpeechHistoryItem> {
+        val str = prefs.getString(KEY_HISTORY, null)
+        return if (!str.isNullOrBlank()) {
+            try {
+                json.decodeFromString<List<SpeechHistoryItem>>(str)
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
+    fun recordSpeechHistory(item: SpeechHistoryItem) {
+        val current = _historyFlow.value.toMutableList()
+        current.add(0, item) // 最新在前
+        if (current.size > 50) {
+            current.removeAt(current.size - 1)
+        }
+        _historyFlow.value = current
+        scope.launch {
+            prefs.edit().putString(KEY_HISTORY, json.encodeToString(current)).apply()
+        }
+    }
+
+    fun clearHistory() {
+        _historyFlow.value = emptyList()
+        scope.launch {
+            prefs.edit().remove(KEY_HISTORY).apply()
+        }
     }
 
     // --- Settings ---
@@ -299,6 +335,7 @@ class ConfigDataStore(private val context: Context) {
         private const val KEY_SETTINGS = "global_settings"
         private const val KEY_PROVIDERS = "tts_providers"
         private const val KEY_RULES = "replacement_rules"
+        private const val KEY_HISTORY = "speech_history"
 
         @Volatile
         private var instance: ConfigDataStore? = null
