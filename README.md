@@ -32,20 +32,29 @@
 
 ---
 
-## ✨ 核心特性矩阵
+## ✨ 核心模型支持
 
-| 模型 / 服务商 | 官方平台与文档 | 核心优势与音色特性 | 鉴权与配置 |
-| :--- | :--- | :--- | :--- |
-| **小米 MiMo** | [小米 MiMo 开放平台](https://platform.xiaomimimo.com/) | **MiMo-V2.5-TTS** 旗舰大模型，支持 Voice Studio 工作室、自建克隆音色与情绪控制 | 需填写 API Key |
-| **微软 Edge TTS** | [Edge-TTS 协议参考](https://github.com/rany2/edge-tts) | 微软神经网络大模型语音，集成 `Sec-MS-GEC` 校验，支持晓晓、云希等 300+ 多国音色 | **完全免费 · 免 Key 直连** |
-| **Google Gemini** | [Google AI Studio](https://ai.google.dev/) | **Gemini 2.0 / Flash 原生 TTS**，原生多模态音频流，内置 Puck, Kore, Fenrir 等音色 | 需填写 API Key |
-| **MiniMax (海螺)** | [MiniMax 开放平台](https://www.minimaxi.com/) | Speech-02 拟真大模型，支持青涩男声、精英青年、霸道总裁、有声书等 16+ 音色 | 需填写 API Key |
-| **火山引擎 / 豆包** | [火山引擎语音大模型](https://www.volcengine.com/product/voice-technology) | 字节跳动 BigTTS 语音大模型，内置爽快思思、灿灿主播、甜美小萱等高拟真音色 | 需填写 API Key |
-| **硅基流动** | [硅基流动 SiliconFlow](https://www.siliconflow.com/) | 极速低延迟 `FunAudioLLM/CosyVoice2` 与 ChatTTS 接入，支持在线动态拉取模型 | 需填写 API Key |
-| **Fish Audio (鱼音)** | [Fish Audio 官网](https://fish.audio/) | 高表现力声音大模型，支持在线动态拉取个人自建声音克隆模型与社区热门音色 | 需填写 API Key |
-| **阶跃星辰** | [阶跃星辰开放平台](https://platform.stepfun.com/) | `stepaudio-2.5-tts` 多模态语境感知大模型 | 需填写 API Key |
-| **OpenAI / 兼容** | [OpenAI Audio API](https://platform.openai.com/docs/guides/text-to-speech) | 标准 OpenAI Audio 格式，支持 `alloy`, `echo`, `fable`, `onyx`, `nova` 等全系音色 | 需填写 API Key |
-| **自定义 HTTP 节点** | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) / [CosyVoice](https://github.com/FunAudioLLM/CosyVoice) | 支持私有化部署的 **GPT-SoVITS**、**CosyVoice-v2**、**F5-TTS**、**VITS** 等本地与局域网节点 | 无需 Key / 填入自建地址 |
+| 推荐模型 | 核心优势与音色特性 | 鉴权配置 |
+| :--- | :--- | :--- |
+| [**微软 Edge TTS**](https://github.com/rany2/edge-tts) | 微软神经网络大模型语音，集成 `Sec-MS-GEC` 校验，支持晓晓、云希等 300+ 多国音色 | **完全免费 · 免 Key 直连** |
+| [**小米 MiMo**](https://platform.xiaomimimo.com/) | **MiMo-V2.5-TTS** 旗舰大模型，支持 Voice Studio 工作室、自建克隆音色与情绪控制 | 需填写 API Key |
+
+<details>
+<summary><b>🔽 点击展开查看其余 8 款支持的大模型与自定义节点（Gemini、MiniMax、豆包、硅基流动等）</b></summary>
+<br/>
+
+| 模型 / 服务商 | 核心优势与音色特性 | 鉴权配置 |
+| :--- | :--- | :--- |
+| [**Google Gemini**](https://ai.google.dev/) | **Gemini 2.0 / Flash 原生 TTS**，原生多模态音频流，内置 Puck, Kore, Fenrir 等音色 | 需填写 API Key |
+| [**MiniMax (海螺)**](https://www.minimaxi.com/) | Speech-02 拟真大模型，支持青涩男声、精英青年、霸道总裁、有声书等 16+ 音色 | 需填写 API Key |
+| [**火山引擎 / 豆包**](https://www.volcengine.com/product/voice-technology) | 字节跳动 BigTTS 语音大模型，内置爽快思思、灿灿主播、甜美小萱等高拟真音色 | 需填写 API Key |
+| [**硅基流动**](https://www.siliconflow.com/) | 极速低延迟 `FunAudioLLM/CosyVoice2` 与 ChatTTS 接入，支持在线动态拉取模型 | 需填写 API Key |
+| [**Fish Audio (鱼音)**](https://fish.audio/) | 高表现力声音大模型，支持在线动态拉取个人自建声音克隆模型与社区热门音色 | 需填写 API Key |
+| [**阶跃星辰**](https://platform.stepfun.com/) | `stepaudio-2.5-tts` 多模态语境感知大模型 | 需填写 API Key |
+| [**OpenAI / 兼容**](https://platform.openai.com/docs/guides/text-to-speech) | 标准 OpenAI Audio 格式，支持 `alloy`, `echo`, `fable`, `onyx`, `nova` 等全系音色 | 需填写 API Key |
+| [**自定义 HTTP 节点**](https://github.com/RVC-Boss/GPT-SoVITS) | 支持私有化部署的 **GPT-SoVITS**、**CosyVoice-v2**、**F5-TTS**、**VITS** 等本地与局域网节点 | 无需 Key / 填入自建地址 |
+
+</details>
 
 ---
 
