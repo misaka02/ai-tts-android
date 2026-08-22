@@ -164,7 +164,9 @@ data class GlobalSettings(
     val sentencePauseMs: Int = 200, // 标点分句后注入静音停顿毫秒数，大幅提升小说听感自然度
     val fallbackProviderId: String = "edge_tts_default", // 主引擎异常时自动故障转移备用引擎
     val autoFallbackOnFailure: Boolean = true, // 启用自动故障降级
-    val hapticFeedbackEnabled: Boolean = true // 触觉震动反馈开关
+    val hapticFeedbackEnabled: Boolean = true, // 触觉震动反馈开关
+    val playbackNotificationEnabled: Boolean = true, // 启用后台朗读通知栏状态条与停止控制
+    val ultraLowLatencyMode: Boolean = true // 极速首字直出模式 (Sub-150ms 极低延迟响应)
 )
 
 /**

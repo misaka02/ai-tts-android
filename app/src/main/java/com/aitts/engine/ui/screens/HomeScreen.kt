@@ -1,6 +1,9 @@
 package com.aitts.engine.ui.screens
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -26,11 +29,13 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -44,6 +49,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -108,6 +114,8 @@ fun HomeScreen(
     var selectedFilterTag by remember { mutableStateOf("全部") }
     var isProbingSpeed by remember { mutableStateOf(false) }
     val latencyMap = remember { mutableStateMapOf<String, Long>() }
+    var showImportTokenDialog by remember { mutableStateOf(false) }
+    var importTokenText by remember { mutableStateOf("") }
 
     var permissionState by remember {
         mutableStateOf(PermissionManager.checkPermissions(context))
@@ -419,6 +427,22 @@ fun HomeScreen(
 
                     IconButton(
                         onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = clipboard.primaryClip
+                            if (clip != null && clip.itemCount > 0) {
+                                val pasted = clip.getItemAt(0).text?.toString() ?: ""
+                                if (pasted.startsWith("aitts://") || pasted.startsWith("{")) {
+                                    importTokenText = pasted
+                                }
+                            }
+                            showImportTokenDialog = true
+                        }
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = "导入分享口令", tint = MaterialTheme.colorScheme.primary)
+                    }
+
+                    IconButton(
+                        onClick = {
                             val newId = "custom_${UUID.randomUUID().toString().take(6)}"
                             val newConfig = TtsProviderConfig(
                                 id = newId,
@@ -516,6 +540,12 @@ fun HomeScreen(
                             configDataStore.deleteProvider(provider.id)
                             Toast.makeText(context, "已删除 ${provider.name}", Toast.LENGTH_SHORT).show()
                         }
+                    },
+                    onShareToken = {
+                        val token = configDataStore.exportProviderToken(provider)
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("AI_TTS_Provider_Token", token))
+                        Toast.makeText(context, "已复制【${provider.name}】分享口令到剪贴板", Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -524,5 +554,48 @@ fun HomeScreen(
         item {
             Spacer(modifier = Modifier.height(28.dp))
         }
+    }
+
+    if (showImportTokenDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportTokenDialog = false },
+            title = { Text("导入音色口令 / 分享码") },
+            text = {
+                Column {
+                    Text("粘贴他人分享的 aitts://provider?data=... 口令或 JSON，一键自动解析导入", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = importTokenText,
+                        onValueChange = { importTokenText = it },
+                        label = { Text("口令内容") },
+                        modifier = Modifier.fillMaxWidth().height(120.dp),
+                        maxLines = 5
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (importTokenText.isNotBlank()) {
+                            val imported = configDataStore.importProviderFromToken(importTokenText)
+                            if (imported != null) {
+                                Toast.makeText(context, "成功导入引擎【${imported.name}】", Toast.LENGTH_SHORT).show()
+                                showImportTokenDialog = false
+                                importTokenText = ""
+                            } else {
+                                Toast.makeText(context, "口令格式解析失败，请检查是否完整", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                ) {
+                    Text("立即导入")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportTokenDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }

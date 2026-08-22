@@ -1,5 +1,8 @@
 package com.aitts.engine.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Environment
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +30,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -313,6 +317,15 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                            }
+
+                            IconButton(onClick = {
+                                val token = configDataStore.exportRuleToken(rule)
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("AI_TTS_Rule_Token", token))
+                                Toast.makeText(context, "已复制规则分享口令到剪贴板", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Icon(Icons.Default.Share, contentDescription = "分享口令", tint = MaterialTheme.colorScheme.primary)
                             }
 
                             IconButton(onClick = {

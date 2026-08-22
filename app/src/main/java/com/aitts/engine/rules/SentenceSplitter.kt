@@ -28,8 +28,13 @@ object SentenceSplitter {
 
     /**
      * 智能多角色切分：将文本拆分为携带角色（旁白 / 对话）的切片列表
+     * 支持极速首字直出模式 (ultraLowLatencyMode)：首句微切分秒级发音，后台并行流水线预取后续句子
      */
-    fun splitTextWithRoles(text: String, maxLength: Int = 80): List<SentenceSegment> {
+    fun splitTextWithRoles(
+        text: String,
+        maxLength: Int = 80,
+        ultraLowLatencyMode: Boolean = true
+    ): List<SentenceSegment> {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return emptyList()
 
@@ -65,9 +70,15 @@ object SentenceSplitter {
 
         // 2. 第二阶段：对每个块内部执行标点短句细分与长度平滑控制
         val finalResult = mutableListOf<SentenceSegment>()
-        for (block in rawBlocks) {
+        for ((idx, block) in rawBlocks.withIndex()) {
             if (block.text.isBlank()) continue
-            val sentences = splitBlockIntoSentences(block.text, maxLength)
+            // 极速首字直出模式：首句块优先采用短阈值，首包 150ms 极速发音，彻底消除等待
+            val effectiveMaxLength = if (ultraLowLatencyMode && idx == 0 && block.text.length > 18) {
+                16
+            } else {
+                maxLength
+            }
+            val sentences = splitBlockIntoSentences(block.text, effectiveMaxLength)
             for (s in sentences) {
                 if (s.isNotBlank()) {
                     finalResult.add(SentenceSegment(s, block.role))

@@ -85,9 +85,9 @@ class TtsSynthesizer(private val context: Context) {
             return@withContext
         }
 
-        // 2. 智能多角色长句切分 (识别对话与旁白)
+        // 2. 智能多角色长句切分 (识别对话与旁白，支持极速首字秒开)
         val segments: List<SentenceSegment> = if (settings.isSentenceSplittingEnabled) {
-            SentenceSplitter.splitTextWithRoles(preprocessedText, settings.maxSentenceLength)
+            SentenceSplitter.splitTextWithRoles(preprocessedText, settings.maxSentenceLength, settings.ultraLowLatencyMode)
         } else {
             listOf(SentenceSegment(preprocessedText, SegmentRole.NARRATOR))
         }
@@ -128,6 +128,16 @@ class TtsSynthesizer(private val context: Context) {
                 if (isStopped.get() || !isActive) {
                     configDataStore.log("合成任务已中断")
                     return@withContext
+                }
+
+                // 实时更新后台播报通知栏中的当前句子内容
+                if (settings.playbackNotificationEnabled) {
+                    TtsNotificationManager.showPlaybackNotification(
+                        context = context,
+                        providerName = mergedConfig.name,
+                        voiceId = mergedConfig.voiceId.ifBlank { "默认" },
+                        currentSentence = segments[i].text
+                    )
                 }
 
                 // 随着进度推进，自动向前预拉取第 i+2 句
@@ -230,6 +240,9 @@ class TtsSynthesizer(private val context: Context) {
         } finally {
             sessionCache.values.forEach { it.cancel() }
             sessionCache.clear()
+            if (settings.playbackNotificationEnabled) {
+                TtsNotificationManager.cancelPlaybackNotification(context)
+            }
         }
     }
 

@@ -457,7 +457,7 @@ fun ProviderConfigScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item {
+            item(contentType = "model_type") {
                 SectionHeader(title = "模型类型与预设")
 
                 ExposedDropdownMenuBox(
@@ -504,7 +504,7 @@ fun ProviderConfigScreen(
                 }
             }
 
-            item {
+            item(contentType = "basic_info") {
                 SectionHeader(title = "基本信息")
 
                 OutlinedTextField(
@@ -516,7 +516,7 @@ fun ProviderConfigScreen(
             }
 
             if (selectedType.requiresApiKey || selectedType == ProviderType.CUSTOM_HTTP) {
-                item {
+                item(contentType = "auth_info") {
                     SectionHeader(title = "接口鉴权与地址")
 
                     OutlinedTextField(
@@ -548,7 +548,7 @@ fun ProviderConfigScreen(
 
             // 小米 MiMo 专属模式工作台 (标准 / 音色设计 / 声音克隆)
             if (selectedType == ProviderType.MIMO) {
-                item {
+                item(contentType = "mimo_workshop") {
                     SectionHeader(title = "小米 MiMo 工作室模式 (Voice Studio)")
 
                     var mimoMode by remember(modelName) {
@@ -644,7 +644,7 @@ fun ProviderConfigScreen(
                 }
             }
 
-            item {
+            item(contentType = "voice_library") {
                 SectionHeader(title = "模型与官方音色库")
 
                 OutlinedTextField(
@@ -742,6 +742,51 @@ fun ProviderConfigScreen(
                                     }
                                 }
                             }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    audioPlayer.stop()
+                                    isTesting = true
+                                    testMessage = "正在合成有声剧场双角色试听..."
+                                    scope.launch {
+                                        try {
+                                            val narratorCfg = buildCurrentConfig()
+                                            val dialogueCfg = narratorCfg.copy(voiceId = dialogueVoiceId.ifBlank { voiceId })
+                                            val narratorRes = TtsProviderManager.getInstance().synthesize("白衣男子微微一笑：", narratorCfg)
+                                            val dialogueRes = TtsProviderManager.getInstance().synthesize("“不错，但切莫骄傲。”", dialogueCfg)
+                                            if (narratorRes.isSuccess && dialogueRes.isSuccess) {
+                                                val nBytes = narratorRes.getOrNull() ?: ByteArray(0)
+                                                val dBytes = dialogueRes.getOrNull() ?: ByteArray(0)
+                                                testMessage = "正在播放双音色剧场效果..."
+                                                audioPlayer.playAudioBytes(nBytes, onCompletion = {
+                                                    audioPlayer.playAudioBytes(dBytes, onCompletion = {
+                                                        isTesting = false
+                                                        testMessage = "剧场双音色试听完毕"
+                                                    }, onError = {
+                                                        isTesting = false
+                                                        testMessage = "对话音色播放失败: $it"
+                                                    })
+                                                }, onError = {
+                                                    isTesting = false
+                                                    testMessage = "旁白音色播放失败: $it"
+                                                })
+                                            } else {
+                                                isTesting = false
+                                                testMessage = "合成失败: 旁白(${narratorRes.exceptionOrNull()?.message}) / 对话(${dialogueRes.exceptionOrNull()?.message})"
+                                            }
+                                        } catch (e: Exception) {
+                                            isTesting = false
+                                            testMessage = "试听异常: ${e.message}"
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("🎭 试听小说剧场效果（旁白+对话双音色）", fontSize = 12.sp)
+                            }
                         }
                     }
                 }
@@ -749,7 +794,7 @@ fun ProviderConfigScreen(
 
             // 大模型导演模式 / 提示词控制专区
             if (selectedType == ProviderType.MIMO || selectedType == ProviderType.GEMINI || selectedType == ProviderType.SILICONFLOW || selectedType == ProviderType.OPENAI || selectedType == ProviderType.CUSTOM_HTTP) {
-                item {
+                item(contentType = "director_mode") {
                     SectionHeader(title = "大模型导演模式 / 提示词控制 (Director Mode)")
 
                     Card(
@@ -810,7 +855,7 @@ fun ProviderConfigScreen(
                 }
             }
 
-            item {
+            item(contentType = "audio_tuning") {
                 SectionHeader(title = "音频与发音参数")
 
                 Text(

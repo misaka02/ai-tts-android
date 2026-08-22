@@ -240,6 +240,48 @@ class ConfigDataStore(private val context: Context) {
         return json.encodeToString(backupData)
     }
 
+    /**
+     * 生成单个 Provider 的 Base64 分享口令
+     */
+    fun exportProviderToken(provider: TtsProviderConfig): String {
+        val jsonStr = json.encodeToString(provider)
+        val b64 = android.util.Base64.encodeToString(jsonStr.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+        return "aitts://provider?data=$b64"
+    }
+
+    /**
+     * 从 Base64 分享口令或 JSON 解析并导入单个 Provider
+     */
+    fun importProviderFromToken(token: String): TtsProviderConfig? {
+        return try {
+            val raw = token.trim()
+            val jsonStr = if (raw.startsWith("aitts://provider?data=")) {
+                val b64 = raw.substringAfter("aitts://provider?data=")
+                String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            } else if (raw.startsWith("eyJ")) { // Direct Base64
+                String(android.util.Base64.decode(raw, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            } else {
+                raw
+            }
+            val parsed = json.decodeFromString<TtsProviderConfig>(jsonStr)
+            val updated = parsed.copy(id = "imported_${java.util.UUID.randomUUID().toString().take(6)}")
+            updateProvider(updated)
+            updated
+        } catch (e: Exception) {
+            log("导入分享口令失败: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 生成单条替换规则的 Base64 分享口令
+     */
+    fun exportRuleToken(rule: ReplacementRule): String {
+        val jsonStr = json.encodeToString(rule)
+        val b64 = android.util.Base64.encodeToString(jsonStr.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+        return "aitts://rule?data=$b64"
+    }
+
     fun importConfigJson(jsonStr: String): Boolean {
         return try {
             val backupData = json.decodeFromString<BackupPayload>(jsonStr)

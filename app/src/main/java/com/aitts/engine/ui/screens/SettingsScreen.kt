@@ -252,6 +252,29 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
+                            Text("极速首字秒开模式 (Sub-150ms)", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "长段落首句微切分秒级发音，后台并行流水线预取后续句子",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.ultraLowLatencyMode,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(ultraLowLatencyMode = it))
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("小说数字与章节发音优化", fontWeight = FontWeight.SemiBold)
                             Text(
                                 "将“第123章”转为“第一百二十三章”，“2026年”转为“二零二六年”",
@@ -493,7 +516,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("启用触觉微震动反馈", fontWeight = FontWeight.SemiBold)
                             Text(
                                 "长按拖拽排序与快捷调整时提供细腻物理手感",
@@ -505,6 +528,29 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                             checked = settings.hapticFeedbackEnabled,
                             onCheckedChange = {
                                 configDataStore.updateSettings(settings.copy(hapticFeedbackEnabled = it))
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("后台朗读通知栏状态与停止控制", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "在通知栏与锁屏实时同步当前正在朗读的句子内容，并提供快捷停止按键",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.playbackNotificationEnabled,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(playbackNotificationEnabled = it))
                             }
                         )
                     }

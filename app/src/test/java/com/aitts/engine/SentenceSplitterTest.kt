@@ -42,7 +42,7 @@ class SentenceSplitterTest {
     @Test
     fun testMultiRoleSplitting() {
         val input = "他转过头说道：“我们必须立刻出发！”随后快步向前走去。"
-        val segments = SentenceSplitter.splitTextWithRoles(input, maxLength = 80)
+        val segments = SentenceSplitter.splitTextWithRoles(input, maxLength = 80, ultraLowLatencyMode = false)
         assertEquals(3, segments.size)
         assertEquals("他转过头说道：", segments[0].text)
         assertEquals(com.aitts.engine.data.SegmentRole.NARRATOR, segments[0].role)
@@ -52,5 +52,14 @@ class SentenceSplitterTest {
 
         assertEquals("随后快步向前走去。", segments[2].text)
         assertEquals(com.aitts.engine.data.SegmentRole.NARRATOR, segments[2].role)
+    }
+
+    @Test
+    fun testUltraLowLatencySplitting() {
+        val input = "在很久很久以前的大陆上，生活着一群勇敢的冒险家。他们翻山越岭寻找宝藏。"
+        val segments = SentenceSplitter.splitTextWithRoles(input, maxLength = 80, ultraLowLatencyMode = true)
+        assertTrue(segments.isNotEmpty())
+        // 首句被微切分，保证首包极低延迟
+        assertTrue(segments[0].text.length <= 16)
     }
 }

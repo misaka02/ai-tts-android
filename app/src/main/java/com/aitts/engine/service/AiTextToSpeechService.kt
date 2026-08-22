@@ -1,6 +1,11 @@
 package com.aitts.engine.service
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioFormat
+import android.os.Build
 import android.speech.tts.SynthesisCallback
 import android.speech.tts.SynthesisRequest
 import android.speech.tts.TextToSpeech
@@ -21,16 +26,40 @@ class AiTextToSpeechService : TextToSpeechService() {
     private lateinit var synthesizer: TtsSynthesizer
     private lateinit var configDataStore: ConfigDataStore
 
+    private val stopReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == TtsNotificationManager.ACTION_STOP_TTS) {
+                onStop()
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         configDataStore = ConfigDataStore.getInstance(this)
         synthesizer = TtsSynthesizer(this)
+        try {
+            val filter = IntentFilter(TtsNotificationManager.ACTION_STOP_TTS)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(stopReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(stopReceiver, filter)
+            }
+        } catch (e: Exception) {
+            // ignore
+        }
         configDataStore.log("AiTextToSpeechService 系统服务已启动并就绪")
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        try {
+            unregisterReceiver(stopReceiver)
+        } catch (e: Exception) {
+            // ignore
+        }
         synthesizer.stop()
+        TtsNotificationManager.cancelPlaybackNotification(this)
         configDataStore.log("AiTextToSpeechService 系统服务已销毁")
     }
 
@@ -100,6 +129,7 @@ class AiTextToSpeechService : TextToSpeechService() {
 
     override fun onStop() {
         synthesizer.stop()
+        TtsNotificationManager.cancelPlaybackNotification(this)
         configDataStore.log("收到系统 onStop() 终止朗读信号")
     }
 

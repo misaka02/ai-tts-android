@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -216,7 +217,8 @@ fun ProviderCard(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onShareToken: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val brandColor = remember(provider.type) { BrandTheme.getColorForType(provider.type) }
@@ -426,6 +428,14 @@ fun ProviderCard(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text("📤 分享配置口令 (Base64)") },
+                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    onShareToken()
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text("🔝 置顶此引擎") },
                                 leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
