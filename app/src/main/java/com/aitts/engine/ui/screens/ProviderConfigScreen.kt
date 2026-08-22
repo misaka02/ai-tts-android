@@ -80,7 +80,6 @@ import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.ui.components.SectionHeader
-import com.aitts.engine.ui.theme.PrimaryIndigo
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -264,7 +263,7 @@ fun ProviderConfigScreen(
             },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = PrimaryIndigo)
+                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (isPickingDialogueVoice) "选择对话专属角色音色" else "选择官方音色 / 旁白角色")
                 }
@@ -340,7 +339,7 @@ fun ProviderConfigScreen(
                                             showVoiceDialog = false
                                         },
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (isCurrentSelected) PrimaryIndigo.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                                        containerColor = if (isCurrentSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 ) {
                                     Row(
@@ -407,7 +406,7 @@ fun ProviderConfigScreen(
                                             if (previewingVoiceId == voice.id) {
                                                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                                             } else {
-                                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "试听", tint = PrimaryIndigo)
+                                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "试听", tint = MaterialTheme.colorScheme.primary)
                                             }
                                         }
                                     }
@@ -445,7 +444,7 @@ fun ProviderConfigScreen(
                         Toast.makeText(context, "配置已保存", Toast.LENGTH_SHORT).show()
                         onNavigateBack()
                     }) {
-                        Icon(Icons.Default.Check, contentDescription = "保存", tint = PrimaryIndigo)
+                        Icon(Icons.Default.Check, contentDescription = "保存", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -671,7 +670,7 @@ fun ProviderConfigScreen(
 
                     Button(
                         onClick = { loadVoices(forDialogue = false) },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         if (isFetchingVoices && !isPickingDialogueVoice) {
                             CircularProgressIndicator(
@@ -760,7 +759,7 @@ fun ProviderConfigScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Psychology, contentDescription = null, tint = PrimaryIndigo, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("提示词指令控制语气、情感与语速", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
@@ -899,7 +898,7 @@ fun ProviderConfigScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (isTesting) {
@@ -922,7 +921,7 @@ fun ProviderConfigScreen(
                     Text(
                         text = testMessage ?: "",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (testMessage?.startsWith("✅") == true) PrimaryIndigo else MaterialTheme.colorScheme.error
+                        color = if (testMessage?.startsWith("✅") == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                     )
                 }
 

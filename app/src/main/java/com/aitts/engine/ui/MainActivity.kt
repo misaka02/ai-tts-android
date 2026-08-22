@@ -42,7 +42,6 @@ import com.aitts.engine.ui.screens.RulesScreen
 import com.aitts.engine.ui.screens.SettingsScreen
 import com.aitts.engine.ui.screens.TestBenchScreen
 import com.aitts.engine.ui.theme.AiTtsEngineTheme
-import com.aitts.engine.ui.theme.PrimaryIndigo
 
 class MainActivity : ComponentActivity() {
 
@@ -58,7 +57,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by configDataStore.settingsFlow.collectAsState()
 
-            AiTtsEngineTheme(themeMode = settings.appThemeMode) {
+            AiTtsEngineTheme(
+                themeMode = settings.appThemeMode,
+                themePalette = settings.appThemePalette
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -95,6 +97,7 @@ fun MainAppNavHost(configDataStore: ConfigDataStore) {
     Scaffold(
         bottomBar = {
             if (bottomNavItems.any { it.route == currentRoute }) {
+                val primaryColor = MaterialTheme.colorScheme.primary
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 8.dp
@@ -112,9 +115,9 @@ fun MainAppNavHost(configDataStore: ConfigDataStore) {
                             },
                             selected = isSelected,
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = PrimaryIndigo,
-                                selectedTextColor = PrimaryIndigo,
-                                indicatorColor = PrimaryIndigo.copy(alpha = 0.15f),
+                                selectedIconColor = primaryColor,
+                                selectedTextColor = primaryColor,
+                                indicatorColor = primaryColor.copy(alpha = 0.15f),
                                 unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             ),

@@ -53,7 +53,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -63,7 +62,6 @@ import androidx.compose.ui.unit.sp
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.permission.PermissionManager
 import com.aitts.engine.ui.theme.BrandTheme
-import com.aitts.engine.ui.theme.PrimaryIndigo
 import com.aitts.engine.ui.theme.SuccessGreen
 import com.aitts.engine.ui.theme.WarningOrange
 
@@ -72,7 +70,7 @@ private val TagCornerShape = RoundedCornerShape(4.dp)
 
 @Composable
 fun SectionHeader(title: String, subtitle: String? = null) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
@@ -96,6 +94,7 @@ fun PermissionCard(
     onRequestIgnoreBattery: () -> Unit,
     onRequestAllFiles: () -> Unit
 ) {
+    val primaryColor = MaterialTheme.colorScheme.primary
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(
@@ -138,7 +137,7 @@ fun PermissionCard(
                 ) {
                     Button(
                         onClick = onRequestAll,
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo),
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("一键申请权限", fontSize = 12.sp)
@@ -159,6 +158,7 @@ fun PermissionCard(
 
 @Composable
 fun SystemTtsGuideCard(onOpenSettings: () -> Unit) {
+    val primaryColor = MaterialTheme.colorScheme.primary
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
@@ -171,13 +171,13 @@ fun SystemTtsGuideCard(onOpenSettings: () -> Unit) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .background(PrimaryIndigo.copy(alpha = 0.15f), CircleShape),
+                    .background(primaryColor.copy(alpha = 0.15f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.RecordVoiceOver,
                     contentDescription = null,
-                    tint = PrimaryIndigo,
+                    tint = primaryColor,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -197,7 +197,7 @@ fun SystemTtsGuideCard(onOpenSettings: () -> Unit) {
             Spacer(modifier = Modifier.width(8.dp))
             Button(
                 onClick = onOpenSettings,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo)
+                colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
             ) {
                 Text("去设置", fontSize = 12.sp)
             }
@@ -211,6 +211,7 @@ fun ProviderCard(
     provider: TtsProviderConfig,
     isActive: Boolean,
     latencyMs: Long? = null,
+    isReorderMode: Boolean = false,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     onTest: () -> Unit,
@@ -222,6 +223,7 @@ fun ProviderCard(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val brandColor = remember(provider.type) { BrandTheme.getColorForType(provider.type) }
+    val primaryColor = MaterialTheme.colorScheme.primary
     val haptic = LocalHapticFeedback.current
     var dragAccumulatedY by remember { mutableFloatStateOf(0f) }
 
@@ -232,7 +234,7 @@ fun ProviderCard(
             .clip(CardCornerShape)
             .border(
                 width = if (isActive) 1.5.dp else 1.dp,
-                color = if (isActive) PrimaryIndigo else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                color = if (isActive) primaryColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                 shape = CardCornerShape
             )
             .clickable { onSelect() },
@@ -253,58 +255,60 @@ fun ProviderCard(
             Box(
                 modifier = Modifier
                     .width(5.dp)
-                    .height(72.dp)
+                    .height(68.dp)
                     .background(brandColor)
             )
 
             Row(
                 modifier = Modifier
-                    .padding(start = 8.dp, end = 6.dp, top = 8.dp, bottom = 8.dp)
+                    .padding(start = 8.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 直接可长按拖拽排序的手柄 (带手势识别与震动触觉反馈)
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .pointerInput(provider.id) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    dragAccumulatedY = 0f
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    dragAccumulatedY += dragAmount.y
-                                    if (dragAccumulatedY < -40f) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onMoveUp()
+                if (isReorderMode) {
+                    // 排序模式：显示拖动手柄 + 快捷上下置顶按键
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .pointerInput(provider.id) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         dragAccumulatedY = 0f
-                                    } else if (dragAccumulatedY > 40f) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onMoveDown()
-                                        dragAccumulatedY = 0f
-                                    }
-                                },
-                                onDragEnd = { dragAccumulatedY = 0f },
-                                onDragCancel = { dragAccumulatedY = 0f }
-                            )
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DragHandle,
-                        contentDescription = "长按上下拖动排序",
-                        tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
-                        modifier = Modifier.size(20.dp)
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragAccumulatedY += dragAmount.y
+                                        if (dragAccumulatedY < -40f) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            onMoveUp()
+                                            dragAccumulatedY = 0f
+                                        } else if (dragAccumulatedY > 40f) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            onMoveDown()
+                                            dragAccumulatedY = 0f
+                                        }
+                                    },
+                                    onDragEnd = { dragAccumulatedY = 0f },
+                                    onDragCancel = { dragAccumulatedY = 0f }
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DragHandle,
+                            contentDescription = "长按拖拽排序",
+                            tint = primaryColor,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                } else {
+                    RadioButton(
+                        selected = isActive,
+                        onClick = onSelect,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
-
-                RadioButton(
-                    selected = isActive,
-                    onClick = onSelect,
-                    modifier = Modifier.size(32.dp)
-                )
 
                 Spacer(modifier = Modifier.width(6.dp))
 
@@ -356,12 +360,12 @@ fun ProviderCard(
 
                         if (provider.isDualRoleEnabled) {
                             Surface(
-                                color = PrimaryIndigo.copy(alpha = 0.15f),
+                                color = primaryColor.copy(alpha = 0.15f),
                                 shape = TagCornerShape
                             ) {
                                 Text(
                                     text = "双音色",
-                                    color = PrimaryIndigo,
+                                    color = primaryColor,
                                     fontSize = 9.5.sp,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp),
                                     fontWeight = FontWeight.Bold
@@ -394,81 +398,75 @@ fun ProviderCard(
                     )
                 }
 
-                // 快捷单键上下微调 (不用进菜单即可秒速上下移动)
-                IconButton(onClick = onMoveUp, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowUp,
-                        contentDescription = "向上移动",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                IconButton(onClick = onMoveDown, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "向下移动",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                IconButton(onClick = onTest, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "试听",
-                        tint = PrimaryIndigo,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "编辑配置",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                Box {
-                    IconButton(onClick = { showMenu = true }, modifier = Modifier.size(30.dp)) {
+                if (isReorderMode) {
+                    // 排序模式专属快捷按键
+                    IconButton(onClick = onPinTop, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.PushPin, contentDescription = "置顶", tint = primaryColor, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(onClick = onMoveUp, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = onMoveDown, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    }
+                } else {
+                    IconButton(onClick = onTest, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "更多排序操作",
-                            tint = MaterialTheme.colorScheme.outline,
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "试听",
+                            tint = primaryColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "编辑配置",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                     }
 
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("🔝 置顶此引擎") },
-                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
-                            onClick = {
-                                showMenu = false
-                                onPinTop()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("📋 复制配置副本") },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                            onClick = {
-                                showMenu = false
-                                onDuplicate()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("🗑️ 删除配置", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                            onClick = {
-                                showMenu = false
-                                onDelete()
-                            }
-                        )
+                    Box {
+                        IconButton(onClick = { showMenu = true }, modifier = Modifier.size(30.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "更多操作",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("🔝 置顶此引擎") },
+                                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    onPinTop()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("📋 复制配置副本") },
+                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    onDuplicate()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("🗑️ 删除配置", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                }
+                            )
+                        }
                     }
                 }
             }

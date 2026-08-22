@@ -195,6 +195,20 @@ class TtsSynthesizer(private val context: Context) {
                     offset += length
                 }
 
+                // 注入小说朗读自然停顿 (Silence padding)
+                if (settings.sentencePauseMs > 0 && i < segments.size - 1) {
+                    val silenceBytesCount = (decoded.sampleRate * 2 * decoded.channelCount * (settings.sentencePauseMs / 1000.0)).toInt()
+                    if (silenceBytesCount > 0) {
+                        val silenceChunk = ByteArray(minOf(silenceBytesCount, bufferChunkSize))
+                        var remainingSilence = silenceBytesCount
+                        while (remainingSilence > 0 && !isStopped.get()) {
+                            val toWrite = minOf(remainingSilence, silenceChunk.size)
+                            callback.audioAvailable(silenceChunk, 0, toWrite)
+                            remainingSilence -= toWrite
+                        }
+                    }
+                }
+
                 // 及时从会话缓存中移除已推流完成的句子，极大释放内存占用
                 sessionCache.remove(i)
             }
@@ -220,7 +234,7 @@ class TtsSynthesizer(private val context: Context) {
     }
 
     /**
-     * 优先从磁盘缓存读取，未命中则调用 Provider 进行远程网络合成，并写入缓存（带自动重试）
+     * 优先从磁盘缓存读取，未命中则调用 Provider 进行远程网络合成，并写入缓存（带自动重试与智能故障降级）
      */
     private suspend fun fetchOrSynthesizeAudio(
         text: String,
@@ -253,6 +267,20 @@ class TtsSynthesizer(private val context: Context) {
                 lastError = result.exceptionOrNull()
                 if (attempt < 2) {
                     kotlinx.coroutines.delay(200)
+                }
+            }
+        }
+
+        // 3. 智能故障转移（若主引擎超额或网络异常，无缝降级备用引擎）
+        if (settings.autoFallbackOnFailure) {
+            val fallback = configDataStore.providersFlow.value.find { it.id == settings.fallbackProviderId }
+                ?: configDataStore.providersFlow.value.firstOrNull { it.type == com.aitts.engine.data.ProviderType.EDGE_TTS }
+            if (fallback != null && fallback.id != config.id) {
+                configDataStore.log("⚠️ 主引擎 [${config.name}] 失败，自动无缝降级到备用引擎 [${fallback.name}]")
+                val fallbackRes = providerManager.synthesize(text, fallback)
+                if (fallbackRes.isSuccess) {
+                    val bytes = fallbackRes.getOrNull() ?: ByteArray(0)
+                    return Result.success(bytes)
                 }
             }
         }

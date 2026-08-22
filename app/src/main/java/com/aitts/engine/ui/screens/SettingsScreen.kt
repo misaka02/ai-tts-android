@@ -5,26 +5,45 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,6 +60,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,18 +70,21 @@ import com.aitts.engine.audio.AudioCacheManager
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.permission.PermissionManager
 import com.aitts.engine.ui.components.SectionHeader
-import com.aitts.engine.ui.theme.PrimaryIndigo
+import com.aitts.engine.ui.theme.AppPaletteTheme
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(configDataStore: ConfigDataStore) {
     val context = LocalContext.current
     val activity = context as? Activity
     val settings by configDataStore.settingsFlow.collectAsState()
+    val providers by configDataStore.providersFlow.collectAsState()
     val cacheManager = AudioCacheManager.getInstance(context)
 
     var cacheStats by remember { mutableStateOf(cacheManager.getStats()) }
     var showImportDialog by remember { mutableStateOf(false) }
     var importJsonText by remember { mutableStateOf("") }
+    var fallbackExpanded by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -68,11 +92,12 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // 主题色系与外观切换
         item {
             Spacer(modifier = Modifier.height(8.dp))
             SectionHeader(
-                title = "外观与主题风格",
-                subtitle = "支持曜石暗黑模式、纯净浅色与跟随系统外观"
+                title = "外观主题与设计色系",
+                subtitle = "内置 5 套高品质专业色系，彻底告别单调色彩"
             )
 
             Card(
@@ -81,14 +106,14 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text("界面显示模式", fontWeight = FontWeight.SemiBold)
+                    Text("界面深浅模式", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf("SYSTEM" to "跟随系统", "DARK" to "曜石深黑", "LIGHT" to "纯净浅色").forEach { (mode, label) ->
-                            androidx.compose.material3.FilterChip(
+                        listOf("SYSTEM" to "跟随系统", "DARK" to "纯粹暗黑", "LIGHT" to "清爽亮色").forEach { (mode, label) ->
+                            FilterChip(
                                 selected = settings.appThemeMode == mode,
                                 onClick = {
                                     configDataStore.updateSettings(settings.copy(appThemeMode = mode))
@@ -97,14 +122,64 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text("预设设计色调", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AppPaletteTheme.entries.forEach { palette ->
+                            val isSelected = settings.appThemePalette == palette.key
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) palette.primaryColor else MaterialTheme.colorScheme.outlineVariant,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .background(if (isSelected) palette.primaryColor.copy(alpha = 0.15f) else Color.Transparent)
+                                    .clickable {
+                                        configDataStore.updateSettings(settings.copy(appThemePalette = palette.key))
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .background(palette.primaryColor, CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = palette.title,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                                if (isSelected) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = palette.primaryColor,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
+        // 小说分句与自然停顿调度
         item {
             SectionHeader(
-                title = "流式与分句调度",
-                subtitle = "优化大段小说阅读时的出声延迟与流式平滑度"
+                title = "小说朗读分句与自然停顿",
+                subtitle = "标点智能拆分、首句即播与句间自然呼吸停顿"
             )
 
             Card(
@@ -118,10 +193,10 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("启用智能标点分句", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "将长段落按。！？拆分，首句立即可播",
+                                "长段落按标点拆分并发预拉取，彻底告别卡顿",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -148,16 +223,35 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                             valueRange = 30f..150f,
                             steps = 12
                         )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "句间自然呼吸停顿: ${settings.sentencePauseMs} ms",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "在每句话播完后自动注入微量静音，模拟真人呼吸节奏（设为0则紧凑快读）。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Slider(
+                            value = settings.sentencePauseMs.toFloat(),
+                            onValueChange = {
+                                configDataStore.updateSettings(settings.copy(sentencePauseMs = it.toInt()))
+                            },
+                            valueRange = 0f..600f,
+                            steps = 12
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("小说数字与章节发音优化", fontWeight = FontWeight.SemiBold)
                             Text(
                                 "将“第123章”转为“第一百二十三章”，“2026年”转为“二零二六年”",
@@ -176,16 +270,86 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
             }
         }
 
+        // 智能故障自动降级 (Auto-Failover)
         item {
             SectionHeader(
-                title = "音频磁盘缓存管理",
-                subtitle = "自动将合成过的音频保存到本地，二次朗读秒开且节省 API 额度"
+                title = "引擎高可用与故障自动转移",
+                subtitle = "当主力大模型欠费或网络异常时，自动无缝降级备用引擎，听书永不断流"
             )
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("启用故障自动降级 (Auto-Failover)", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "当主力大模型请求报错或超时，自动切换备用引擎继续朗读",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.autoFallbackOnFailure,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(autoFallbackOnFailure = it))
+                            }
+                        )
+                    }
+
+                    if (settings.autoFallbackOnFailure) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        val fallbackProvider = providers.find { it.id == settings.fallbackProviderId }
+                        ExposedDropdownMenuBox(
+                            expanded = fallbackExpanded,
+                            onExpandedChange = { fallbackExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = fallbackProvider?.name ?: "默认: 微软 Edge TTS (免Key)",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("指定的备用应急引擎") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fallbackExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = fallbackExpanded,
+                                onDismissRequest = { fallbackExpanded = false }
+                            ) {
+                                providers.forEach { p ->
+                                    DropdownMenuItem(
+                                        text = { Text("${p.name} (${p.type.displayName})") },
+                                        onClick = {
+                                            configDataStore.updateSettings(settings.copy(fallbackProviderId = p.id))
+                                            fallbackExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 全局网络代理卡片
+        item {
+            SectionHeader(
+                title = "全局网络代理与连接调优",
+                subtitle = "Google Gemini 等境外服务可在此直接配置代理"
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(
@@ -194,9 +358,81 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("启用 LRU 音频缓存", fontWeight = FontWeight.SemiBold)
+                            Text("启用全局 HTTP / SOCKS5 代理", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "已缓存 ${cacheStats.first} 个音频片段 (约 ${"%.2f".format(cacheStats.second)} MB)",
+                                "支持绕过网络限制直连 Google 等官方服务",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.proxyEnabled,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(proxyEnabled = it))
+                            }
+                        )
+                    }
+
+                    if (settings.proxyEnabled) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = settings.proxyHost,
+                                onValueChange = { configDataStore.updateSettings(settings.copy(proxyHost = it)) },
+                                label = { Text("代理 IP / 域名") },
+                                modifier = Modifier.weight(2f)
+                            )
+                            OutlinedTextField(
+                                value = settings.proxyPort.toString(),
+                                onValueChange = {
+                                    val p = it.toIntOrNull() ?: settings.proxyPort
+                                    configDataStore.updateSettings(settings.copy(proxyPort = p))
+                                },
+                                label = { Text("端口") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("代理协议: ", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            listOf("HTTP", "SOCKS").forEach { type ->
+                                FilterChip(
+                                    selected = settings.proxyType == type,
+                                    onClick = { configDataStore.updateSettings(settings.copy(proxyType = type)) },
+                                    label = { Text(type) }
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 本地音频缓存卡片
+        item {
+            SectionHeader(
+                title = "本地音频智能缓存",
+                subtitle = "相同文本第二次直接从本地毫秒级秒播，无需重复消耗 API 配额"
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("启用本地音频缓存", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "当前缓存已占用: %.2f MB (%d 个文件)".format(cacheStats.second, cacheStats.first),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -211,10 +447,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
 
                     if (settings.isAudioCacheEnabled) {
                         Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "最大缓存限制: ${settings.maxCacheSizeMb} MB",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Text("最大缓存上限: ${settings.maxCacheSizeMb} MB", style = MaterialTheme.typography.bodyMedium)
                         Slider(
                             value = settings.maxCacheSizeMb.toFloat(),
                             onValueChange = {
@@ -225,7 +458,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedButton(
                         onClick = {
                             cacheManager.clearAll()
@@ -235,172 +468,133 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Delete, contentDescription = null)
-                        Text("清空全部音频缓存")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("一键清理所有已缓存音频")
                     }
                 }
             }
         }
 
+        // 触觉震动与系统交互
         item {
             SectionHeader(
-                title = "全局网络代理与连接调优",
-                subtitle = "为 Google Gemini、OpenAI、微软等海外或局域网节点配置代理路由"
+                title = "系统交互与触觉反馈",
+                subtitle = "拖拽排序、按键与模式切换震动控制"
             )
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(14.dp)
             ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.padding(14.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("启用网络代理", fontWeight = FontWeight.SemiBold)
+                            Text("启用触觉微震动反馈", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "支持 HTTP / SOCKS5 协议 (如 127.0.0.1:7890)",
+                                "长按拖拽排序与快捷调整时提供细腻物理手感",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Switch(
-                            checked = settings.proxyEnabled,
+                            checked = settings.hapticFeedbackEnabled,
                             onCheckedChange = {
-                                configDataStore.updateSettings(settings.copy(proxyEnabled = it))
+                                configDataStore.updateSettings(settings.copy(hapticFeedbackEnabled = it))
                             }
                         )
-                    }
-
-                    if (settings.proxyEnabled) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = settings.proxyHost,
-                                onValueChange = {
-                                    configDataStore.updateSettings(settings.copy(proxyHost = it))
-                                },
-                                label = { Text("代理服务器地址") },
-                                modifier = Modifier.weight(2f),
-                                singleLine = true
-                            )
-
-                            OutlinedTextField(
-                                value = settings.proxyPort.toString(),
-                                onValueChange = {
-                                    val port = it.toIntOrNull() ?: 7890
-                                    configDataStore.updateSettings(settings.copy(proxyPort = port))
-                                },
-                                label = { Text("端口") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true
-                            )
-                        }
                     }
                 }
             }
         }
 
+        // 配置备份与迁移
         item {
             SectionHeader(
-                title = "系统级联动设置",
-                subtitle = "TTS 引擎注册状态与系统权限快捷入口"
+                title = "全量配置备份与迁移",
+                subtitle = "一键导出全部引擎 API Key、自定义规则与全局参数"
             )
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            val json = configDataStore.exportAllConfigJson()
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("AI_TTS_Config", json))
+                            Toast.makeText(context, "配置已复制到剪贴板！", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Upload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("导出全部配置到剪贴板")
+                    }
+
+                    OutlinedButton(
+                        onClick = { showImportDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("从剪贴板 / JSON 导入配置")
+                    }
+                }
+            }
+        }
+
+        // 系统设置直达卡片
+        item {
+            SectionHeader(
+                title = "系统文字转语音 (TTS) 快捷直达",
+                subtitle = "前往安卓系统设置验证或切换默认 TTS"
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(14.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = {
                             activity?.let { PermissionManager.openSystemTtsSettings(it) }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Settings, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text("打开系统「文字转语音」设置")
                     }
-
-                    OutlinedButton(
-                        onClick = {
-                            activity?.let { PermissionManager.requestIgnoreBatteryOptimizations(it) }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("打开电池优化白名单设置")
-                    }
                 }
             }
         }
 
         item {
-            SectionHeader(
-                title = "配置备份与导入",
-                subtitle = "一键导出所有 API Key、模型参数与规则词库"
-            )
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            val jsonStr = configDataStore.exportAllConfigJson()
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("AiTtsBackup", jsonStr))
-                            Toast.makeText(context, "配置已复制到剪贴板", Toast.LENGTH_LONG).show()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Upload, contentDescription = null)
-                        Text("导出备份")
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            showImportDialog = true
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Download, contentDescription = null)
-                        Text("导入配置")
-                    }
-                }
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(30.dp))
         }
     }
 
     if (showImportDialog) {
         AlertDialog(
             onDismissRequest = { showImportDialog = false },
-            title = { Text("导入配置 JSON") },
+            title = { Text("导入配置") },
             text = {
-                Column {
-                    Text("请粘贴导出的 JSON 备份数据：", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = importJsonText,
-                        onValueChange = { importJsonText = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 8
-                    )
-                }
+                OutlinedTextField(
+                    value = importJsonText,
+                    onValueChange = { importJsonText = it },
+                    label = { Text("粘贴备份 JSON 内容") },
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                    maxLines = 10
+                )
             },
             confirmButton = {
                 Button(
@@ -411,8 +605,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         } else {
                             Toast.makeText(context, "导入失败，格式错误", Toast.LENGTH_SHORT).show()
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo)
+                    }
                 ) {
                     Text("确认导入")
                 }

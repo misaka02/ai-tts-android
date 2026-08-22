@@ -61,7 +61,6 @@ import com.aitts.engine.data.PresetConfigs
 import com.aitts.engine.data.ReplacementRule
 import com.aitts.engine.rules.TextPreprocessor
 import com.aitts.engine.ui.components.SectionHeader
-import com.aitts.engine.ui.theme.PrimaryIndigo
 import com.aitts.engine.ui.theme.SuccessGreen
 import org.json.JSONArray
 import org.json.JSONObject
@@ -113,7 +112,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                     )
                     showDialog = true
                 },
-                containerColor = PrimaryIndigo,
+                containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "新增规则")
@@ -153,7 +152,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                         Text(
                             text = "清洗替换后: $processedOutput",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = PrimaryIndigo,
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -183,7 +182,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                             configDataStore.saveRules(merged)
                             Toast.makeText(context, "已合并官方精品发音词库 (${merged.size}条)", Toast.LENGTH_SHORT).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -272,12 +271,12 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
-                                        color = if (rule.isRegex) PrimaryIndigo.copy(alpha = 0.12f) else SuccessGreen.copy(alpha = 0.12f),
+                                        color = if (rule.isRegex) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else SuccessGreen.copy(alpha = 0.12f),
                                         shape = RoundedCornerShape(4.dp)
                                     ) {
                                         Text(
                                             text = if (rule.isRegex) "正则" else "纯文本",
-                                            color = if (rule.isRegex) PrimaryIndigo else SuccessGreen,
+                                            color = if (rule.isRegex) MaterialTheme.colorScheme.primary else SuccessGreen,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -305,7 +304,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                                 editingRule = rule
                                 showDialog = true
                             }) {
-                                Icon(Icons.Default.Edit, contentDescription = "编辑", tint = PrimaryIndigo)
+                                Icon(Icons.Default.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.primary)
                             }
 
                             IconButton(onClick = { configDataStore.deleteRule(rule.id) }) {
@@ -370,7 +369,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                         )
                         showDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text("保存")
                 }
@@ -463,7 +462,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                             Toast.makeText(context, "JSON 解析失败: ${e.message}", Toast.LENGTH_LONG).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryIndigo)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text("开始导入")
                 }

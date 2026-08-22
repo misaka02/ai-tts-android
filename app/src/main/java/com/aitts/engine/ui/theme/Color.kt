@@ -4,32 +4,20 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import com.aitts.engine.data.ProviderType
 
-// --- 现代化核心主色调 (Electric Indigo & Radiant Cyan) ---
-val PrimaryIndigo = Color(0xFF6366F1)
-val PrimaryIndigoDark = Color(0xFF4F46E5)
-val PrimaryIndigoLight = Color(0xFF818CF8)
-val AccentCyan = Color(0xFF06B6D4)
-val AccentEmerald = Color(0xFF10B981)
-val AccentRose = Color(0xFFF43F5E)
-val AccentAmber = Color(0xFFF59E0B)
+// --- 5 套高品质预设主题色系方案 ---
+enum class AppPaletteTheme(val key: String, val title: String, val primaryColor: Color, val previewColor: Color) {
+    OCEAN_AZURE("OCEAN_AZURE", "深海曜蓝", Color(0xFF0EA5E9), Color(0xFF0284C7)),
+    EMERALD_JADE("EMERALD_JADE", "极客翡翠", Color(0xFF10B981), Color(0xFF059669)),
+    TITANIUM_SLATE("TITANIUM_SLATE", "钛金极简", Color(0xFF64748B), Color(0xFF475569)),
+    SUNSET_AMBER("SUNSET_AMBER", "落日暖金", Color(0xFFF59E0B), Color(0xFFD97706)),
+    MORANDI_GRAPHITE("MORANDI_GRAPHITE", "莫兰迪灰", Color(0xFF546E7A), Color(0xFF37474F));
 
-// --- 深色模式色盘 (Deep Obsidian & Night Slate) ---
-val ObsidianBackground = Color(0xFF090D16)
-val ObsidianSurface = Color(0xFF111726)
-val ObsidianCard = Color(0xFF182236)
-val ObsidianCardElevated = Color(0xFF1F2C46)
-val ObsidianBorder = Color(0xFF263554)
-val ObsidianTextPrimary = Color(0xFFF1F5F9)
-val ObsidianTextSecondary = Color(0xFF94A3B8)
-
-// --- 浅色模式色盘 (Crisp Snow & Soft Slate) ---
-val SnowBackground = Color(0xFFF4F6F9)
-val SnowSurface = Color(0xFFFFFFFF)
-val SnowCard = Color(0xFFFFFFFF)
-val SnowCardElevated = Color(0xFFF8FAFC)
-val SnowBorder = Color(0xFFE2E8F0)
-val SnowTextPrimary = Color(0xFF0F172A)
-val SnowTextSecondary = Color(0xFF64748B)
+    companion object {
+        fun fromKey(key: String): AppPaletteTheme {
+            return entries.firstOrNull { it.key.equals(key, ignoreCase = true) } ?: OCEAN_AZURE
+        }
+    }
+}
 
 // --- 状态提示色 ---
 val SuccessGreen = Color(0xFF22C55E)
@@ -69,7 +57,7 @@ object BrandTheme {
     fun getGradientForType(type: ProviderType): Brush {
         val color = getColorForType(type)
         return Brush.horizontalGradient(
-            colors = listOf(color, color.copy(alpha = 0.7f))
+            colors = listOf(color, color.copy(alpha = 0.75f))
         )
     }
 }

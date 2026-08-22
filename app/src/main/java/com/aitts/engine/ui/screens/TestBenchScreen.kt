@@ -1,5 +1,7 @@
 package com.aitts.engine.ui.screens
 
+import android.os.Environment
+import android.widget.Toast
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -26,6 +28,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AssistChip
@@ -36,6 +39,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,9 +69,10 @@ import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.SentenceSplitter
 import com.aitts.engine.rules.TextPreprocessor
 import com.aitts.engine.ui.components.SectionHeader
-import com.aitts.engine.ui.theme.PrimaryIndigo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -79,6 +84,9 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
     val providers by configDataStore.providersFlow.collectAsState()
     val rules by configDataStore.rulesFlow.collectAsState()
 
+    val activeProvider = providers.find { it.id == settings.activeProviderId }
+        ?: providers.firstOrNull()
+
     val audioPlayer = remember { AndroidAudioPlayer(context) }
     DisposableEffect(Unit) {
         onDispose {
@@ -86,26 +94,32 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
         }
     }
 
-    val activeProvider = providers.find { it.id == settings.activeProviderId } ?: providers.firstOrNull()
-
     var textInput by remember {
-        mutableStateOf(
-            "第123章：林间风声。\n" +
-            "更新于2026年，完读率达到了99.5%。\n" +
-            "山林之中微风拂过，他停下脚步，握紧长剑。\n" +
-            "“既然来了，何必藏头露尾？”他沉声说道。\n" +
-            "“多年不见，你依然如此警觉。”一道清脆灵动的女声从树梢上传来。"
-        )
+        mutableStateOf("“你确定这台AI引擎的延迟能低于300ms吗？”林萧紧盯着控制台屏幕问道。苏月微微一笑：“不但低于300毫秒，而且还支持旁白与对话自动双角色协同切换，听感如同专业CV配音。”")
     }
 
     var isRunning by remember { mutableStateOf(false) }
     var latencyMs by remember { mutableStateOf<Long?>(null) }
-    var totalChars by remember { mutableStateOf(0) }
     var totalSentences by remember { mutableStateOf(0) }
+    var totalChars by remember { mutableStateOf(0) }
+    var lastSynthesizedBytes by remember { mutableStateOf<ByteArray?>(null) }
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    val infiniteTransition = rememberInfiniteTransition(label = "audio_bars")
+    val barPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "phase"
+    )
 
     fun stopTest() {
-        audioPlayer.stop()
         isRunning = false
+        audioPlayer.stop()
     }
 
     fun startTest() {
@@ -117,6 +131,7 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
 
         scope.launch {
             try {
+                val byteStream = ByteArrayOutputStream()
                 configDataStore.log("=== 开始测试工作台朗读任务 [${activeProvider.name}] ===")
                 val preprocessed = TextPreprocessor.process(textInput, rules, settings.isNumberNormalizationEnabled)
                 val segments = SentenceSplitter.splitTextWithRoles(preprocessed, settings.maxSentenceLength)
@@ -147,6 +162,7 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                     if (result.isSuccess) {
                         val rawBytes = result.getOrNull() ?: ByteArray(0)
                         if (rawBytes.isNotEmpty() && isRunning) {
+                            byteStream.write(rawBytes)
                             configDataStore.log("第 ${idx + 1}/${segments.size} 句 $roleLabel 合成成功 (${cost}ms), 音频 ${rawBytes.size} 字节: \"${seg.text.take(15)}...\"")
                             val playDone = CompletableDeferred<Unit>()
                             audioPlayer.playAudioBytes(
@@ -166,6 +182,7 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                     }
                 }
 
+                lastSynthesizedBytes = byteStream.toByteArray()
                 configDataStore.log("=== 朗读任务结束，总耗时 ${System.currentTimeMillis() - totalStart}ms ===")
                 isRunning = false
             } catch (e: Exception) {
@@ -175,66 +192,125 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
         }
     }
 
+    fun exportAudio() {
+        val bytes = lastSynthesizedBytes
+        if (bytes == null || bytes.isEmpty()) {
+            Toast.makeText(context, "请先执行朗读测试生成音频", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadDir.exists()) downloadDir.mkdirs()
+            val fileName = "AI_TTS_Audio_${System.currentTimeMillis()}.mp3"
+            val file = File(downloadDir, fileName)
+            file.writeBytes(bytes)
+            Toast.makeText(context, "音频已成功导出至: Downloads/${fileName}", Toast.LENGTH_LONG).show()
+            configDataStore.log("💾 音频已导出到文件: ${file.absolutePath} (${bytes.size} 字节)")
+        } catch (e: Exception) {
+            Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        Spacer(modifier = Modifier.height(4.dp))
         SectionHeader(
-            title = "全流程流式测试工作台",
-            subtitle = "实时监测大模型出声延迟 (TTFB)、智能多角色双音色流式衔接与 PCM 播放"
+            title = "全流程 AI 语音流式沙盒",
+            subtitle = "实时可视化波形、首字出声 TTFB 延迟与分句吞吐量探测"
         )
 
+        // 动态声波示波器
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(72.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    val barCount = 24
+                    val barSpacing = 4.dp.toPx()
+                    val totalSpacing = barSpacing * (barCount - 1)
+                    val barWidth = (size.width - totalSpacing) / barCount
+                    val maxHeight = size.height * 0.85f
+
+                    for (i in 0 until barCount) {
+                        val x = i * (barWidth + barSpacing)
+                        val factor = if (isRunning) {
+                            val seed = kotlin.math.sin((i * 0.35f + barPhase * 6.28f).toDouble()).toFloat()
+                            (seed * 0.5f + 0.5f).coerceIn(0.15f, 1.0f)
+                        } else {
+                            0.12f
+                        }
+                        val h = maxHeight * factor
+                        val y = (size.height - h) / 2f
+
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    primaryColor,
+                                    primaryColor.copy(alpha = 0.5f)
+                                )
+                            ),
+                            topLeft = Offset(x, y),
+                            size = Size(barWidth, h),
+                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                        )
+                    }
+                }
+            }
+        }
+
+        // 测试文本输入框与预设 Prompt
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(14.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(14.dp)) {
                 OutlinedTextField(
                     value = textInput,
                     onValueChange = { textInput = it },
-                    label = { Text("小说长篇测试文本 (${textInput.length} 字)") },
+                    label = { Text("小说测试文本 (支持引号对白双音色)") },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 4
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Text("快速载入典型测试片段：", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                Text("快捷小说文本片段预设:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(4.dp))
+
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     AssistChip(
                         onClick = {
-                            textInput = "第123章：林间风声。\n更新于2026年，完读率达到了99.5%。\n山林之中微风拂过，他停下脚步，握紧长剑。\n“既然来了，何必藏头露尾？”他沉声说道。\n“多年不见，你依然如此警觉。”一道清脆灵动的女声从树梢上传来。"
+                            textInput = "“这柄天玄诛仙剑，乃是上古神魔遗留在凡间的至宝。”老者抚须长叹道。少年握紧剑柄，目光坚定：“前辈放心，我必以它荡平魔域！”"
                         },
-                        label = { Text("⚔️ 玄幻对白+数字", fontSize = 11.sp) }
+                        label = { Text("玄幻修仙对白", fontSize = 10.5.sp) }
                     )
                     AssistChip(
                         onClick = {
-                            textInput = "江南三月，烟雨蒙蒙。\n“小姐，雨势大了，快进亭子避避吧。”丫鬟轻声催促着。\n“无妨，这雨中的荷塘，倒比晴日更有几分意境。”她莞尔一笑，声音轻柔动人。"
+                            textInput = "公元2026年第128章，他在江南水乡重逢了青梅竹马。女孩撑着油纸伞轻声说：“你终于回来了，我等了整整五年。”"
                         },
-                        label = { Text("🌸 言情水乡双角色", fontSize = 11.sp) }
+                        label = { Text("言情重逢+数字", fontSize = 10.5.sp) }
                     )
                     AssistChip(
                         onClick = {
-                            textInput = "深夜十二点，警局审讯室里一片死寂。\n“说说吧，昨晚十一点四十五分，你究竟在哪里？”刑警队长目光如炬地盯着他。\n“我……我真的什么都没做，警官，请相信我！”男子声音颤抖。"
+                            textInput = "“嫌疑人在昨晚23点45分离开案发现场，并在城东路口丢弃了凶器。”警官冷冷地看着审讯椅上的男人。"
                         },
-                        label = { Text("🕵️ 悬疑审讯对白", fontSize = 11.sp) }
+                        label = { Text("悬疑审讯对白", fontSize = 10.5.sp) }
                     )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
-
-                // 律动声波组件
-                if (isRunning) {
-                    AudioWaveformVisualizer(modifier = Modifier.fillMaxWidth().height(36.dp))
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -245,7 +321,7 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                         onClick = {
                             if (isRunning) stopTest() else startTest()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = if (isRunning) MaterialTheme.colorScheme.error else PrimaryIndigo),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isRunning) MaterialTheme.colorScheme.error else primaryColor),
                         modifier = Modifier.weight(1f)
                     ) {
                         if (isRunning) {
@@ -255,7 +331,15 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                         } else {
                             Icon(Icons.Default.PlayArrow, contentDescription = null)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("开始全流程流式测试")
+                            Text("开始全流程测试")
+                        }
+                    }
+
+                    if (lastSynthesizedBytes != null && lastSynthesizedBytes!!.isNotEmpty()) {
+                        OutlinedButton(onClick = { exportAudio() }) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("导出MP3", fontSize = 12.sp)
                         }
                     }
 
@@ -264,7 +348,7 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                             Text(
                                 text = "TTFB: ${latencyMs}ms",
                                 fontWeight = FontWeight.Bold,
-                                color = PrimaryIndigo,
+                                color = primaryColor,
                                 fontSize = 13.sp
                             )
                             if (totalSentences > 0) {
@@ -296,8 +380,8 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-            shape = RoundedCornerShape(8.dp)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            shape = RoundedCornerShape(10.dp)
         ) {
             LazyColumn(
                 modifier = Modifier
@@ -308,66 +392,25 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                     item {
                         Text(
                             text = "暂无运行日志，点击上方测试按钮查看网络交互与解码推流日志...",
-                            color = Color.LightGray,
+                            color = MaterialTheme.colorScheme.outline,
                             fontSize = 12.sp,
                             fontFamily = FontFamily.Monospace
                         )
                     }
-                }
-                items(logs) { log ->
-                    Text(
-                        text = log,
-                        color = if (log.contains("失败") || log.contains("异常") || log.contains("错误")) Color(0xFFF87171) else Color(0xFF4ADE80),
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(vertical = 1.dp)
-                    )
+                } else {
+                    items(logs.reversed()) { log ->
+                        Text(
+                            text = log,
+                            color = if (log.contains("失败") || log.contains("异常") || log.contains("错误")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.5.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(vertical = 1.5.dp)
+                        )
+                    }
                 }
             }
         }
-    }
-}
 
-/**
- * 律动跳动声波可视化 Canvas
- */
-@Composable
-fun AudioWaveformVisualizer(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "waveform")
-    val animProgress by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(450, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "bars"
-    )
-
-    Canvas(modifier = modifier) {
-        val barCount = 20
-        val totalWidth = size.width
-        val barWidth = totalWidth / (barCount * 1.8f)
-        val gap = (totalWidth - barCount * barWidth) / (barCount - 1)
-        val maxHeight = size.height
-
-        val primaryBrush = Brush.verticalGradient(
-            colors = listOf(Color(0xFF38BDF8), Color(0xFF2563EB))
-        )
-
-        for (i in 0 until barCount) {
-            val phase = (i * 0.35f)
-            val dynamicScale = (Math.sin((animProgress * Math.PI * 2 + phase).toDouble()).toFloat() + 1.2f) / 2.2f
-            val barHeight = (maxHeight * dynamicScale.coerceIn(0.15f, 0.95f))
-            val x = i * (barWidth + gap)
-            val y = (maxHeight - barHeight) / 2
-
-            drawRoundRect(
-                brush = primaryBrush,
-                topLeft = Offset(x, y),
-                size = Size(barWidth, barHeight),
-                cornerRadius = CornerRadius(barWidth / 2, barWidth / 2)
-            )
-        }
+        Spacer(modifier = Modifier.height(10.dp))
     }
 }

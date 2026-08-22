@@ -24,10 +24,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -69,7 +71,6 @@ import com.aitts.engine.ui.components.ProviderCard
 import com.aitts.engine.ui.components.SectionHeader
 import com.aitts.engine.ui.components.SystemTtsGuideCard
 import com.aitts.engine.ui.theme.BrandTheme
-import com.aitts.engine.ui.theme.PrimaryIndigo
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
@@ -101,6 +102,7 @@ fun HomeScreen(
     var isPlaying by remember { mutableStateOf(false) }
     var currentTestingProviderId by remember { mutableStateOf<String?>(null) }
 
+    var isReorderMode by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilterTag by remember { mutableStateOf("全部") }
     var isProbingSpeed by remember { mutableStateOf(false) }
@@ -257,7 +259,7 @@ fun HomeScreen(
                 subtitle = "阅读/小说/读屏等所有第三方 App 将默认调用此配置"
             )
 
-            val activeBrandColor = activeProvider?.let { BrandTheme.getColorForType(it.type) } ?: PrimaryIndigo
+            val activeBrandColor = activeProvider?.let { BrandTheme.getColorForType(it.type) } ?: MaterialTheme.colorScheme.primary
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -378,14 +380,24 @@ fun HomeScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { isReorderMode = !isReorderMode }
+                    ) {
+                        Icon(
+                            imageVector = if (isReorderMode) Icons.Default.Check else Icons.Default.SwapVert,
+                            contentDescription = "切换排序模式",
+                            tint = if (isReorderMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                        )
+                    }
+
                     IconButton(
                         onClick = { probeAllLatencies() }
                     ) {
                         if (isProbingSpeed) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Default.Speed, contentDescription = "一键测速", tint = PrimaryIndigo)
+                            Icon(Icons.Default.Speed, contentDescription = "一键测速", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
 
@@ -405,7 +417,7 @@ fun HomeScreen(
                             onNavigateToEditProvider(newId)
                         }
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "新建引擎", tint = PrimaryIndigo)
+                        Icon(Icons.Default.Add, contentDescription = "新建引擎", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -458,6 +470,7 @@ fun HomeScreen(
                     provider = provider,
                     isActive = provider.id == settings.activeProviderId,
                     latencyMs = latencyMap[provider.id],
+                    isReorderMode = isReorderMode,
                     onSelect = {
                         configDataStore.setActiveProviderId(provider.id)
                     },

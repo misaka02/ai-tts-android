@@ -1,5 +1,6 @@
 package com.aitts.engine.data
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 /**
@@ -97,6 +98,7 @@ data class SentenceSegment(
 /**
  * Provider 配置实体
  */
+@Immutable
 @Serializable
 data class TtsProviderConfig(
     val id: String,
@@ -123,6 +125,7 @@ data class TtsProviderConfig(
 /**
  * 文本正则发音替换规则
  */
+@Immutable
 @Serializable
 data class ReplacementRule(
     val id: String,
@@ -137,6 +140,7 @@ data class ReplacementRule(
 /**
  * 全局应用设置
  */
+@Immutable
 @Serializable
 data class GlobalSettings(
     val activeProviderId: String = "edge_tts_default",
@@ -155,7 +159,12 @@ data class GlobalSettings(
     val proxyType: String = "HTTP", // HTTP 或 SOCKS
     val connectTimeoutSeconds: Int = 15,
     val readTimeoutSeconds: Int = 60,
-    val appThemeMode: String = "SYSTEM" // SYSTEM / DARK / LIGHT
+    val appThemeMode: String = "SYSTEM", // SYSTEM / DARK / LIGHT
+    val appThemePalette: String = "OCEAN_AZURE", // OCEAN_AZURE, EMERALD_JADE, TITANIUM_SLATE, SUNSET_AMBER, MORANDI_GRAPHITE
+    val sentencePauseMs: Int = 200, // 标点分句后注入静音停顿毫秒数，大幅提升小说听感自然度
+    val fallbackProviderId: String = "edge_tts_default", // 主引擎异常时自动故障转移备用引擎
+    val autoFallbackOnFailure: Boolean = true, // 启用自动故障降级
+    val hapticFeedbackEnabled: Boolean = true // 触觉震动反馈开关
 )
 
 /**

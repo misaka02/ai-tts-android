@@ -26,7 +26,6 @@ import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.ui.components.ProviderCard
 import com.aitts.engine.ui.components.SectionHeader
-import com.aitts.engine.ui.theme.PrimaryIndigo
 import java.util.UUID
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -56,7 +55,7 @@ fun ProviderListScreen(
                     configDataStore.updateProvider(newConfig)
                     onNavigateToEditProvider(newId)
                 },
-                containerColor = PrimaryIndigo,
+                containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "新增模型")
