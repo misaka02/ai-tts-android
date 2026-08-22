@@ -40,6 +40,7 @@ class TtsSynthesizer(private val context: Context) {
 
     fun stop() {
         isStopped.set(true)
+        com.aitts.engine.network.SharedHttpClient.cancelAll()
     }
 
     /**
@@ -73,7 +74,7 @@ class TtsSynthesizer(private val context: Context) {
         )
 
         // 1. 文本预处理与网页/Markdown/多音字清洗
-        val preprocessedText = TextPreprocessor.process(rawText, rules)
+        val preprocessedText = TextPreprocessor.process(rawText, rules, settings.isNumberNormalizationEnabled)
         if (preprocessedText.isBlank()) {
             callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
             callback.done()

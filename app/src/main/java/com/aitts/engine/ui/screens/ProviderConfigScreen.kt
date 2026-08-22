@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -41,6 +43,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -68,6 +71,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aitts.engine.audio.AndroidAudioPlayer
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.PresetConfigs
 import com.aitts.engine.data.ProviderType
@@ -88,6 +92,7 @@ fun ProviderConfigScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val providers by configDataStore.providersFlow.collectAsState()
+    val audioPlayer = remember { AndroidAudioPlayer(context) }
 
     val initialConfig = providers.find { it.id == providerId }
         ?: PresetConfigs.createDefaultProviders().first()
@@ -116,6 +121,7 @@ fun ProviderConfigScreen(
     var availableVoices by remember { mutableStateOf<List<VoiceModel>>(emptyList()) }
     var showVoiceDialog by remember { mutableStateOf(false) }
     var voiceSearchQuery by remember { mutableStateOf("") }
+    var previewingVoiceId by remember { mutableStateOf<String?>(null) }
 
     fun buildCurrentConfig(): TtsProviderConfig {
         return initialConfig.copy(
@@ -144,8 +150,8 @@ fun ProviderConfigScreen(
                 modelName = "mimo-v2.5-tts"
                 voiceId = "茉莉"
                 sampleRate = "24000"
-                audioFormat = "mp3"
-                promptInstruction = "用温柔知性的语气朗读，情感丰富细腻"
+                audioFormat = "pcm16"
+                promptInstruction = "用温柔知性的语气朗读，情感丰富自然"
             }
             ProviderType.MINIMAX -> {
                 name = "MiniMax Speech-02 (海螺语音)"
@@ -244,7 +250,11 @@ fun ProviderConfigScreen(
 
     if (showVoiceDialog) {
         AlertDialog(
-            onDismissRequest = { showVoiceDialog = false },
+            onDismissRequest = {
+                audioPlayer.stop()
+                previewingVoiceId = null
+                showVoiceDialog = false
+            },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = PrimaryBlue)
@@ -253,7 +263,7 @@ fun ProviderConfigScreen(
                 }
             },
             text = {
-                Column(modifier = Modifier.fillMaxWidth().height(400.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().height(420.dp)) {
                     OutlinedTextField(
                         value = voiceSearchQuery,
                         onValueChange = { voiceSearchQuery = it },
@@ -285,6 +295,8 @@ fun ProviderConfigScreen(
                                         .fillMaxWidth()
                                         .clickable {
                                             voiceId = voice.id
+                                            audioPlayer.stop()
+                                            previewingVoiceId = null
                                             showVoiceDialog = false
                                             Toast.makeText(context, "已选择音色: ${voice.name}", Toast.LENGTH_SHORT).show()
                                         },
@@ -292,33 +304,72 @@ fun ProviderConfigScreen(
                                         containerColor = if (voiceId == voice.id) PrimaryBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 ) {
-                                    Column(modifier = Modifier.padding(10.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = voice.name,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 14.sp
+                                                )
+                                                Text(
+                                                    text = "${voice.gender} · ${voice.locale}",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                             Text(
-                                                text = voice.name,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 14.sp
+                                                text = "ID: ${voice.id}",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.outline
                                             )
-                                            Text(
-                                                text = "${voice.gender} · ${voice.locale}",
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
+                                            if (voice.description.isNotBlank()) {
+                                                Text(
+                                                    text = voice.description,
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
                                         }
-                                        Text(
-                                            text = "ID: ${voice.id}",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
-                                        if (voice.description.isNotBlank()) {
-                                            Text(
-                                                text = voice.description,
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+
+                                        IconButton(
+                                            onClick = {
+                                                if (previewingVoiceId == voice.id) {
+                                                    audioPlayer.stop()
+                                                    previewingVoiceId = null
+                                                } else {
+                                                    previewingVoiceId = voice.id
+                                                    scope.launch {
+                                                        try {
+                                                            val testConfig = buildCurrentConfig().copy(voiceId = voice.id)
+                                                            val res = TtsProviderManager.getInstance().synthesize("您好，这是${voice.name}的试听效果。", testConfig)
+                                                            if (res.isSuccess) {
+                                                                audioPlayer.playAudio(res.getOrThrow())
+                                                            } else {
+                                                                Toast.makeText(context, "试听失败: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            Toast.makeText(context, "试听异常: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                        } finally {
+                                                            previewingVoiceId = null
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        ) {
+                                            if (previewingVoiceId == voice.id) {
+                                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                            } else {
+                                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "试听", tint = PrimaryBlue)
+                                            }
                                         }
                                     }
                                 }
@@ -328,7 +379,11 @@ fun ProviderConfigScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showVoiceDialog = false }) {
+                TextButton(onClick = {
+                    audioPlayer.stop()
+                    previewingVoiceId = null
+                    showVoiceDialog = false
+                }) {
                     Text("关闭")
                 }
             }
@@ -365,18 +420,8 @@ fun ProviderConfigScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                SectionHeader(title = "基础信息")
+                SectionHeader(title = "模型类型与预设")
 
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("配置名称") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Provider Type Dropdown
                 ExposedDropdownMenuBox(
                     expanded = isTypeMenuExpanded,
                     onExpandedChange = { isTypeMenuExpanded = it }
@@ -385,10 +430,13 @@ fun ProviderConfigScreen(
                         value = selectedType.displayName,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("服务提供商类型") },
+                        label = { Text("AI 语音厂商 / 协议") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isTypeMenuExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
                     )
+
                     ExposedDropdownMenu(
                         expanded = isTypeMenuExpanded,
                         onDismissRequest = { isTypeMenuExpanded = false }
@@ -412,10 +460,21 @@ fun ProviderConfigScreen(
                     onClick = { applyOfficialDefaults(selectedType) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("自动重置为【${selectedType.displayName}】官方默认参数与地址", fontSize = 12.sp)
+                    Text("恢复 ${selectedType.displayName} 官方官方标准端点与默认配置")
                 }
+            }
+
+            item {
+                SectionHeader(title = "基本信息")
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("配置显示名称") },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             if (selectedType.requiresApiKey || selectedType == ProviderType.CUSTOM_HTTP) {
@@ -446,6 +505,104 @@ fun ProviderConfigScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+            }
+
+            // 小米 MiMo 专属模式工作台 (标准 / 音色设计 / 声音克隆)
+            if (selectedType == ProviderType.MIMO) {
+                item {
+                    SectionHeader(title = "小米 MiMo 工作室模式 (Voice Studio)")
+
+                    var mimoMode by remember(modelName) {
+                        mutableStateOf(
+                            when {
+                                modelName.contains("voicedesign") -> "voicedesign"
+                                modelName.contains("voiceclone") -> "voiceclone"
+                                else -> "standard"
+                            }
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        FilterChip(
+                            selected = mimoMode == "standard",
+                            onClick = {
+                                mimoMode = "standard"
+                                modelName = "mimo-v2.5-tts"
+                            },
+                            label = { Text("🎙️ 标准合成", fontSize = 12.sp) }
+                        )
+                        FilterChip(
+                            selected = mimoMode == "voicedesign",
+                            onClick = {
+                                mimoMode = "voicedesign"
+                                modelName = "mimo-v2.5-tts-voicedesign"
+                                if (promptInstruction.isBlank() || promptInstruction.contains("温柔知性")) {
+                                    promptInstruction = "一位22岁的江南温婉女子，声音轻柔甜美、带有一点点水乡软糯感，语速舒缓治愈"
+                                }
+                            },
+                            label = { Text("🎨 音色设计", fontSize = 12.sp) }
+                        )
+                        FilterChip(
+                            selected = mimoMode == "voiceclone",
+                            onClick = {
+                                mimoMode = "voiceclone"
+                                modelName = "mimo-v2.5-tts-voiceclone"
+                            },
+                            label = { Text("🧬 声音克隆", fontSize = 12.sp) }
+                        )
+                    }
+
+                    if (mimoMode == "voicedesign") {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("点击下方快捷模版快速填入音色设计提示词：", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            AssistChip(
+                                onClick = {
+                                    promptInstruction = "一位22岁的江南温婉女子，声音轻柔甜美、带有一点点水乡软糯感，语速舒缓治愈"
+                                },
+                                label = { Text("🌸 江南温婉女声", fontSize = 11.sp) }
+                            )
+                            AssistChip(
+                                onClick = {
+                                    promptInstruction = "一位40岁声音浑厚深沉的刑侦悬疑纪录片旁白，富有磁性与压迫感，语气沉着严肃"
+                                },
+                                label = { Text("🎙️ 悬疑磁性男声", fontSize = 11.sp) }
+                            )
+                            AssistChip(
+                                onClick = {
+                                    promptInstruction = "充满朝气的16岁热血少年音，清亮清脆，语调欢快昂扬"
+                                },
+                                label = { Text("🔥 热血动漫少年", fontSize = 11.sp) }
+                            )
+                            AssistChip(
+                                onClick = {
+                                    promptInstruction = "端庄成熟的标准新闻电台女主播腔调，咬字清晰，从容自然"
+                                },
+                                label = { Text("📻 知性电台主播", fontSize = 11.sp) }
+                            )
+                        }
+                    } else if (mimoMode == "voiceclone") {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "💡 在小米开放平台 (platform.xiaomimimo.com) 完成声音克隆后，将获得的克隆音色 ID 直接填入下方的「音色标识 (Voice ID)」即可！",
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -519,40 +676,35 @@ fun ProviderConfigScreen(
                             OutlinedTextField(
                                 value = promptInstruction,
                                 onValueChange = { promptInstruction = it },
-                                label = { Text("自定义情感 / 场景提示词 (Prompt)") },
-                                placeholder = { Text("例如：用温柔知性的语气朗读，情感细腻，适合言情小说...") },
+                                label = { Text("导演提示词 (例如: 用温柔知性的语气朗读，情感丰富)") },
                                 modifier = Modifier.fillMaxWidth(),
-                                maxLines = 3
+                                minLines = 2,
+                                maxLines = 4
                             )
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            Text("常用预设风格快捷标签:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("快捷情绪风格模版：", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                             Spacer(modifier = Modifier.height(4.dp))
-
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 AssistChip(
-                                    onClick = { promptInstruction = "用温柔知性的语气朗读，情感丰富细腻，适合有声小说" },
-                                    label = { Text("📖 有声小说·温婉", fontSize = 11.sp) }
+                                    onClick = { promptInstruction = "用温柔知性的语气朗读，情感细腻，娓娓道来" },
+                                    label = { Text("温柔知性", fontSize = 11.sp) }
                                 )
                                 AssistChip(
-                                    onClick = { promptInstruction = "用悬疑小说旁白语气，沉稳低沉，富有戏剧张力与压迫感" },
-                                    label = { Text("🔮 悬疑玄幻·沉稳", fontSize = 11.sp) }
+                                    onClick = { promptInstruction = "用沉稳严肃、富有压迫感和神秘感的语气朗读" },
+                                    label = { Text("悬疑沉稳", fontSize = 11.sp) }
                                 )
                                 AssistChip(
-                                    onClick = { promptInstruction = "语速偏快，充满青春活力与朝气，欢快清脆" },
-                                    label = { Text("⚡ 紧凑快读·生动", fontSize = 11.sp) }
+                                    onClick = { promptInstruction = "用高亢激昂、热烈且充满力量感的战斗对白语气朗读" },
+                                    label = { Text("战斗热血", fontSize = 11.sp) }
                                 )
                                 AssistChip(
-                                    onClick = { promptInstruction = "语速缓慢从容，语调温和轻柔，富有治愈与放松感" },
-                                    label = { Text("🧘 徐缓从容·治愈", fontSize = 11.sp) }
-                                )
-                                AssistChip(
-                                    onClick = { promptInstruction = "标准新闻广播腔，字正腔圆，严肃端庄" },
-                                    label = { Text("🎙️ 标准播音·端庄", fontSize = 11.sp) }
+                                    onClick = { promptInstruction = "用轻快明亮、活泼灵动、富有少女感的语气朗读" },
+                                    label = { Text("活泼少女", fontSize = 11.sp) }
                                 )
                             }
                         }
@@ -561,17 +713,10 @@ fun ProviderConfigScreen(
             }
 
             item {
-                SectionHeader(title = "音频与发音微调")
+                SectionHeader(title = "音频与发音参数")
 
-                val speedLabel = when {
-                    speed <= 0.7f -> "极慢 (指令: 从容徐缓，字正腔圆)"
-                    speed <= 0.85f -> "稍慢 (指令: 沉稳从容)"
-                    speed >= 1.35f -> "较快 (指令: 紧凑流畅)"
-                    speed >= 1.15f -> "稍快 (指令: 轻快生动)"
-                    else -> "正常 (100%)"
-                }
                 Text(
-                    text = "语速: ${(speed * 100).toInt()}% · $speedLabel",
+                    text = "语速倍率: ${String.format("%.2f", speed)}x",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Slider(
@@ -580,13 +725,8 @@ fun ProviderConfigScreen(
                     valueRange = 0.5f..2.0f
                 )
 
-                val pitchLabel = when {
-                    pitch <= 0.85f -> "低沉 (指令: 浑厚低沉带磁性)"
-                    pitch >= 1.15f -> "高昂 (指令: 清脆高亢明亮)"
-                    else -> "正常 (100%)"
-                }
                 Text(
-                    text = "音调: ${(pitch * 100).toInt()}% · $pitchLabel",
+                    text = "音调微调: ${String.format("%.2f", pitch)}",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Slider(
@@ -649,10 +789,12 @@ fun ProviderConfigScreen(
                         testMessage = null
                         scope.launch {
                             val config = buildCurrentConfig()
-                            val result = TtsProviderManager.getInstance().synthesize("测试当前大模型配置与导演模式语音合成", config)
+                            val result = TtsProviderManager.getInstance().synthesize("测试当前大模型配置与导演模式语音合成效果", config)
                             isTesting = false
                             if (result.isSuccess) {
-                                testMessage = "✅ 连接并合成成功！音频大小: ${result.getOrNull()?.size} 字节"
+                                val bytes = result.getOrThrow()
+                                testMessage = "✅ 连接并合成成功！音频大小: ${bytes.size} 字节 (正在播放试听)"
+                                audioPlayer.playAudio(bytes)
                             } else {
                                 testMessage = "❌ 合成失败: ${result.exceptionOrNull()?.message}"
                             }
@@ -672,20 +814,20 @@ fun ProviderConfigScreen(
                     } else {
                         Icon(Icons.Default.PlayArrow, contentDescription = null)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("测试此模型配置")
+                        Text("测试此模型配置并试听")
                     }
                 }
 
                 if (testMessage != null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = testMessage!!,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (testMessage!!.startsWith("✅")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        text = testMessage ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (testMessage?.startsWith("✅") == true) PrimaryBlue else MaterialTheme.colorScheme.error
                     )
                 }
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(80.dp))
             }
         }
     }

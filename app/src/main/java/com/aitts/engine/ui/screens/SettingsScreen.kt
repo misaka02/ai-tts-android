@@ -116,6 +116,29 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                             steps = 12
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("小说数字与章节发音优化", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "将“第123章”转为“第一百二十三章”，“2026年”转为“二零二六年”",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.isNumberNormalizationEnabled,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(isNumberNormalizationEnabled = it))
+                            }
+                        )
+                    }
                 }
             }
         }

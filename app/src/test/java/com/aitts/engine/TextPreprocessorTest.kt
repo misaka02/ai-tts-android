@@ -55,4 +55,15 @@ class TextPreprocessorTest {
         val output = TextPreprocessor.process(input, emptyList())
         assertEquals("你好 ，请访问 网址链接 加粗文本 & 内容", output.trim())
     }
+
+    @Test
+    fun testChineseNumberNormalization() {
+        val input1 = "请看第123章，更新于2026年，完成率达到了99.5%。"
+        val output1 = TextPreprocessor.normalizeChineseNumbers(input1)
+        assertEquals("请看第一百二十三章，更新于二零二六年，完成率达到了百分之九十九点五。", output1)
+
+        val input2 = "第10节，第15集，第1名"
+        val output2 = TextPreprocessor.normalizeChineseNumbers(input2)
+        assertEquals("第十节，第十五集，第一名", output2)
+    }
 }

@@ -30,7 +30,10 @@ class OpenAiTtsProvider(
             VoiceModel("alloy", "Alloy (中性·均衡通用)", "Neutral", "all", "中性均衡音色"),
             VoiceModel("echo", "Echo (男声·温和清晰)", "Male", "all", "温和沉稳男声"),
             VoiceModel("fable", "Fable (英音·富有叙事感)", "Neutral", "all", "故事与小说阅读"),
-            VoiceModel("onyx", "Onyx (男声·低沉厚重)", "Male", "all", "深沉厚重男低音")
+            VoiceModel("onyx", "Onyx (男声·低沉厚重)", "Male", "all", "深沉厚重男低音"),
+            VoiceModel("coral", "Coral (女声·灵动知性·GPT-4o)", "Female", "all", "GPT-4o 旗舰灵动女声"),
+            VoiceModel("sage", "Sage (女声·沉着温婉·GPT-4o)", "Female", "all", "GPT-4o 沉着温和女声"),
+            VoiceModel("ash", "Ash (男声·清朗自然·GPT-4o)", "Male", "all", "GPT-4o 清朗少年音")
         )
     }
 

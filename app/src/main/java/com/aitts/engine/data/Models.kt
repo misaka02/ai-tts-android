@@ -125,6 +125,7 @@ data class GlobalSettings(
     val isAudioCacheEnabled: Boolean = true,
     val maxCacheSizeMb: Int = 500,
     val streamingSynthesis: Boolean = true,
+    val isNumberNormalizationEnabled: Boolean = true,
     val globalPitch: Float = 1.0f,
     val globalSpeed: Float = 1.0f,
     val isDebugLoggingEnabled: Boolean = true

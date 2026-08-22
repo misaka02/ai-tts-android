@@ -78,7 +78,8 @@ class MiniMaxTtsProvider(
                     put("voice_id", voiceId)
                     put("speed", config.speed)
                     put("vol", 1.0)
-                    put("pitch", 0)
+                    val pitchVal = ((config.pitch - 1.0f) * 12).toInt().coerceIn(-12, 12)
+                    put("pitch", pitchVal)
                 })
                 put("audio_setting", buildJsonObject {
                     put("sample_rate", if (config.sampleRate > 0) config.sampleRate else 32000)

@@ -42,6 +42,10 @@ class AndroidAudioPlayer(private val context: Context) {
         }
     }
 
+    suspend fun playAudio(audioBytes: ByteArray) {
+        playAudioBytes(audioBytes)
+    }
+
     suspend fun playAudioBytes(
         audioBytes: ByteArray,
         onCompletion: () -> Unit = {},
