@@ -273,6 +273,41 @@ object PresetConfigs {
             replacement = "丘慈",
             isRegex = false,
             description = "修正古地名多音字：龟兹 (qiū cí)"
+        ),
+        ReplacementRule(
+            id = "rule_html_entities",
+            pattern = "&(?:nbsp|gt|lt|amp|quot);",
+            replacement = " ",
+            isRegex = true,
+            description = "过滤小说网页导入残留的 HTML 转义符号"
+        ),
+        ReplacementRule(
+            id = "rule_novel_chapter_end",
+            pattern = "(?:\\(本章完\\)|（本章完）|PS[:：].*|求月票|求推荐票|求追读|作者有话说.*)",
+            replacement = "",
+            isRegex = true,
+            description = "过滤章节末尾防盗广告与作者求月票打扰语"
+        ),
+        ReplacementRule(
+            id = "rule_repeat_symbols",
+            pattern = "[\\~\\-_=\\+]{3,}",
+            replacement = "，",
+            isRegex = true,
+            description = "将小说中连续波浪线或横线转为自然停顿"
+        ),
+        ReplacementRule(
+            id = "rule_yyds",
+            pattern = "\\byyds\\b",
+            replacement = "永远的神",
+            isRegex = true,
+            description = "网络缩写纠正：yyds ➔ 永远的神"
+        ),
+        ReplacementRule(
+            id = "rule_u1s1",
+            pattern = "\\bu1s1\\b",
+            replacement = "有一说一",
+            isRegex = true,
+            description = "网络缩写纠正：u1s1 ➔ 有一说一"
         )
     )
 

@@ -398,7 +398,7 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                         )
                     }
                 } else {
-                    items(logs.reversed()) { log ->
+                    items(logs.reversed(), contentType = { "log_item" }) { log ->
                         Text(
                             text = log,
                             color = if (log.contains("失败") || log.contains("异常") || log.contains("错误")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,

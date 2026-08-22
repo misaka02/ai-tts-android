@@ -93,7 +93,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // 主题色系与外观切换
-        item {
+        item(contentType = "theme_section") {
             Spacer(modifier = Modifier.height(8.dp))
             SectionHeader(
                 title = "外观主题与设计色系",
@@ -176,7 +176,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         }
 
         // 小说分句与自然停顿调度
-        item {
+        item(contentType = "novel_section") {
             SectionHeader(
                 title = "小说朗读分句与自然停顿",
                 subtitle = "标点智能拆分、首句即播与句间自然呼吸停顿"
@@ -271,7 +271,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         }
 
         // 智能故障自动降级 (Auto-Failover)
-        item {
+        item(contentType = "failover_section") {
             SectionHeader(
                 title = "引擎高可用与故障自动转移",
                 subtitle = "当主力大模型欠费或网络异常时，自动无缝降级备用引擎，听书永不断流"
@@ -340,7 +340,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         }
 
         // 全局网络代理卡片
-        item {
+        item(contentType = "proxy_section") {
             SectionHeader(
                 title = "全局网络代理与连接调优",
                 subtitle = "Google Gemini 等境外服务可在此直接配置代理"
@@ -412,7 +412,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         }
 
         // 本地音频缓存卡片
-        item {
+        item(contentType = "cache_section") {
             SectionHeader(
                 title = "本地音频智能缓存",
                 subtitle = "相同文本第二次直接从本地毫秒级秒播，无需重复消耗 API 配额"
@@ -476,7 +476,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         }
 
         // 触觉震动与系统交互
-        item {
+        item(contentType = "haptic_section") {
             SectionHeader(
                 title = "系统交互与触觉反馈",
                 subtitle = "拖拽排序、按键与模式切换震动控制"
@@ -513,7 +513,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         }
 
         // 配置备份与迁移
-        item {
+        item(contentType = "backup_section") {
             SectionHeader(
                 title = "全量配置备份与迁移",
                 subtitle = "一键导出全部引擎 API Key、自定义规则与全局参数"
@@ -552,7 +552,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         }
 
         // 系统设置直达卡片
-        item {
+        item(contentType = "system_section") {
             SectionHeader(
                 title = "系统文字转语音 (TTS) 快捷直达",
                 subtitle = "前往安卓系统设置验证或切换默认 TTS"

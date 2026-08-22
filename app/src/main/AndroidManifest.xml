@@ -35,6 +35,8 @@
         android:theme="@style/Theme.AiTtsEngine"
         android:networkSecurityConfig="@xml/network_security_config"
         android:requestLegacyExternalStorage="true"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true"
         tools:targetApi="34">
 
         <!-- 系统标准 TTS 引擎服务注册 -->

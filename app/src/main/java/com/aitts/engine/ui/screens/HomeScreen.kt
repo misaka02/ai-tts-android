@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -217,7 +218,7 @@ fun HomeScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
+        item(contentType = "permission") {
             Spacer(modifier = Modifier.height(4.dp))
             PermissionCard(
                 permissionState = permissionState,
@@ -244,7 +245,7 @@ fun HomeScreen(
             )
         }
 
-        item {
+        item(contentType = "guide") {
             SystemTtsGuideCard(
                 onOpenSettings = {
                     activity?.let { PermissionManager.openSystemTtsSettings(it) }
@@ -253,7 +254,7 @@ fun HomeScreen(
         }
 
         // 当前激活的主音色卡片
-        item {
+        item(contentType = "active_banner") {
             SectionHeader(
                 title = "当前系统生效发音模型",
                 subtitle = "阅读/小说/读屏等所有第三方 App 将默认调用此配置"
@@ -361,7 +362,7 @@ fun HomeScreen(
         }
 
         // 引擎列表操作栏与过滤检索
-        item {
+        item(contentType = "filter_header") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -398,6 +399,17 @@ fun HomeScreen(
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         } else {
                             Icon(Icons.Default.Speed, contentDescription = "一键测速", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    if (latencyMap.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                configDataStore.sortProvidersByLatency(latencyMap)
+                                Toast.makeText(context, "已按响应延迟由快到慢排序", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "按速度排序", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
 
@@ -453,7 +465,7 @@ fun HomeScreen(
         }
 
         if (filteredProviders.isEmpty()) {
-            item {
+            item(contentType = "empty_placeholder") {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -464,9 +476,8 @@ fun HomeScreen(
                 }
             }
         } else {
-            items(filteredProviders, key = { it.id }) { provider ->
+            items(filteredProviders, key = { it.id }, contentType = { "provider_card" }) { provider ->
                 ProviderCard(
-                    modifier = Modifier.animateItemPlacement(),
                     provider = provider,
                     isActive = provider.id == settings.activeProviderId,
                     latencyMs = latencyMap[provider.id],

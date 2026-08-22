@@ -218,7 +218,19 @@ class ConfigDataStore(private val context: Context) {
         saveRules(current)
     }
 
+    fun sortProvidersByLatency(latencyMap: Map<String, Long>) {
+        val current = _providersFlow.value.toMutableList()
+        current.sortBy { provider ->
+            latencyMap[provider.id] ?: 999999L
+        }
+        saveProviders(current)
+    }
+
     // --- Backup & Restore ---
+    fun exportRulesJson(): String {
+        return json.encodeToString(_rulesFlow.value)
+    }
+
     fun exportAllConfigJson(): String {
         val backupData = BackupPayload(
             settings = _settingsFlow.value,

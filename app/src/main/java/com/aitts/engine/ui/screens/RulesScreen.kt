@@ -1,5 +1,6 @@
 package com.aitts.engine.ui.screens
 
+import android.os.Environment
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -64,6 +66,7 @@ import com.aitts.engine.ui.components.SectionHeader
 import com.aitts.engine.ui.theme.SuccessGreen
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.util.UUID
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -163,7 +166,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                 // 快捷工具栏
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     OutlinedButton(
                         onClick = {
@@ -171,9 +174,29 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("导入阅读规则", fontSize = 12.sp)
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("导入规则", fontSize = 11.5.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val json = configDataStore.exportRulesJson()
+                                val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                                if (!downloadDir.exists()) downloadDir.mkdirs()
+                                val file = File(downloadDir, "AI_TTS_Rules_${System.currentTimeMillis()}.json")
+                                file.writeBytes(json.toByteArray(Charsets.UTF_8))
+                                Toast.makeText(context, "规则已成功导出至 Downloads/${file.name}", Toast.LENGTH_LONG).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("导出文件", fontSize = 11.5.sp)
                     }
 
                     Button(
@@ -183,11 +206,11 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                             Toast.makeText(context, "已合并官方精品发音词库 (${merged.size}条)", Toast.LENGTH_SHORT).show()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1.2f)
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("合并官方词库", fontSize = 12.sp)
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("合并词库", fontSize = 11.5.sp)
                     }
                 }
 
@@ -220,7 +243,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                 }
             }
 
-            item {
+            item(contentType = "list_header") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -239,13 +262,13 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
             }
 
             if (filteredRules.isEmpty()) {
-                item {
+                item(contentType = "empty_placeholder") {
                     Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                         Text("未找到符合条件的替换规则", color = MaterialTheme.colorScheme.outline)
                     }
                 }
             } else {
-                items(filteredRules, key = { it.id }) { rule ->
+                items(filteredRules, key = { it.id }, contentType = { "rule_card" }) { rule ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

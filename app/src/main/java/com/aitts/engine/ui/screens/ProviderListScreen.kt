@@ -69,7 +69,7 @@ fun ProviderListScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item {
+            item(contentType = "header") {
                 Spacer(modifier = Modifier.height(8.dp))
                 SectionHeader(
                     title = "AI 语音模型服务管理",
@@ -77,9 +77,8 @@ fun ProviderListScreen(
                 )
             }
 
-            items(providers, key = { it.id }) { provider ->
+            items(providers, key = { it.id }, contentType = { "provider_card" }) { provider ->
                 ProviderCard(
-                    modifier = Modifier.animateItemPlacement(),
                     provider = provider,
                     isActive = provider.id == settings.activeProviderId,
                     onSelect = {
