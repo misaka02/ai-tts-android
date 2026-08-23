@@ -245,21 +245,7 @@ fun ProviderCard(
             .zIndex(if (isDragging) 10f else 1f)
             .offset { IntOffset(0, if (isDragging) dragOffsetY.roundToInt() else 0) }
             .shadow(if (isDragging) 12.dp else 1.dp, CardCornerShape)
-            .scale(if (isDragging) 1.025f else 1f)
-            .pointerInput(provider.id, isReorderMode) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onDragStart()
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        onDrag(dragAmount.y)
-                    },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragCancel() }
-                )
-            },
+            .scale(if (isDragging) 1.025f else 1f),
         shape = CardCornerShape,
         color = if (isDragging) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
@@ -274,11 +260,12 @@ fun ProviderCard(
             BorderStroke(1.5.dp, primaryColor)
         } else {
             BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-        },
-        onClick = onSelect
+        }
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !isReorderMode) { onSelect() },
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 左侧品牌专属色条

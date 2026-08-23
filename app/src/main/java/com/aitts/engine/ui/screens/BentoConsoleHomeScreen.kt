@@ -281,40 +281,54 @@ fun BentoConsoleHomeScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(10.dp)
+                            .size(9.dp)
                             .background(if (isPlaying) SuccessGreen else activeBrandColor, CircleShape)
-                            .shadow(8.dp, CircleShape)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "AI TTS BENTO",
+                        text = "AI TTS",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
-                        letterSpacing = 1.sp
+                        letterSpacing = 0.5.sp
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(6.dp),
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                     ) {
                         Text(
                             text = "v${com.aitts.engine.BuildConfig.VERSION_NAME}",
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { showSleepTimerDialog = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Bedtime,
+                            contentDescription = "睡眠定时",
+                            tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    IconButton(onClick = { showHistoryDialog = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "历史统计",
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
                     Box {
                         AssistChip(
                             onClick = { showStyleMenu = true },
-                            label = { Text("🚀 Bento 极简", fontSize = 11.sp) },
-                            leadingIcon = {
-                                Icon(Icons.Default.Dashboard, contentDescription = null, modifier = Modifier.size(14.dp))
-                            }
+                            label = { Text("🚀 Bento", fontSize = 11.sp) }
                         )
                         DropdownMenu(
                             expanded = showStyleMenu,
@@ -342,22 +356,6 @@ fun BentoConsoleHomeScreen(
                                 }
                             )
                         }
-                    }
-
-                    IconButton(onClick = { showSleepTimerDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Bedtime,
-                            contentDescription = "睡眠定时",
-                            tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                        )
-                    }
-
-                    IconButton(onClick = { showHistoryDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "历史统计",
-                            tint = MaterialTheme.colorScheme.outline
-                        )
                     }
                 }
             }

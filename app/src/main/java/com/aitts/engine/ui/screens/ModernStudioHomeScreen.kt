@@ -331,13 +331,28 @@ fun ModernStudioHomeScreen(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { showSleepTimerDialog = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Bedtime,
+                            contentDescription = "睡眠定时",
+                            tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    IconButton(onClick = { showHistoryDialog = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "历史统计",
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
                     Box {
                         AssistChip(
                             onClick = { showStyleMenu = true },
-                            label = { Text("🎛️ Studio 调音台", fontSize = 11.sp) },
-                            leadingIcon = {
-                                Icon(Icons.Default.Dashboard, contentDescription = null, modifier = Modifier.size(14.dp))
-                            }
+                            label = { Text("🎛️ Studio", fontSize = 11.sp) }
                         )
                         DropdownMenu(
                             expanded = showStyleMenu,
@@ -365,22 +380,6 @@ fun ModernStudioHomeScreen(
                                 }
                             )
                         }
-                    }
-
-                    IconButton(onClick = { showSleepTimerDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Bedtime,
-                            contentDescription = "睡眠定时",
-                            tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                        )
-                    }
-
-                    IconButton(onClick = { showHistoryDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "历史统计",
-                            tint = MaterialTheme.colorScheme.outline
-                        )
                     }
                 }
             }

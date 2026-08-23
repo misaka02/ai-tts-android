@@ -77,6 +77,9 @@ import com.aitts.engine.ui.components.SectionHeader
 import com.aitts.engine.ui.theme.AppPaletteTheme
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import java.io.BufferedReader
@@ -96,6 +99,8 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
     var showImportDialog by remember { mutableStateOf(false) }
     var importJsonText by remember { mutableStateOf("") }
     var fallbackExpanded by remember { mutableStateOf(false) }
+    var selectedCategoryIndex by remember { mutableStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
 
     var pendingExportJson by remember { mutableStateOf<String?>(null) }
 
@@ -144,20 +149,71 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // 主题色系与外观切换
-        item(contentType = "theme_section") {
-            Spacer(modifier = Modifier.height(8.dp))
+        // 顶部搜索与 4 大分类选项卡
+        item(contentType = "settings_header") {
+            Spacer(modifier = Modifier.height(6.dp))
             SectionHeader(
-                title = "外观主题与设计色系",
-                subtitle = "内置 10+ 套高品质设计色系与 A屏纯黑极夜模式"
+                title = "系统设置与全局首选项",
+                subtitle = "分类管理外观、声学微调、网络代理与全量备份"
             )
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 实时设置搜索栏
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("搜索设置 (如: 纯黑 / 代理 / 语速 / 缓存 / 停顿)...", fontSize = 12.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            if (searchQuery.isBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                val categories = listOf(
+                    "🎨 外观主题",
+                    "🔊 发音声学",
+                    "⚡ 并发网络",
+                    "💾 备份关于"
+                )
+                TabRow(
+                    selectedTabIndex = selectedCategoryIndex,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    divider = {}
+                ) {
+                    categories.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedCategoryIndex == index,
+                            onClick = { selectedCategoryIndex = index },
+                            text = { Text(title, fontSize = 12.sp, fontWeight = if (selectedCategoryIndex == index) FontWeight.Bold else FontWeight.Normal) }
+                        )
+                    }
+                }
+            }
+        }
+
+        val q = searchQuery.trim().lowercase()
+
+        // 1. 主题色系与外观切换
+        val showTheme = (q.isBlank() && selectedCategoryIndex == 0) ||
+                (q.isNotBlank() && (q in "外观" || q in "主题" || q in "纯黑" || q in "色系" || q in "模式" || q in "amoled" || q in "style" || q in "bento" || q in "studio" || q in "classic"))
+
+        if (showTheme) {
+            item(contentType = "theme_section") {
+                SectionHeader(
+                    title = "外观主题与设计色系",
+                    subtitle = "内置 10+ 套高品质设计色系与 A屏纯黑极夜模式"
+                )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                     Text("界面深浅模式", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
@@ -279,7 +335,13 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                 }
             }
         }
+    }
 
+    // 2. 发音声学与小说停顿调度
+    val showAudio = (q.isBlank() && selectedCategoryIndex == 1) ||
+            (q.isNotBlank() && (q in "小说" || q in "分句" || q in "停顿" || q in "呼吸" || q in "数字" || q in "缩写" || q in "情感" || q in "eq" || q in "清晰" || q in "响度" || q in "音效" || q in "增益" || q in "震动" || q in "通知"))
+
+    if (showAudio) {
         // 小说分句与自然停顿调度
         item(contentType = "novel_section") {
             SectionHeader(
@@ -526,6 +588,72 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
             }
         }
 
+        // 触觉震动与系统交互
+        item(contentType = "haptic_section") {
+            SectionHeader(
+                title = "系统交互与触觉反馈",
+                subtitle = "拖拽排序、按键与模式切换震动控制"
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("启用触觉微震动反馈", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "长按拖拽排序与快捷调整时提供细腻物理手感",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.hapticFeedbackEnabled,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(hapticFeedbackEnabled = it))
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("后台朗读通知栏状态与停止控制", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "在通知栏与锁屏实时同步当前正在朗读的句子内容，并提供快捷停止按键",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.playbackNotificationEnabled,
+                            onCheckedChange = {
+                                configDataStore.updateSettings(settings.copy(playbackNotificationEnabled = it))
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. 并发网络、代理与缓存
+    val showNetwork = (q.isBlank() && selectedCategoryIndex == 2) ||
+            (q.isNotBlank() && (q in "故障" || q in "降级" || q in "重试" || q in "备用" || q in "failover" || q in "代理" || q in "proxy" || q in "socks" || q in "http" || q in "端口" || q in "缓存" || q in "cache" || q in "清理" || q in "磁盘"))
+
+    if (showNetwork) {
         // 智能故障自动降级 (Auto-Failover)
         item(contentType = "failover_section") {
             SectionHeader(
@@ -753,67 +881,13 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                 }
             }
         }
+    }
 
-        // 触觉震动与系统交互
-        item(contentType = "haptic_section") {
-            SectionHeader(
-                title = "系统交互与触觉反馈",
-                subtitle = "拖拽排序、按键与模式切换震动控制"
-            )
+    // 4. 全量备份、系统 TTS 直达与关于致谢
+    val showBackupAbout = (q.isBlank() && selectedCategoryIndex == 3) ||
+            (q.isNotBlank() && (q in "备份" || q in "导出" || q in "恢复" || q in "json" || q in "导入" || q in "系统" || q in "tts" || q in "设置" || q in "关于" || q in "版本" || q in "github" || q in "开发者" || q in "deepmind" || q in "antigravity"))
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("启用触觉微震动反馈", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "长按拖拽排序与快捷调整时提供细腻物理手感",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = settings.hapticFeedbackEnabled,
-                            onCheckedChange = {
-                                configDataStore.updateSettings(settings.copy(hapticFeedbackEnabled = it))
-                            }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("后台朗读通知栏状态与停止控制", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "在通知栏与锁屏实时同步当前正在朗读的句子内容，并提供快捷停止按键",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = settings.playbackNotificationEnabled,
-                            onCheckedChange = {
-                                configDataStore.updateSettings(settings.copy(playbackNotificationEnabled = it))
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
+    if (showBackupAbout) {
         // 配置备份与迁移
         item(contentType = "backup_section") {
             SectionHeader(
@@ -1036,11 +1110,12 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                 }
             }
         }
-
-        item {
-            Spacer(modifier = Modifier.height(30.dp))
-        }
     }
+
+    item {
+        Spacer(modifier = Modifier.height(30.dp))
+    }
+}
 
     if (showImportDialog) {
         AlertDialog(

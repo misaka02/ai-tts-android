@@ -98,14 +98,41 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
 
     val enabledCount = rules.count { it.enabled }
 
+    fun getRuleCategory(rule: ReplacementRule): String {
+        val d = rule.description
+        val p = rule.pattern
+        return when {
+            d.contains("排版") || d.contains("标点") || d.contains("水印") || d.contains("括号") ||
+            d.contains("省略号") || d.contains("符号") || d.contains("广告") || d.contains("防盗") ||
+            d.contains("html") || d.contains("分割线") || d.contains("方块") || d.contains("净化") ||
+            d.contains("过滤") || p.contains("…") || p.contains("【") || p.contains("&") -> "排版与符号"
+
+            d.contains("缩写") || d.contains("网络") || d.contains("AI") || d.contains("WiFi") ||
+            d.contains("CPU") || d.contains("GPU") || d.contains("NPC") || d.contains("BOSS") ||
+            p.contains("yyds") || p.contains("u1s1") -> "网络与缩写"
+
+            d.contains("多音字") || d.contains("音") || d.contains("读音") || d.contains("修仙") ||
+            d.contains("成语") || d.contains("地名") || !rule.isRegex -> "多音字纠错"
+
+            else -> "其他与自定义"
+        }
+    }
+
+    val catPolyphoneCount = remember(rules) { rules.count { getRuleCategory(it) == "多音字纠错" } }
+    val catSymbolsCount = remember(rules) { rules.count { getRuleCategory(it) == "排版与符号" } }
+    val catAcronymsCount = remember(rules) { rules.count { getRuleCategory(it) == "网络与缩写" } }
+    val catOtherCount = remember(rules) { rules.count { getRuleCategory(it) == "其他与自定义" } }
+
     val filteredRules = rules.filter { rule ->
         val matchesSearch = rule.pattern.contains(searchQuery, ignoreCase = true) ||
                 rule.replacement.contains(searchQuery, ignoreCase = true) ||
                 rule.description.contains(searchQuery, ignoreCase = true)
 
         val matchesCat = when (selectedCategory) {
-            "多音字纠错" -> rule.description.contains("多音字") || !rule.isRegex
-            "排版与标点" -> rule.description.contains("排版") || rule.description.contains("水印") || rule.description.contains("省略号") || rule.description.contains("符号")
+            "多音字纠错" -> getRuleCategory(rule) == "多音字纠错"
+            "排版与符号" -> getRuleCategory(rule) == "排版与符号"
+            "网络与缩写" -> getRuleCategory(rule) == "网络与缩写"
+            "其他与自定义" -> getRuleCategory(rule) == "其他与自定义"
             "已启用" -> rule.enabled
             "已停用" -> !rule.enabled
             else -> true
@@ -189,32 +216,34 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 快捷工具与批量管理栏
+                // 快捷工具与批量管理栏（精准支持分类一键开关）
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     AssistChip(
                         onClick = {
-                            configDataStore.saveRules(rules.map { it.copy(enabled = true) })
-                            Toast.makeText(context, "已全部启用 (${rules.size} 条)", Toast.LENGTH_SHORT).show()
+                            val targetIds = filteredRules.map { it.id }.toSet()
+                            configDataStore.saveRules(rules.map { if (it.id in targetIds) it.copy(enabled = true) else it })
+                            Toast.makeText(context, "已启用当前筛选 (${targetIds.size} 条)", Toast.LENGTH_SHORT).show()
                         },
-                        label = { Text("一键全开", fontSize = 11.sp) },
+                        label = { Text("启用当前 (${filteredRules.size})", fontSize = 11.sp) },
                         leadingIcon = { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
                     )
 
                     AssistChip(
                         onClick = {
-                            configDataStore.saveRules(rules.map { it.copy(enabled = false) })
-                            Toast.makeText(context, "已全部禁用", Toast.LENGTH_SHORT).show()
+                            val targetIds = filteredRules.map { it.id }.toSet()
+                            configDataStore.saveRules(rules.map { if (it.id in targetIds) it.copy(enabled = false) else it })
+                            Toast.makeText(context, "已停用当前筛选 (${targetIds.size} 条)", Toast.LENGTH_SHORT).show()
                         },
-                        label = { Text("一键全关", fontSize = 11.sp) },
+                        label = { Text("停用当前", fontSize = 11.sp) },
                         leadingIcon = { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(13.dp)) }
                     )
 
                     AssistChip(
                         onClick = { showCuratedDialog = true },
-                        label = { Text("精选规则包", fontSize = 11.sp) },
+                        label = { Text("精选包", fontSize = 11.sp) },
                         leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(13.dp)) }
                     )
 
@@ -240,18 +269,24 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 分类 Filter Chips
+                // 分类 Filter Chips (覆盖 100% 规则，带精准数量徽标)
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    listOf(
+                    val categoryList = mutableListOf(
                         "全部" to "全部 (${rules.size})",
                         "已启用" to "已启用 (${enabledCount})",
                         "已停用" to "已停用 (${rules.size - enabledCount})",
-                        "多音字纠错" to "多音字纠错",
-                        "排版与标点" to "排版与标点"
-                    ).forEach { (catKey, catLabel) ->
+                        "多音字纠错" to "多音字 ($catPolyphoneCount)",
+                        "排版与符号" to "排版与符号 ($catSymbolsCount)",
+                        "网络与缩写" to "网络与缩写 ($catAcronymsCount)"
+                    )
+                    if (catOtherCount > 0) {
+                        categoryList.add("其他与自定义" to "自定义 ($catOtherCount)")
+                    }
+
+                    categoryList.forEach { (catKey, catLabel) ->
                         FilterChip(
                             selected = selectedCategory == catKey,
                             onClick = { selectedCategory = catKey },
