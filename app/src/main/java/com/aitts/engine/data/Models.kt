@@ -200,7 +200,10 @@ data class GlobalSettings(
     val voiceClarityBoostEnabled: Boolean = false, // 人声清晰度增强滤镜 (Clear Voice EQ)
     val loudnessGainFactor: Float = 1.0f, // 软件级响度增益与动态均衡 (1.0x ~ 2.0x)
     val sleepTimerMinutes: Int = 0, // 听书睡眠定时器 (分钟，0为关闭)
-    val appUiStyle: String = "BENTO" // 界面设计风格 (BENTO: 未来全息声球工作台, STUDIO: DAW专业调音台, CLASSIC: 经典紧凑列表)
+    val appUiStyle: String = "BENTO", // 界面设计风格 (BENTO: 未来全息声球工作台, STUDIO: DAW专业调音台, VINYL: 黑胶沉浸阅览舱)
+    val floatingDockMode: String = "EXPANDED_HORIZONTAL", // 悬浮主控坞形态 (EXPANDED_HORIZONTAL, SIDEBAR_VERTICAL, PIE_RADIAL, EDGE_STASHED)
+    val floatingDockX: Float = 0f, // 悬浮坞持久化 X 坐标
+    val floatingDockY: Float = 0f  // 悬浮坞持久化 Y 坐标
 )
 
 /**

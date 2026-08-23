@@ -996,31 +996,6 @@ fun ModernStudioHomeScreen(
         }
     }
 
-    // 🌟 全局可拖拽主控坞 (Universal Draggable Floating Master Dock)
-    FloatingMasterDock(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        activeProvider = activeProvider,
-        currentUiStyle = "STUDIO",
-        isPlaying = isPlaying,
-        isSynthesizing = isSynthesizing,
-        onPlayToggle = {
-            if (isPlaying || isSynthesizing) {
-                stopPlayback()
-            } else {
-                activeProvider?.let { playSpeechWithProvider(it, testText) }
-            }
-        },
-        onRandomQuote = {
-            val item = QuoteService.getRandomLocalQuote()
-            testText = item.text
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        },
-        onSwitchUiStyle = onSwitchUiStyle,
-        onOpenProviderConfig = onNavigateToEditProvider
-    )
-
     // 睡眠定时器对话框
     if (showSleepTimerDialog) {
         androidx.compose.material3.AlertDialog(
