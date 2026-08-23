@@ -18,11 +18,10 @@ import java.util.concurrent.TimeUnit
  * 官方标准端点: POST https://api.stepfun.com/v1/audio/speech
  */
 class StepFunTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     override suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> {
         return listOf(

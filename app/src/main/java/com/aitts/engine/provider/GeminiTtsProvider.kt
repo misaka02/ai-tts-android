@@ -30,11 +30,10 @@ import java.util.concurrent.TimeUnit
  * 5. 音色配置: speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName = "Puck"
  */
 class GeminiTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     private val json = Json { ignoreUnknownKeys = true }
 

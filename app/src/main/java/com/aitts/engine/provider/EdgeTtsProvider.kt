@@ -34,11 +34,10 @@ import java.util.regex.Pattern
  * 免 API Key，支持全量微软神经网络大模型音色 (晓晓、云希等) 及动态音色库抓取
  */
 class EdgeTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     private val trustedClientToken = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
     private val winEpoch = 11644473600.0

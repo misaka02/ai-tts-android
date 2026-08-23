@@ -23,11 +23,10 @@ import java.util.concurrent.TimeUnit
  * 包含官方全量音色与在线动态列表拉取
  */
 class SiliconFlowTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     private val json = Json { ignoreUnknownKeys = true }
 

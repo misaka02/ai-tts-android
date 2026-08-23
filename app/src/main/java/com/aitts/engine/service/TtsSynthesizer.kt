@@ -113,11 +113,18 @@ class TtsSynthesizer(private val context: Context) {
             return@withContext
         }
 
-        // 2. 智能多角色长句切分 (识别对话与旁白、男女声、长者，支持极速首字秒开)
+        // 2. 智能多角色长句/自然段落切分 (启用分句时按标点与多角色拆分；关闭分句时按自然换行段落拆分，保留整段语义并并发流水线预取)
         val segments: List<SentenceSegment> = if (settings.isSentenceSplittingEnabled) {
             SentenceSplitter.splitTextWithRoles(finalInputText, settings.maxSentenceLength, settings.ultraLowLatencyMode)
         } else {
-            listOf(SentenceSegment(finalInputText, SegmentRole.NARRATOR))
+            val paragraphs = finalInputText.split(Regex("[\r\n]+"))
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            if (paragraphs.isEmpty()) {
+                listOf(SentenceSegment(finalInputText, SegmentRole.NARRATOR))
+            } else {
+                paragraphs.map { SentenceSegment(it, SegmentRole.NARRATOR) }
+            }
         }
 
         if (segments.isEmpty()) {

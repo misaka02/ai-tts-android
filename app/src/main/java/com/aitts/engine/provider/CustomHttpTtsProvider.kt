@@ -20,11 +20,10 @@ import java.util.concurrent.TimeUnit
  * 支持任意私有部署或开源大模型（GPT-SoVITS, CosyVoice, F5-TTS, MeloTTS, VITS 等）
  */
 class CustomHttpTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     private val json = Json { ignoreUnknownKeys = true }
 

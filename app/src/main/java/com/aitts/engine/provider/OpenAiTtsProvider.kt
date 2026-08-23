@@ -17,11 +17,10 @@ import java.util.concurrent.TimeUnit
  * OpenAI / GPT-4o 兼容标准格式 TTS 接入实现
  */
 class OpenAiTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     override suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> {
         return listOf(

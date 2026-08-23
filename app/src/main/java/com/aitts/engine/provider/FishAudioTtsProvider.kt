@@ -24,11 +24,10 @@ import java.util.concurrent.TimeUnit
  * 支持在线通过 API Key 动态拉取精选和自建克隆音色
  */
 class FishAudioTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     private val json = Json { ignoreUnknownKeys = true }
 

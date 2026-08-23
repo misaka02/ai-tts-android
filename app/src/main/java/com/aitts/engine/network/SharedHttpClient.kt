@@ -42,7 +42,12 @@ object SharedHttpClient {
      * 依据全局设置动态刷新客户端（如代理、超时等）
      */
     fun updateConfiguration(settings: GlobalSettings) {
+        val dispatcher = okhttp3.Dispatcher().apply {
+            maxRequests = 128
+            maxRequestsPerHost = 32
+        }
         val builder = OkHttpClient.Builder()
+            .dispatcher(dispatcher)
             .connectionPool(sharedConnectionPool)
             .connectTimeout(settings.connectTimeoutSeconds.toLong(), TimeUnit.SECONDS)
             .readTimeout(settings.readTimeoutSeconds.toLong(), TimeUnit.SECONDS)

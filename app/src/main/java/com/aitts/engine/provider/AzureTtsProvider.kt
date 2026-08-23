@@ -16,11 +16,10 @@ import java.util.concurrent.TimeUnit
  * 微软 Azure 官方 Cognitive Services Speech REST API 接入实现
  */
 class AzureTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     override suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> {
         return PresetConfigs.edgeVoices

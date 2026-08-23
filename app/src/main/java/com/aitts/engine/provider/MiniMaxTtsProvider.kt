@@ -24,11 +24,10 @@ import java.util.concurrent.TimeUnit
  * 包含官方全量 16+ 角色音色库
  */
 class MiniMaxTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     private val json = Json { ignoreUnknownKeys = true }
 

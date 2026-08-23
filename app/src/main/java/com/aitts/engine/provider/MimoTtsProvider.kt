@@ -26,11 +26,10 @@ import java.util.concurrent.TimeUnit
  * 支持「导演模式 (Director Mode)」：通过 user 角色的提示词动态控制语速、音调、情绪与朗读风格
  */
 class MimoTtsProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
+    customClient: OkHttpClient? = null
 ) : TtsProvider {
+
+    private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
     private val json = Json { ignoreUnknownKeys = true }
 
