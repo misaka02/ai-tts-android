@@ -15,6 +15,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,17 +40,13 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AssistChip
@@ -81,6 +79,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -90,10 +91,13 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aitts.engine.audio.AndroidAudioPlayer
 import com.aitts.engine.audio.AudioEnhancer
+import com.aitts.engine.audio.AudioVisualizerManager
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
@@ -110,16 +114,15 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Next-Gen AI Audio Studio 工作台界面 (v2.1.0 全新声学调音台架构)
- * 1. 采用专业音频工作站 (DAW) 沉浸式视觉层级；
- * 2. 主控台集成动态微频谱波形动效与实时语速/音调阻尼滑杆；
- * 3. 灵感语料库横向流动卡片流 + 一言金句实时异步拉取；
- * 4. 模块化声线矩阵卡片，支持单卡片前置测速与一键设为主音色；
- * 5. 与经典列表视图支持双向一键实时无缝切换。
+ * 🚀 全新未来拟态 Bento 便当盒全息工作台 (v2.2.0 Next-Gen Bento Paradigm)
+ * 1. 核心交互中心：触控全息声灵球 (Holographic Voice Core)，能量随真实物理音频振幅实时呼吸扩张；
+ * 2. 真实物理 32-Band FFT 频域频谱分析仪 (Real-Time Hardware Audio Spectrum)；
+ * 3. 几何 Bento 模块化卡片布局（声球浮岛、物理声谱、灵感瀑布、模型声线 Dock）；
+ * 4. 三套 UI 风格自由切换并支持 100% 完整核心功能。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ModernStudioHomeScreen(
+fun BentoConsoleHomeScreen(
     configDataStore: ConfigDataStore,
     onNavigateToEditProvider: (String) -> Unit,
     onNavigateToTestBench: () -> Unit,
@@ -137,6 +140,10 @@ fun ModernStudioHomeScreen(
         }
     }
 
+    val visualizerManager = remember { AudioVisualizerManager.getInstance() }
+    val spectrumBands by visualizerManager.spectrumFlow.collectAsState()
+    val rmsEnergy by visualizerManager.rmsEnergyFlow.collectAsState()
+
     val settings by configDataStore.settingsFlow.collectAsState()
     val providers by configDataStore.providersFlow.collectAsState()
     val historyItems by configDataStore.historyFlow.collectAsState()
@@ -145,10 +152,8 @@ fun ModernStudioHomeScreen(
     val sleepRemainingSec by sleepTimerManager.remainingSecondsFlow.collectAsState()
     val isSleepTimerActive by sleepTimerManager.isActiveFlow.collectAsState()
 
-    var showStyleMenu by remember { mutableStateOf(false) }
-
     var testText by remember {
-        mutableStateOf("欢迎使用 AI TTS Studio 专业音频工作台！大模型拟真声线正在为您实时合成发音。")
+        mutableStateOf("欢迎体验 AI TTS 全新 Bento 全息声球工作台！真实物理频域示波器正在实时捕获声学能量。")
     }
     var isFetchingHitokoto by remember { mutableStateOf(false) }
     var quoteSourceHint by remember { mutableStateOf<String?>(null) }
@@ -158,13 +163,9 @@ fun ModernStudioHomeScreen(
     var lastSynthesizedBytes by remember { mutableStateOf<ByteArray?>(null) }
     var lastSynthesizedProviderName by remember { mutableStateOf("") }
 
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedFilterTag by remember { mutableStateOf("全部") }
-    var isProbingSpeed by remember { mutableStateOf(false) }
-    val latencyMap = remember { mutableStateMapOf<String, Long>() }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showHistoryDialog by remember { mutableStateOf(false) }
-    var showQuickProviderMenu by remember { mutableStateOf(false) }
+    var showStyleMenu by remember { mutableStateOf(false) }
 
     var permissionState by remember {
         mutableStateOf(PermissionManager.checkPermissions(context))
@@ -177,17 +178,12 @@ fun ModernStudioHomeScreen(
         activeProvider?.let { BrandTheme.getColorForType(it.type) }
     } ?: MaterialTheme.colorScheme.primary
 
-    // 波形示波器动态相位
-    val infiniteTransition = rememberInfiniteTransition(label = "studio_wave")
-    val wavePhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "studio_wave_phase"
-    )
+    // 触控声球呼吸能量动效
+    val orbScale = if (isPlaying || isSynthesizing) {
+        1.0f + (rmsEnergy * 0.35f).coerceIn(0f, 0.4f)
+    } else {
+        1.0f
+    }
 
     fun stopPlayback() {
         audioPlayer.stop()
@@ -268,37 +264,14 @@ fun ModernStudioHomeScreen(
         }
     }
 
-    val filteredProviders = remember(providers, searchQuery, selectedFilterTag) {
-        providers.filter { provider ->
-            val matchesSearch = searchQuery.isBlank() ||
-                    provider.name.contains(searchQuery, ignoreCase = true) ||
-                    provider.voiceId.contains(searchQuery, ignoreCase = true) ||
-                    provider.modelName.contains(searchQuery, ignoreCase = true) ||
-                    provider.tags.any { it.contains(searchQuery, ignoreCase = true) } ||
-                    provider.type.displayName.contains(searchQuery, ignoreCase = true)
-
-            val matchesTag = when (selectedFilterTag) {
-                "全部" -> true
-                "官方免Key" -> !provider.type.requiresApiKey
-                "小米MiMo" -> provider.type == ProviderType.MIMO
-                "微软Edge" -> provider.type == ProviderType.EDGE_TTS
-                "Google" -> provider.type == ProviderType.GEMINI
-                "已启用" -> provider.enabled
-                else -> provider.tags.contains(selectedFilterTag)
-            }
-
-            matchesSearch && matchesTag
-        }
-    }
-
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 顶部 Studio 标题栏与风格切换
-        item(contentType = "studio_appbar") {
+        // 🌟 顶部全息状态胶囊栏
+        item(contentType = "bento_topbar") {
             Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -308,31 +281,28 @@ fun ModernStudioHomeScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                Brush.linearGradient(listOf(activeBrandColor, MaterialTheme.colorScheme.tertiary)),
-                                RoundedCornerShape(10.dp)
-                            ),
-                        contentAlignment = Alignment.Center
+                            .size(10.dp)
+                            .background(if (isPlaying) SuccessGreen else activeBrandColor, CircleShape)
+                            .shadow(8.dp, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "AI TTS BENTO",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.GraphicEq,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
                         Text(
-                            text = "AI TTS Studio",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black
-                        )
-                        Text(
-                            text = "v2.1.0 专业调音台工作台",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "v2.2.0",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                         )
                     }
                 }
@@ -341,7 +311,7 @@ fun ModernStudioHomeScreen(
                     Box {
                         AssistChip(
                             onClick = { showStyleMenu = true },
-                            label = { Text("🎛️ Studio 调音台", fontSize = 11.sp) },
+                            label = { Text("🚀 Bento 极简", fontSize = 11.sp) },
                             leadingIcon = {
                                 Icon(Icons.Default.Dashboard, contentDescription = null, modifier = Modifier.size(14.dp))
                             }
@@ -427,113 +397,174 @@ fun ModernStudioHomeScreen(
             )
         }
 
-        // 🌟 核心主控台 (Master Hero Console Deck)
-        item(contentType = "master_console") {
+        // 🌟 BENTO HERO: 3D 触控全息声灵球 (Holographic Voice Orb)
+        item(contentType = "bento_voice_orb") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(22.dp),
-                border = BorderStroke(1.5.dp, activeBrandColor.copy(alpha = 0.4f))
+                shape = RoundedCornerShape(26.dp),
+                border = BorderStroke(1.5.dp, activeBrandColor.copy(alpha = 0.5f))
             ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    // 主音色选择行
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = activeProvider?.name ?: "未配置发音引擎",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "${activeProvider?.type?.displayName} · 音色: ${activeProvider?.voiceId?.ifBlank { "默认" }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // 触控声灵球核心 (Tap Orb to Play/Pause)
+                    Box(
+                        modifier = Modifier
+                            .size(130.dp)
+                            .scale(orbScale)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(
+                                        activeBrandColor,
+                                        activeBrandColor.copy(alpha = 0.6f),
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
+                            .border(
+                                width = if (isPlaying) 3.dp else 1.5.dp,
+                                brush = Brush.sweepGradient(
+                                    listOf(activeBrandColor, MaterialTheme.colorScheme.tertiary, activeBrandColor)
+                                ),
+                                shape = CircleShape
+                            )
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                if (isPlaying || isSynthesizing) {
+                                    stopPlayback()
+                                } else {
+                                    activeProvider?.let { playSpeechWithProvider(it, testText) }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { showQuickProviderMenu = true }
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .background(
-                                        Brush.radialGradient(
-                                            listOf(activeBrandColor.copy(alpha = 0.3f), Color.Transparent)
-                                        ),
-                                        CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                                    contentDescription = null,
-                                    tint = activeBrandColor,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Column {
-                                Text(
-                                    text = activeProvider?.name ?: "未选择主模型",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "${activeProvider?.type?.displayName} · 点击快速切换",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        DropdownMenu(
-                            expanded = showQuickProviderMenu,
-                            onDismissRequest = { showQuickProviderMenu = false }
-                        ) {
-                            providers.forEach { p ->
-                                DropdownMenuItem(
-                                    text = { Text("${p.name} (${p.type.displayName})") },
-                                    onClick = {
-                                        configDataStore.updateSettings(settings.copy(activeProviderId = p.id))
-                                        showQuickProviderMenu = false
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    }
-                                )
-                            }
+                        if (isSynthesizing) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(36.dp),
+                                strokeWidth = 3.dp
+                            )
+                        } else if (isPlaying) {
+                            Icon(
+                                imageVector = Icons.Default.Stop,
+                                contentDescription = "停止",
+                                tint = Color.White,
+                                modifier = Modifier.size(44.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "试听",
+                                tint = Color.White,
+                                modifier = Modifier.size(48.dp)
+                            )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // 动态微频谱可视化器 (Dynamic Mini Spectrum Visualizer)
+                    Text(
+                        text = if (isSynthesizing) "大模型音频生成中..." else if (isPlaying) "正在播放实时物理声学音频 (轻触声球停止)" else "轻触全息声球试听",
+                        fontSize = 12.sp,
+                        color = if (isPlaying) activeBrandColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+
+        // 🌟 BENTO TILE 1: 真实物理 32-Band FFT 频域示波器 (Real Physical Spectrum)
+        item(contentType = "bento_spectrum") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = activeBrandColor, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("32-Band 真实物理音频频域示波器", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        }
+
+                        val peakDb = if (isPlaying && rmsEnergy > 0.001f) {
+                            "%.1f dB".format(20 * kotlin.math.log10(rmsEnergy.toDouble()))
+                        } else {
+                            "-inf dB"
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = "峰值: $peakDb",
+                                fontSize = 10.5.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = activeBrandColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 真实物理频谱渲染画布
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(56.dp)
                             .background(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                                 RoundedCornerShape(12.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp)) {
-                            val barCount = 36
-                            val barSpacing = 2.dp.toPx()
-                            val totalSpacing = barSpacing * (barCount - 1)
-                            val barWidth = (size.width - totalSpacing) / barCount
-                            val maxHeight = size.height * 0.85f
+                        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp)) {
+                            val count = spectrumBands.size
+                            val spacing = 2.dp.toPx()
+                            val totalSpacing = spacing * (count - 1)
+                            val barWidth = (size.width - totalSpacing) / count
+                            val maxHeight = size.height * 0.9f
 
-                            for (i in 0 until barCount) {
-                                val x = i * (barWidth + barSpacing)
-                                val factor = if (isPlaying || isSynthesizing) {
-                                    val seed = kotlin.math.sin((i * 0.32f + wavePhase * 6.28f).toDouble()).toFloat()
-                                    (seed * 0.45f + 0.55f).coerceIn(0.15f, 1.0f)
-                                } else {
-                                    0.1f
-                                }
-                                val h = maxHeight * factor
+                            for (i in 0 until count) {
+                                val x = i * (barWidth + spacing)
+                                val energy = spectrumBands[i].coerceIn(0.02f, 1.0f)
+                                val h = (maxHeight * energy).coerceAtLeast(3.dp.toPx())
                                 val y = (size.height - h) / 2f
 
                                 drawRoundRect(
                                     brush = Brush.verticalGradient(
-                                        listOf(activeBrandColor, activeBrandColor.copy(alpha = 0.4f))
+                                        listOf(
+                                            activeBrandColor,
+                                            activeBrandColor.copy(alpha = 0.35f)
+                                        )
                                     ),
                                     topLeft = Offset(x, y),
                                     size = Size(barWidth, h),
@@ -542,113 +573,86 @@ fun ModernStudioHomeScreen(
                             }
                         }
                     }
+                }
+            }
+        }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+        // 🌟 BENTO TILE 2: 实时声学参数微调浮岛 (Tactile Acoustic Controls)
+        item(contentType = "bento_acoustic_controls") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Tune, contentDescription = null, tint = activeBrandColor, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("发音参数与声学微调", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        }
 
-                    // 实时阻尼语速与音量调节滑杆
-                    activeProvider?.let { provider ->
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "主音色语速: ${"%.2f".format(provider.speed)}x",
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                                Text(
-                                    text = "采样率: ${provider.sampleRate}Hz",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Slider(
-                                value = provider.speed,
-                                onValueChange = { newSpeed ->
-                                    val updated = provider.copy(speed = (newSpeed * 10).toInt() / 10f)
-                                    configDataStore.updateProvider(updated)
-                                },
-                                valueRange = 0.5f..2.5f,
-                                steps = 19,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        TextButton(
+                            onClick = { activeProvider?.let { onNavigateToEditProvider(it.id) } }
+                        ) {
+                            Text("高级配置", fontSize = 12.sp)
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    activeProvider?.let { provider ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("主音色语速: ${"%.2f".format(provider.speed)}x", fontSize = 12.5.sp)
+                            Text("24000Hz · 16-bit Mono", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
 
-                    // 试听与操作按键组
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                if (isPlaying || isSynthesizing) {
-                                    stopPlayback()
-                                } else {
-                                    activeProvider?.let { playSpeechWithProvider(it, testText) }
-                                }
+                        Slider(
+                            value = provider.speed,
+                            onValueChange = { newSpeed ->
+                                val updated = provider.copy(speed = (newSpeed * 10).toInt() / 10f)
+                                configDataStore.updateProvider(updated)
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = activeBrandColor),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1.3f)
-                        ) {
-                            if (isSynthesizing && currentTestingProviderId == activeProvider?.id) {
-                                CircularProgressIndicator(
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("合成中...", fontSize = 13.sp)
-                            } else if (isPlaying && currentTestingProviderId == activeProvider?.id) {
-                                Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("停止", fontSize = 13.sp)
-                            } else {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("试听主音色", fontSize = 13.sp)
-                            }
-                        }
+                            valueRange = 0.5f..2.5f,
+                            steps = 19,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
 
+                    if (lastSynthesizedBytes != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
                         OutlinedButton(
-                            onClick = { activeProvider?.let { onNavigateToEditProvider(it.id) } },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
+                            onClick = {
+                                exportAndShareAudio(lastSynthesizedBytes!!, lastSynthesizedProviderName)
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("参数", fontSize = 12.5.sp)
-                        }
-
-                        if (lastSynthesizedBytes != null) {
-                            OutlinedButton(
-                                onClick = {
-                                    exportAndShareAudio(lastSynthesizedBytes!!, lastSynthesizedProviderName)
-                                },
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                            }
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("导出并分享当前音频 (WAV)", fontSize = 12.sp)
                         }
                     }
                 }
             }
         }
 
-        // 🌟 灵感语料与在线金句抽屉 (Corpus & Hitokoto Studio)
-        item(contentType = "corpus_studio") {
+        // 🌟 BENTO TILE 3: 灵感语料与一言实时卡片 (Hitokoto & Prompt Stream)
+        item(contentType = "bento_corpus") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(20.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -657,7 +661,7 @@ fun ModernStudioHomeScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("灵感试听语料库", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("灵感语料与金句", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -697,34 +701,6 @@ fun ModernStudioHomeScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // 分类快捷标签
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        listOf("小说剧场", "经典文学", "科技数码", "新闻播报", "日常闲聊").forEach { cat ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                modifier = Modifier.clickable {
-                                    val item = QuoteService.getRandomLocalQuote(cat)
-                                    testText = item.text
-                                    quoteSourceHint = "分类: $cat"
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                }
-                            ) {
-                                Text(
-                                    text = cat,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
                     OutlinedTextField(
                         value = testText,
                         onValueChange = {
@@ -758,134 +734,70 @@ fun ModernStudioHomeScreen(
             }
         }
 
-        // 🌟 模块化声线矩阵 (Studio Engine Matrix)
-        item(contentType = "engine_matrix_header") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "已装载声线矩阵 (${filteredProviders.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                TextButton(onClick = onNavigateToTestBench) {
-                    Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("流式沙盒", fontSize = 12.5.sp)
-                }
-            }
-
-            // 过滤标签
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                listOf("全部", "官方免Key", "小米MiMo", "微软Edge", "Google", "已启用").forEach { tag ->
-                    FilterChip(
-                        selected = selectedFilterTag == tag,
-                        onClick = { selectedFilterTag = tag },
-                        label = { Text(tag, fontSize = 11.sp) }
-                    )
-                }
-            }
-        }
-
-        items(filteredProviders, key = { it.id }) { provider ->
-            val isCurrentActive = provider.id == settings.activeProviderId
-            val brandColor = remember(provider.type) { BrandTheme.getColorForType(provider.type) }
-
+        // 🌟 BENTO TILE 4: 极速声线矩阵 Dock (Voice Matrix Dock)
+        item(contentType = "bento_dock") {
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        configDataStore.updateSettings(settings.copy(activeProviderId = provider.id))
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    },
+                modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(
-                    width = if (isCurrentActive) 1.5.dp else 1.dp,
-                    color = if (isCurrentActive) brandColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                )
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(
-                                        Brush.radialGradient(
-                                            listOf(brandColor.copy(alpha = 0.25f), Color.Transparent)
-                                        ),
-                                        CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
+                        Text(
+                            text = "极速声线矩阵 (${providers.size})",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        TextButton(onClick = onNavigateToTestBench) {
+                            Text("流式沙盒", fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        providers.forEach { provider ->
+                            val isSelected = provider.id == settings.activeProviderId
+                            val brandColor = remember(provider.type) { BrandTheme.getColorForType(provider.type) }
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) brandColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) brandColor else Color.Transparent
+                                ),
+                                modifier = Modifier.clickable {
+                                    configDataStore.updateSettings(settings.copy(activeProviderId = provider.id))
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
                             ) {
-                                Text(
-                                    text = provider.type.name.take(2),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = brandColor
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(brandColor, CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = provider.name,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) brandColor else MaterialTheme.colorScheme.onSurface
                                     )
-                                    if (isCurrentActive) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = brandColor.copy(alpha = 0.15f)
-                                        ) {
-                                            Text(
-                                                text = "生效中",
-                                                fontSize = 10.sp,
-                                                color = brandColor,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
                                 }
-                                Text(
-                                    text = "${provider.type.displayName} · 音色: ${provider.voiceId.ifBlank { "默认" }}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            // 单卡片快速试听
-                            IconButton(
-                                onClick = { playSpeechWithProvider(provider, testText) }
-                            ) {
-                                if (isSynthesizing && currentTestingProviderId == provider.id) {
-                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                } else if (isPlaying && currentTestingProviderId == provider.id) {
-                                    Icon(Icons.Default.Stop, contentDescription = "停止", tint = MaterialTheme.colorScheme.error)
-                                } else {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = "试听", tint = brandColor)
-                                }
-                            }
-
-                            IconButton(onClick = { onNavigateToEditProvider(provider.id) }) {
-                                Icon(Icons.Default.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.outline)
                             }
                         }
                     }

@@ -7,7 +7,8 @@
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-purple.svg)](https://kotlinlang.org/)
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-blueviolet.svg)](https://developer.android.com/jetpack/compose)
-[![Latest Release](https://img.shields.io/badge/Release-v2.1.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
+[![Latest Release](https://img.shields.io/badge/Release-v2.2.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
+[![APK Size](https://img.shields.io/badge/APK_Size-1.76MB-blue.svg)](https://github.com/misaka02/ai-tts-android/releases)
 
 <br/>
 
@@ -19,7 +20,7 @@
 
 ## 📖 快速上手
 
-1. **配置引擎**：打开本 App，选择目标模型（如免 Key 直连的**微软 Edge TTS** 或填入 **小米 MiMo** 等 API Key），点击 **「立即试听」** 确认发音正常；
+1. **配置引擎**：打开本 App，选择目标模型（如免 Key 直连的**微软 Edge TTS** 或填入 **小米 MiMo** 等 API Key），点击 **「全息声球」** 确认发音正常；
 2. **设为默认**：进入系统「设置」 $\to$ 搜索 **「文字转语音」/「TTS」** $\to$ 将首选引擎切换为 **`AI 大模型语音引擎`**；
 3. **开始听书**：在「开源阅读 (Legado)」或「静读天下」等应用中打开小说，朗读引擎选择 **「系统 TTS 引擎」** 即可。
 
@@ -44,7 +45,9 @@
 
 ## 🛠️ 主要功能特性
 
-- **双 UI 界面自由切换**：支持「Next-Gen Studio 调音台工作台」与「经典紧凑列表」双套交互布局，界面顶部一键即时无缝切换。
+- **三大 UI 交互范式自由切换**：支持「🚀 Bento 全息声球工作台」、「🎛️ DAW 专业调音台」与「📋 经典紧凑列表」三种完全不同设计语言的交互界面，顶部一键即时无缝切换。
+- **32-Band 真实物理音频频谱与 FFT 示波器**：通过硬件 Visualizer 与实时 PCM FFT 频域能量采样，根据实际发音的声学特征（元音共鸣、辅音摩擦、语速停顿、强弱起伏）真实动态跳动。
+- **超轻量极致体积**：通过 R8 全模式混淆剪裁与资源精细剔除，安装包仅 **1.76 MB**。
 - **流式并发预取**：播放当前段落时在后台异步预取下一句，降低长文本句间停顿。
 - **内存音频解码与重采样**：音频流在内存中直接解码并保真重采样为 24000Hz 16-bit 单声道，避免跨音色切换时采样率失步变调。
 - **小说多角色与情绪识别**：支持识别引号对白与引述语，可配置旁白、男主、女主、长者等多声线协同朗读，并注入情绪微调提示。

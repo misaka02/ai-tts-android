@@ -32,6 +32,7 @@ class AndroidAudioPlayer(private val context: Context) {
             mediaPlayer?.reset()
             mediaPlayer?.release()
             mediaPlayer = null
+            AudioVisualizerManager.getInstance().resetToSilence()
         } catch (e: Exception) {
             Log.w("AudioPlayer", "stop 异常: ${e.message}")
         }
@@ -81,6 +82,8 @@ class AndroidAudioPlayer(private val context: Context) {
                         start()
                     }
                     mediaPlayer = player
+                    AudioVisualizerManager.getInstance().attachToSession(player.audioSessionId)
+                    AudioVisualizerManager.getInstance().startPcmSimulation(audioBytes)
                 } catch (e: Exception) {
                     stop()
                     onError("播放器初始化失败: ${e.message}")

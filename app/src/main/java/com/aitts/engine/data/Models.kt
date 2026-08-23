@@ -199,7 +199,7 @@ data class GlobalSettings(
     val voiceClarityBoostEnabled: Boolean = false, // 人声清晰度增强滤镜 (Clear Voice EQ)
     val loudnessGainFactor: Float = 1.0f, // 软件级响度增益与动态均衡 (1.0x ~ 2.0x)
     val sleepTimerMinutes: Int = 0, // 听书睡眠定时器 (分钟，0为关闭)
-    val appUiStyle: String = "STUDIO" // 界面设计风格 (STUDIO: 全新沉浸式工作台, CLASSIC: 经典列表)
+    val appUiStyle: String = "BENTO" // 界面设计风格 (BENTO: 未来全息声球工作台, STUDIO: DAW专业调音台, CLASSIC: 经典紧凑列表)
 )
 
 /**

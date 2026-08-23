@@ -129,13 +129,25 @@ fun HomeScreen(
 
     val settings by configDataStore.settingsFlow.collectAsState()
 
+    if (settings.appUiStyle == "BENTO") {
+        BentoConsoleHomeScreen(
+            configDataStore = configDataStore,
+            onNavigateToEditProvider = onNavigateToEditProvider,
+            onNavigateToTestBench = onNavigateToTestBench,
+            onSwitchUiStyle = { newStyle ->
+                configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
+            }
+        )
+        return
+    }
+
     if (settings.appUiStyle == "STUDIO") {
         ModernStudioHomeScreen(
             configDataStore = configDataStore,
             onNavigateToEditProvider = onNavigateToEditProvider,
             onNavigateToTestBench = onNavigateToTestBench,
-            onToggleUiStyle = {
-                configDataStore.updateSettings(settings.copy(appUiStyle = "CLASSIC"))
+            onSwitchUiStyle = { newStyle ->
+                configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
             }
         )
         return
