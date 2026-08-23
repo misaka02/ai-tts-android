@@ -28,7 +28,7 @@ fun buildColorScheme(palette: AppPaletteTheme, isDark: Boolean): ColorScheme {
             AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFF110508), Color(0xFF1E0B10), Color(0xFF2E121A), Color(0xFF4E202C))
             AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFF070712), Color(0xFF0F0F20), Color(0xFF181830), Color(0xFF2C2C52))
             AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFF110603), Color(0xFF1F0C06), Color(0xFF2E140B), Color(0xFF4C2415))
-            AppPaletteTheme.PURE_BLACK -> Quad(Color(0xFF000000), Color(0xFF101010), Color(0xFF181818), Color(0xFF2E2E2E))
+            AppPaletteTheme.OLED_BLACK -> Quad(Color(0xFF000000), Color(0xFF0D0D0D), Color(0xFF141414), Color(0xFF262626))
         }
 
         darkColorScheme(
@@ -58,7 +58,7 @@ fun buildColorScheme(palette: AppPaletteTheme, isDark: Boolean): ColorScheme {
             AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFFFFF1F2), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFFECDD3))
             AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFFF5F5FF), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFC7D2FE))
             AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFFFFF7ED), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFFED7AA))
-            AppPaletteTheme.PURE_BLACK -> Quad(Color(0xFFF4F4F5), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFD4D4D8))
+            AppPaletteTheme.OLED_BLACK -> Quad(Color(0xFFF4F4F5), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFD4D4D8))
         }
 
         lightColorScheme(

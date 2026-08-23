@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -174,8 +175,23 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text("预设设计色调", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("预设主题色系 (含 OLED 纯黑)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        AssistChip(
+                            onClick = {
+                                configDataStore.updateSettings(
+                                    settings.copy(appThemeMode = "DARK", appThemePalette = "OLED_BLACK")
+                                )
+                                Toast.makeText(context, "已开启 A屏纯黑 OLED 极夜模式", Toast.LENGTH_SHORT).show()
+                            },
+                            label = { Text("⚡ 一键 A屏纯黑", fontSize = 11.sp) }
+                        )
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
 
                     FlowRow(

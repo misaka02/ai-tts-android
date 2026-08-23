@@ -16,11 +16,13 @@ enum class AppPaletteTheme(val key: String, val title: String, val primaryColor:
     CHERRY_BLOSSOM("CHERRY_BLOSSOM", "樱花幽粉", Color(0xFFF43F5E), Color(0xFFE11D48)),
     OBSIDIAN_NIGHT("OBSIDIAN_NIGHT", "暗夜曜石", Color(0xFF6366F1), Color(0xFF4F46E5)),
     CORAL_CRIMSON("CORAL_CRIMSON", "炽阳枫红", Color(0xFFEA580C), Color(0xFFC2410C)),
-    PURE_BLACK("PURE_BLACK", "纯黑极夜", Color(0xFFE2E8F0), Color(0xFF94A3B8));
+    OLED_BLACK("OLED_BLACK", "A屏纯黑 (OLED)", Color(0xFF38BDF8), Color(0xFF0284C7));
 
     companion object {
         fun fromKey(key: String): AppPaletteTheme {
-            return entries.firstOrNull { it.key.equals(key, ignoreCase = true) } ?: OCEAN_AZURE
+            return entries.firstOrNull { 
+                it.key.equals(key, ignoreCase = true) || (key.equals("PURE_BLACK", ignoreCase = true) && it == OLED_BLACK)
+            } ?: OCEAN_AZURE
         }
     }
 }
