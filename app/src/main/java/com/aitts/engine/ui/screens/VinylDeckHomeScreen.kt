@@ -391,13 +391,19 @@ fun VinylDeckHomeScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Black
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                val installedVersion = remember(context) {
+                                    try {
+                                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: com.aitts.engine.BuildConfig.VERSION_NAME
+                                    } catch (e: Exception) {
+                                        com.aitts.engine.BuildConfig.VERSION_NAME
+                                    }
+                                }
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                                 ) {
                                     Text(
-                                        text = "v${com.aitts.engine.BuildConfig.VERSION_NAME}",
+                                        text = "v$installedVersion",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary,
@@ -406,7 +412,7 @@ fun VinylDeckHomeScreen(
                                 }
                             }
                             Text(
-                                text = "黑胶唱机沉浸式阅览舱",
+                                text = "黑胶唱机",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

@@ -340,13 +340,20 @@ fun ModernStudioHomeScreen(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
+                            val installedVersion = remember(context) {
+                                try {
+                                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: com.aitts.engine.BuildConfig.VERSION_NAME
+                                } catch (e: Exception) {
+                                    com.aitts.engine.BuildConfig.VERSION_NAME
+                                }
+                            }
                             Text(
                                 text = "AI TTS Studio",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black
                             )
                             Text(
-                                text = "v${com.aitts.engine.BuildConfig.VERSION_NAME} 专业调音台工作台",
+                                text = "v$installedVersion 调音台",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

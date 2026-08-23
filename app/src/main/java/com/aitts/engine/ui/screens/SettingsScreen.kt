@@ -1219,6 +1219,15 @@ private fun AboutSettingsCard(context: Context) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            val versionName = remember(context) {
+                try {
+                    val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                    pInfo.versionName ?: com.aitts.engine.BuildConfig.VERSION_NAME
+                } catch (e: Exception) {
+                    com.aitts.engine.BuildConfig.VERSION_NAME
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1231,7 +1240,7 @@ private fun AboutSettingsCard(context: Context) {
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "v${com.aitts.engine.BuildConfig.VERSION_NAME} (Build ${com.aitts.engine.BuildConfig.VERSION_CODE})",
+                        "v$versionName (Build ${com.aitts.engine.BuildConfig.VERSION_CODE})",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold

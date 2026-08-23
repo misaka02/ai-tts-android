@@ -7,7 +7,7 @@
     <init>(...);
 }
 -keepclassmembers class * {
-    companion <fields>;
+    public static final ** Companion;
 }
 # Keep All Core Engine Packages
 -keep class com.aitts.engine.data.** { *; }

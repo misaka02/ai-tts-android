@@ -681,13 +681,7 @@ fun ProviderConfigScreen(
                             }
 
                             item(contentType = "acoustics_sliders") {
-                                val pitchDriverHint = when (selectedType) {
-                                    ProviderType.EDGE_TTS, ProviderType.AZURE -> " (微软原生 SSML 百分比调音)"
-                                    ProviderType.DOUBAO, ProviderType.MINIMAX -> " (官方服务端参数调音)"
-                                    else -> " (客户端 DSP 动态重采样变调)"
-                                }
-
-                                SectionHeader(title = "声学微调滑杆 (语速 / 音调 / 音量)")
+                                SectionHeader(title = if (selectedType == ProviderType.EDGE_TTS || selectedType == ProviderType.AZURE) "声学微调滑杆 (语速 / 音调 / 音量)" else "声学微调滑杆 (语速 / 音量)")
 
                                 Text(text = "默认语速: ${"%.2f".format(speed)}x", style = MaterialTheme.typography.bodyMedium)
                                 Slider(
@@ -697,17 +691,19 @@ fun ProviderConfigScreen(
                                     steps = 19
                                 )
 
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "基频音调 (Pitch): ${"%.2f".format(pitch)}x$pitchDriverHint",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Slider(
-                                    value = pitch,
-                                    onValueChange = { pitch = (it * 10).toInt() / 10f },
-                                    valueRange = 0.5f..2.0f,
-                                    steps = 14
-                                )
+                                if (selectedType == ProviderType.EDGE_TTS || selectedType == ProviderType.AZURE) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "基频音调 (Pitch): ${"%.2f".format(pitch)}x (微软原生 SSML 调音)",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Slider(
+                                        value = pitch,
+                                        onValueChange = { pitch = (it * 10).toInt() / 10f },
+                                        valueRange = 0.5f..2.0f,
+                                        steps = 14
+                                    )
+                                }
 
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(text = "音量增益 (Volume): ${"%.2f".format(volume)}x", style = MaterialTheme.typography.bodyMedium)
