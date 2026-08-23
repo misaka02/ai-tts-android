@@ -85,7 +85,8 @@ enum class SegmentRole {
     NARRATOR, // 旁白叙述
     DIALOGUE, // 通用角色对话
     MALE_DIALOGUE, // 男声角色对白
-    FEMALE_DIALOGUE // 女声角色对白
+    FEMALE_DIALOGUE, // 女声角色对白
+    ELDER_DIALOGUE // 长者/反派角色对白
 }
 
 /**

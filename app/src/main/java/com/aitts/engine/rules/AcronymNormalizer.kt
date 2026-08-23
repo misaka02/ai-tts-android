@@ -4,13 +4,29 @@ import java.util.regex.Pattern
 
 /**
  * 智能中英混读 / 英文缩写与专有名词发音规整器：
- * 解决大模型与神经网络 TTS 在朗读网文/科技小说中的英文缩写（如 AI、CPU、WiFi、APP、NPC 等）时
+ * 解决大模型与神经网络 TTS 在朗读网文/科技小说中的英文缩写（如 AI、CPU、WiFi、APP、NPC、GPT-4o 等）时
  * 出现怪异音调、吞字、拼读错误或突兀切英文音色的问题。
  */
 object AcronymNormalizer {
 
     // 常用固定缩写/专有名词映射表
     private val explicitMap = mapOf(
+        "GPT-4o" to "G-P-T-四-o",
+        "GPT-4" to "G-P-T-四",
+        "GPT-3.5" to "G-P-T-三点五",
+        "ChatGPT" to "Chat-G-P-T",
+        "USB-C" to "U-S-B-C",
+        "Type-C" to "Type-C",
+        "1080P" to "一零八零P",
+        "1080p" to "一零八零p",
+        "720P" to "七二零P",
+        "720p" to "七二零p",
+        "2160P" to "二一六零P",
+        "WiFi 6" to "W-i-F-i-六",
+        "IPv4" to "I-P-v-四",
+        "IPv6" to "I-P-v-六",
+        "JSON" to "J-S-O-N",
+        "SDK" to "S-D-K",
         "AI" to "A-I",
         "Ai" to "A-I",
         "APP" to "A-P-P",

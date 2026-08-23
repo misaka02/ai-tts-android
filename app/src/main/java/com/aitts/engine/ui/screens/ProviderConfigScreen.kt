@@ -126,6 +126,7 @@ fun ProviderConfigScreen(
     var fallbackProviderId by remember { mutableStateOf(initialConfig.fallbackProviderId ?: "") }
     var maleVoiceId by remember { mutableStateOf(initialConfig.maleVoiceId) }
     var femaleVoiceId by remember { mutableStateOf(initialConfig.femaleVoiceId) }
+    var elderVoiceId by remember { mutableStateOf(initialConfig.elderVoiceId) }
     var tags by remember { mutableStateOf(initialConfig.tags) }
     var newTagInput by remember { mutableStateOf("") }
 
@@ -157,6 +158,7 @@ fun ProviderConfigScreen(
             fallbackProviderId = fallbackProviderId.ifBlank { null },
             maleVoiceId = maleVoiceId,
             femaleVoiceId = femaleVoiceId,
+            elderVoiceId = elderVoiceId,
             tags = tags
         )
     }

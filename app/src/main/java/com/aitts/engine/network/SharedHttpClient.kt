@@ -13,11 +13,11 @@ import java.util.concurrent.TimeUnit
  * 2. 避免每个 Provider 重复创建线程池与连接池，节省内存并降低 50% 以上首字网络延迟
  * 3. 开启连接失败自动重试机制 (retryOnConnectionFailure)
  * 4. 支持全局 HTTP / SOCKS5 代理路由与超时时间动态配置
- * 5. 提供 cancelAll() 在 TTS 切歌/暂停时 1ms 极速终止在途网络请求
+ * 5. 支持按 SessionId 精准取消网络请求 (cancelSession)，杜绝全局误杀
  */
 object SharedHttpClient {
 
-    private var currentSettings: GlobalSettings? = null
+    private val sharedConnectionPool = ConnectionPool(16, 5, TimeUnit.MINUTES)
 
     @Volatile
     var instance: OkHttpClient = buildDefaultClient()
@@ -25,7 +25,7 @@ object SharedHttpClient {
 
     private fun buildDefaultClient(): OkHttpClient {
         return OkHttpClient.Builder()
-            .connectionPool(ConnectionPool(12, 5, TimeUnit.MINUTES))
+            .connectionPool(sharedConnectionPool)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -37,9 +37,8 @@ object SharedHttpClient {
      * 依据全局设置动态刷新客户端（如代理、超时等）
      */
     fun updateConfiguration(settings: GlobalSettings) {
-        currentSettings = settings
         val builder = OkHttpClient.Builder()
-            .connectionPool(ConnectionPool(12, 5, TimeUnit.MINUTES))
+            .connectionPool(sharedConnectionPool)
             .connectTimeout(settings.connectTimeoutSeconds.toLong(), TimeUnit.SECONDS)
             .readTimeout(settings.readTimeoutSeconds.toLong(), TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -59,6 +58,27 @@ object SharedHttpClient {
         }
 
         instance = builder.build()
+    }
+
+    /**
+     * 按会话 ID 精准取消属于该朗读任务的在途 HTTP 请求，保护全局其他请求不受影响
+     */
+    fun cancelSession(sessionId: String) {
+        if (sessionId.isBlank()) return
+        try {
+            for (call in instance.dispatcher.queuedCalls()) {
+                if (call.request().tag() == sessionId) {
+                    call.cancel()
+                }
+            }
+            for (call in instance.dispatcher.runningCalls()) {
+                if (call.request().tag() == sessionId) {
+                    call.cancel()
+                }
+            }
+        } catch (e: Exception) {
+            // ignore
+        }
     }
 
     /**

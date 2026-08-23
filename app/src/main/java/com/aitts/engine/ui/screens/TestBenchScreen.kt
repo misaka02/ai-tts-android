@@ -232,20 +232,21 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
             shape = RoundedCornerShape(14.dp)
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    val barCount = 24
-                    val barSpacing = 4.dp.toPx()
+                Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    val barCount = 48
+                    val barSpacing = 2.dp.toPx()
                     val totalSpacing = barSpacing * (barCount - 1)
                     val barWidth = (size.width - totalSpacing) / barCount
-                    val maxHeight = size.height * 0.85f
+                    val maxHeight = size.height * 0.9f
 
                     for (i in 0 until barCount) {
                         val x = i * (barWidth + barSpacing)
                         val factor = if (isRunning) {
-                            val seed = kotlin.math.sin((i * 0.35f + barPhase * 6.28f).toDouble()).toFloat()
-                            (seed * 0.5f + 0.5f).coerceIn(0.15f, 1.0f)
+                            val seed1 = kotlin.math.sin((i * 0.28f + barPhase * 6.28f).toDouble()).toFloat()
+                            val seed2 = kotlin.math.cos((i * 0.15f - barPhase * 4.14f).toDouble()).toFloat()
+                            ((seed1 + seed2) * 0.35f + 0.5f).coerceIn(0.12f, 1.0f)
                         } else {
-                            0.12f
+                            0.08f
                         }
                         val h = maxHeight * factor
                         val y = (size.height - h) / 2f
@@ -254,12 +255,12 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
                             brush = Brush.verticalGradient(
                                 listOf(
                                     primaryColor,
-                                    primaryColor.copy(alpha = 0.5f)
+                                    primaryColor.copy(alpha = 0.4f)
                                 )
                             ),
                             topLeft = Offset(x, y),
                             size = Size(barWidth, h),
-                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                            cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
                         )
                     }
                 }

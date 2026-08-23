@@ -6,18 +6,15 @@ import android.media.MediaPlayer
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
 
 /**
- * 通用音频播放器（基于原生 MediaPlayer 与缓存直通）：
- * 支持直接播放各类 TTS 返回的原始 MP3/WAV/AAC/OGG 音频字节流，
- * 避免 AudioTrack 低级 PCM 格式不匹配导致的无声或崩溃问题。
+ * 纯内存极速音频播放器 (Zero-Disk In-Memory MediaPlayer)：
+ * 采用 InMemoryMediaDataSource 纯内存直通播放各类 TTS 原始音频流 (MP3/WAV/AAC/OGG)，
+ * 彻底切除临时文件写入，实现毫秒级试听直出。
  */
 class AndroidAudioPlayer(private val context: Context) {
 
     private var mediaPlayer: MediaPlayer? = null
-    private var tempAudioFile: File? = null
 
     fun isPlaying(): Boolean {
         return try {
@@ -37,8 +34,6 @@ class AndroidAudioPlayer(private val context: Context) {
             mediaPlayer = null
         } catch (e: Exception) {
             Log.w("AudioPlayer", "stop 异常: ${e.message}")
-        } finally {
-            cleanupTempFile()
         }
     }
 
@@ -61,13 +56,7 @@ class AndroidAudioPlayer(private val context: Context) {
         }
 
         try {
-            // 写入 App 私有缓存目录临时文件
-            val tempFile = File.createTempFile("tts_preview_", ".audio", context.cacheDir)
-            tempAudioFile = tempFile
-            FileOutputStream(tempFile).use { fos ->
-                fos.write(audioBytes)
-                fos.flush()
-            }
+            val dataSource = InMemoryMediaDataSource(audioBytes)
 
             withContext(Dispatchers.Main) {
                 try {
@@ -78,7 +67,7 @@ class AndroidAudioPlayer(private val context: Context) {
                                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                                 .build()
                         )
-                        setDataSource(tempFile.absolutePath)
+                        setDataSource(dataSource)
                         setOnCompletionListener {
                             stop()
                             onCompletion()
@@ -100,17 +89,8 @@ class AndroidAudioPlayer(private val context: Context) {
         } catch (e: Exception) {
             stop()
             withContext(Dispatchers.Main) {
-                onError("写入临时音频失败: ${e.message}")
+                onError("内存音频播放失败: ${e.message}")
             }
-        }
-    }
-
-    private fun cleanupTempFile() {
-        try {
-            tempAudioFile?.delete()
-            tempAudioFile = null
-        } catch (e: Exception) {
-            // ignore
         }
     }
 }

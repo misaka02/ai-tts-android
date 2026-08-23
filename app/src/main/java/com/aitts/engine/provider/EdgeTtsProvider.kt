@@ -143,8 +143,18 @@ class EdgeTtsProvider(
                         "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"false\",\"wordBoundaryEnabled\":\"false\"},\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}\r\n"
                 ws.send(configMsg)
 
+                val lang = when {
+                    voiceName.contains("zh-CN") -> "zh-CN"
+                    voiceName.contains("zh-TW") -> "zh-TW"
+                    voiceName.contains("zh-HK") -> "zh-HK"
+                    voiceName.contains("ja-JP") -> "ja-JP"
+                    voiceName.contains("en-US") -> "en-US"
+                    voiceName.contains("en-GB") -> "en-GB"
+                    else -> "zh-CN"
+                }
+
                 // 2. 发送 SSML
-                val ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
+                val ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='$lang'>" +
                         "<voice name='$voiceName'>" +
                         "<prosody pitch='$pitchStr' rate='$rateStr' volume='$volumeStr'>" +
                         escapeXml(text) +
@@ -232,7 +242,8 @@ class EdgeTtsProvider(
     }
 
     private fun escapeXml(input: String): String {
-        return input.replace("&", "&amp;")
+        val sanitized = input.replace(Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]"), "")
+        return sanitized.replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace("\"", "&quot;")

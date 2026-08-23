@@ -65,5 +65,9 @@ class TextPreprocessorTest {
         val input2 = "第10节，第15集，第1名"
         val output2 = TextPreprocessor.normalizeChineseNumbers(input2)
         assertEquals("第十节，第十五集，第一名", output2)
+
+        val input3 = "联系电话13800138000，时间是14:30，费用是¥100.5。"
+        val output3 = TextPreprocessor.normalizeChineseNumbers(input3)
+        assertEquals("联系电话幺三八零零幺三八零零零，时间是十四点三十分，费用是一百点五元。", output3)
     }
 }

@@ -12,6 +12,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
@@ -42,9 +43,9 @@ class CustomHttpTtsProvider(
                 return@withContext Result.failure(IOException("自定义 HTTP 服务 URL 不能为空"))
             }
 
-            // 1. 替换占位符
-            val processedUrl = replacePlaceholders(config.baseUrl, text, config)
-            val processedPayload = replacePlaceholders(config.customPayloadTemplate, text, config)
+            // 1. 替换占位符（URL 中进行严格 URL 编码，Body 中进行 JSON 转义）
+            val processedUrl = replacePlaceholders(config.baseUrl, text, config, isUrl = true)
+            val processedPayload = replacePlaceholders(config.customPayloadTemplate, text, config, isUrl = false)
 
             val requestBuilder = Request.Builder().url(processedUrl)
 
@@ -53,7 +54,7 @@ class CustomHttpTtsProvider(
                 if (config.customHeadersJson.isNotBlank() && config.customHeadersJson.trim().startsWith("{")) {
                     val headerObj = json.decodeFromString<JsonObject>(config.customHeadersJson)
                     for ((k, v) in headerObj) {
-                        val headerValue = replacePlaceholders(v.jsonPrimitive.content, text, config)
+                        val headerValue = replacePlaceholders(v.jsonPrimitive.content, text, config, isUrl = false)
                         requestBuilder.addHeader(k, headerValue)
                     }
                 }
@@ -74,64 +75,76 @@ class CustomHttpTtsProvider(
             }
 
             val response = client.newCall(requestBuilder.build()).execute()
-            if (!response.isSuccessful) {
-                val err = response.body?.string() ?: ""
-                return@withContext Result.failure(IOException("自定义节点请求失败 HTTP ${response.code}: $err"))
-            }
+            response.use { resp ->
+                val bodyBytes = resp.body?.bytes() ?: ByteArray(0)
+                val contentType = resp.header("Content-Type") ?: ""
 
-            val bodyBytes = response.body?.bytes() ?: ByteArray(0)
-            val contentType = response.header("Content-Type") ?: ""
-
-            // 4. 检查是否为 JSON Base64 音频
-            if (config.responseAudioPath.isNotBlank() || contentType.contains("application/json") || isJsonStart(bodyBytes)) {
-                try {
-                    val root = json.decodeFromString<JsonObject>(String(bodyBytes))
-                    val pathParts = if (config.responseAudioPath.isNotBlank()) {
-                        config.responseAudioPath.split(".")
-                    } else {
-                        listOf("audio", "data", "audio_base64")
-                    }
-
-                    var current: JsonObject? = root
-                    var foundBase64: String? = null
-
-                    for (part in pathParts) {
-                        val elem = current?.get(part)
-                        if (elem is JsonObject) {
-                            current = elem
-                        } else if (elem != null) {
-                            foundBase64 = elem.jsonPrimitive.content
-                            break
-                        }
-                    }
-
-                    if (foundBase64 != null) {
-                        val cleanBase64 = if (foundBase64.contains(",")) {
-                            foundBase64.substringAfter(",")
-                        } else {
-                            foundBase64
-                        }
-                        val decoded = android.util.Base64.decode(cleanBase64, android.util.Base64.DEFAULT)
-                        return@withContext Result.success(decoded)
-                    }
-                } catch (e: Exception) {
-                    // fallthrough to raw bytes
+                if (!resp.isSuccessful) {
+                    val err = String(bodyBytes, Charsets.UTF_8)
+                    return@withContext Result.failure(IOException("自定义节点请求失败 HTTP ${resp.code}: $err"))
                 }
-            }
 
-            if (bodyBytes.isEmpty()) {
-                return@withContext Result.failure(IOException("自定义节点未返回有效音频数据"))
-            }
+                // 4. 检查是否为 JSON Base64 音频
+                if (config.responseAudioPath.isNotBlank() || contentType.contains("application/json") || isJsonStart(bodyBytes)) {
+                    try {
+                        val root = json.decodeFromString<JsonObject>(String(bodyBytes, Charsets.UTF_8))
+                        val pathParts = if (config.responseAudioPath.isNotBlank()) {
+                            config.responseAudioPath.split(".")
+                        } else {
+                            listOf("audio", "data", "audio_base64")
+                        }
 
-            Result.success(bodyBytes)
+                        var current: JsonObject? = root
+                        var foundBase64: String? = null
+
+                        for (part in pathParts) {
+                            val elem = current?.get(part)
+                            if (elem is JsonObject) {
+                                current = elem
+                            } else if (elem != null) {
+                                foundBase64 = elem.jsonPrimitive.content
+                                break
+                            }
+                        }
+
+                        if (foundBase64 != null) {
+                            val cleanBase64 = if (foundBase64.contains(",")) {
+                                foundBase64.substringAfter(",")
+                            } else {
+                                foundBase64
+                            }
+                            val decoded = android.util.Base64.decode(cleanBase64, android.util.Base64.DEFAULT)
+                            return@withContext Result.success(decoded)
+                        }
+                    } catch (e: Exception) {
+                        // fallthrough to raw bytes
+                    }
+                }
+
+                if (bodyBytes.isEmpty()) {
+                    return@withContext Result.failure(IOException("自定义节点未返回有效音频数据"))
+                }
+
+                Result.success(bodyBytes)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    private fun replacePlaceholders(template: String, text: String, config: TtsProviderConfig): String {
+    private fun replacePlaceholders(template: String, text: String, config: TtsProviderConfig, isUrl: Boolean = false): String {
+        val encodedText = if (isUrl) {
+            try {
+                URLEncoder.encode(text, "UTF-8")
+            } catch (e: Exception) {
+                escapeJson(text)
+            }
+        } else {
+            escapeJson(text)
+        }
+
         return template
-            .replace("\${text}", escapeJson(text))
+            .replace("\${text}", encodedText)
             .replace("\${speed}", config.speed.toString())
             .replace("\${pitch}", config.pitch.toString())
             .replace("\${volume}", config.volume.toString())

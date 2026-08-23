@@ -41,9 +41,25 @@ class AudioEnhancerTest {
             0xFF.toByte(), 0x7F.toByte(), // 32767
             0x00.toByte(), 0x80.toByte()  // -32768
         )
-        val processed = AudioEnhancer.processPcm(pcm, enableClarity = false, gainFactor = 2.0f)
+        val processed = AudioEnhancer.processPcm(pcm, channels = 1, enableClarity = false, gainFactor = 2.0f)
         assertEquals(4, processed.size)
-        // 经 Soft-clipping  tanh 压缩后不应超出 16-bit 有效范围
+        // 经 Soft-clipping tanh 压缩后不应超出 16-bit 有效范围
         assertTrue(processed.isNotEmpty())
+    }
+
+    @Test
+    fun testSilenceTrimming() {
+        // Construct 1000 zero samples, 1000 active samples, 1000 zero samples
+        val samples = ShortArray(3000)
+        for (i in 1000 until 2000) {
+            samples[i] = 10000.toShort()
+        }
+        val pcm = ByteArray(3000 * 2)
+        java.nio.ByteBuffer.wrap(pcm).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(samples)
+
+        val trimmed = AudioEnhancer.trimDeadAirSilence(pcm, channels = 1)
+        // The trimmed output should be shorter than original 6000 bytes
+        assertTrue("Trimmed size (${trimmed.size}) should be less than original (${pcm.size})", trimmed.size < pcm.size)
+        assertTrue(trimmed.isNotEmpty())
     }
 }

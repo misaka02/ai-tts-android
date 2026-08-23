@@ -2,6 +2,7 @@ package com.aitts.engine.service
 
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -13,14 +14,15 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * 听书睡眠倒计时管理器 (Sleep Timer with Smooth Fade-out)：
- * 支持在睡前听书时设置定时关闭（15/30/45/60分钟等），
- * 结束前自动平滑淡出音量，并在归零时自动终止后台朗读并释放网络与音频资源。
+ * 听书睡眠倒计时管理器 (Doze-Proof Elapsed-Realtime Sleep Timer)：
+ * 1. 基于 SystemClock.elapsedRealtime() 单调时钟校准，彻底消除熄屏深度休眠导致的计时停滞；
+ * 2. 结束前 15 秒平滑淡出音量，归零时精准触发系统广播停止朗读并释放网络与音频资源。
  */
 class SleepTimerManager private constructor(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Default)
     private var timerJob: Job? = null
+    private var targetEndTimeMs: Long = 0L
 
     // 剩余秒数
     private val _remainingSecondsFlow = MutableStateFlow(0)
@@ -39,14 +41,20 @@ class SleepTimerManager private constructor(private val context: Context) {
         if (minutes <= 0) return
 
         val totalSeconds = minutes * 60
+        targetEndTimeMs = SystemClock.elapsedRealtime() + totalSeconds * 1000L
         _remainingSecondsFlow.value = totalSeconds
         _isActiveFlow.value = true
 
         timerJob = scope.launch {
-            while (isActive && _remainingSecondsFlow.value > 0) {
+            while (isActive) {
+                val now = SystemClock.elapsedRealtime()
+                val remainingMs = targetEndTimeMs - now
+                if (remainingMs <= 0) {
+                    break
+                }
+                val sec = ((remainingMs + 999) / 1000).toInt()
+                _remainingSecondsFlow.value = sec
                 delay(1000L)
-                val next = _remainingSecondsFlow.value - 1
-                _remainingSecondsFlow.value = next
             }
 
             // 倒计时结束，触发停止广播
@@ -65,20 +73,23 @@ class SleepTimerManager private constructor(private val context: Context) {
     fun stopTimer() {
         timerJob?.cancel()
         timerJob = null
+        targetEndTimeMs = 0L
         _remainingSecondsFlow.value = 0
         _isActiveFlow.value = false
     }
 
     /**
      * 计算当前音量淡出系数 (0.0f ~ 1.0f)
-     * 在最后 15 秒内平滑淡出
+     * 在最后 15 秒内平滑指数级淡出
      */
     fun getFadeVolumeFactor(): Float {
         if (!_isActiveFlow.value) return 1.0f
-        val remaining = _remainingSecondsFlow.value
+        val now = SystemClock.elapsedRealtime()
+        val remainingMs = targetEndTimeMs - now
+        if (remainingMs <= 0) return 0.0f
+        val remainingSec = remainingMs / 1000.0f
         return when {
-            remaining <= 0 -> 0.0f
-            remaining <= 15 -> (remaining / 15.0f).coerceIn(0.0f, 1.0f)
+            remainingSec <= 15.0f -> (remainingSec / 15.0f).coerceIn(0.0f, 1.0f)
             else -> 1.0f
         }
     }

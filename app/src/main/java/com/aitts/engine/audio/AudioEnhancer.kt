@@ -4,12 +4,15 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.tanh
 
 /**
- * 软件级音频增强与人声清晰度均衡器 (Voice Clarity EQ & Loudness Normalizer)：
- * 对合成后解码出的 16-bit PCM 音频流进行实时滤波与增益处理，
- * 解决大模型语音在真机扬声器、车载蓝牙或嘈杂环境中人声发闷、音量偏小或爆音问题。
+ * 软件级音频增强与人声清晰度均衡器 (Voice Clarity EQ & Loudness Normalizer & VAD Silence Trimmer)：
+ * 1. 对 16-bit PCM 音频流进行声道隔离滤波（彻底杜绝双声道反相梳状相位失真）；
+ * 2. tanh 软饱和动态范围压缩（防削顶与爆音）；
+ * 3. 智能 PCM 能量 VAD 首尾死区静音切除与 5ms 线性抗爆音微渐变 (Anti-Pop Fade)。
  */
 object AudioEnhancer {
 
@@ -29,49 +32,158 @@ object AudioEnhancer {
 
     /**
      * 处理 PCM 16-bit 音频数据
-     * @param pcmData 原始 16-bit PCM 字节数组
-     * @param enableClarity 是否启用人声清晰度增强（预加重高通滤波，削弱低频发闷，强化辅音齿音）
-     * @param gainFactor 响度增益倍率 (1.0f ~ 2.0f)
+     * @param pcmData 原始 16-bit Little-Endian PCM 字节数组
+     * @param channels 声道数 (1 = Mono, 2 = Stereo)
+     * @param enableClarity 是否启用人声清晰度增强（独立声道预加重高通滤波）
+     * @param gainFactor 响度增益倍率 (1.0f ~ 2.5f)
+     * @param trimSilence 是否切除大模型生成的首尾死区静音
      * @return 处理后的 16-bit PCM 字节数组
      */
     fun processPcm(
         pcmData: ByteArray,
+        channels: Int = 1,
         enableClarity: Boolean = false,
-        gainFactor: Float = 1.0f
+        gainFactor: Float = 1.0f,
+        trimSilence: Boolean = false
     ): ByteArray {
-        if (pcmData.size < 2 || (!enableClarity && gainFactor == 1.0f)) {
+        if (pcmData.size < 2) {
             return pcmData
         }
 
-        val shortCount = pcmData.size / 2
-        val inputBuffer = ByteBuffer.wrap(pcmData).order(ByteOrder.LITTLE_ENDIAN)
-        val outputBuffer = ByteBuffer.allocate(pcmData.size).order(ByteOrder.LITTLE_ENDIAN)
+        // 1. 如果启用了静音切除，先修剪首尾死区
+        val activePcm = if (trimSilence) {
+            trimDeadAirSilence(pcmData, channels)
+        } else {
+            pcmData
+        }
 
-        var prevSample = 0.0f
+        if (!enableClarity && gainFactor == 1.0f) {
+            return activePcm
+        }
+
+        val inFrameSize = 2 * channels
+        val totalFrames = activePcm.size / inFrameSize
+        if (totalFrames <= 0) return activePcm
+
+        val inputBuffer = ByteBuffer.wrap(activePcm).order(ByteOrder.LITTLE_ENDIAN)
+        val outputBuffer = ByteBuffer.allocate(activePcm.size).order(ByteOrder.LITTLE_ENDIAN)
+
+        var prevLeft = 0.0f
+        var prevRight = 0.0f
         val filterAlpha = 0.38f // 预加重高通系数
 
-        for (i in 0 until shortCount) {
-            val sample = inputBuffer.short.toFloat()
+        for (i in 0 until totalFrames) {
+            if (channels == 1) {
+                val sample = inputBuffer.short.toFloat()
+                val filtered = if (enableClarity) {
+                    val cur = sample - filterAlpha * prevLeft
+                    prevLeft = sample
+                    cur
+                } else sample
 
-            // 1. 人声清晰度增强 (Pre-emphasis filter)
-            val filtered = if (enableClarity) {
-                val current = sample - filterAlpha * prevSample
-                prevSample = sample
-                current
+                val amplified = filtered * gainFactor
+                val normalized = amplified / 32767.0f
+                val compressed = tanh(normalized.toDouble()).toFloat() * 32767.0f
+                outputBuffer.putShort(compressed.toInt().coerceIn(-32768, 32767).toShort())
             } else {
-                sample
+                // 立体声：独立维护左右声道滤波器状态，杜绝相位串扰
+                val sampleL = inputBuffer.short.toFloat()
+                val sampleR = inputBuffer.short.toFloat()
+
+                val filteredL = if (enableClarity) {
+                    val curL = sampleL - filterAlpha * prevLeft
+                    prevLeft = sampleL
+                    curL
+                } else sampleL
+
+                val filteredR = if (enableClarity) {
+                    val curR = sampleR - filterAlpha * prevRight
+                    prevRight = sampleR
+                    curR
+                } else sampleR
+
+                val compL = tanh((filteredL * gainFactor / 32767.0f).toDouble()).toFloat() * 32767.0f
+                val compR = tanh((filteredR * gainFactor / 32767.0f).toDouble()).toFloat() * 32767.0f
+
+                outputBuffer.putShort(compL.toInt().coerceIn(-32768, 32767).toShort())
+                outputBuffer.putShort(compR.toInt().coerceIn(-32768, 32767).toShort())
             }
-
-            // 2. 响度增益与 Soft-clipping 动态范围压缩 (避免数字削顶失真)
-            val amplified = filtered * gainFactor
-            val normalized = amplified / 32767.0f
-            val compressed = tanh(normalized.toDouble()).toFloat() * 32767.0f
-
-            val clampedShort = compressed.toInt().coerceIn(-32768, 32767).toShort()
-            outputBuffer.putShort(clampedShort)
         }
 
         return outputBuffer.array()
+    }
+
+    /**
+     * 智能切除大模型生成的首尾死区静音 (PCM Energy VAD Silence Trimming)，并施加 5ms 平滑抗爆音渐变
+     */
+    fun trimDeadAirSilence(pcmData: ByteArray, channels: Int = 1, thresholdAbs: Short = 300): ByteArray {
+        val frameSize = 2 * channels
+        val totalFrames = pcmData.size / frameSize
+        if (totalFrames < 240) return pcmData // 样本过短不处理
+
+        val shortBuf = ByteBuffer.wrap(pcmData).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val samples = ShortArray(totalFrames * channels)
+        shortBuf.get(samples)
+
+        // 寻找起始非静音帧
+        var startFrame = 0
+        while (startFrame < totalFrames) {
+            var hasSignal = false
+            for (ch in 0 until channels) {
+                if (abs(samples[startFrame * channels + ch].toInt()) > thresholdAbs) {
+                    hasSignal = true
+                    break
+                }
+            }
+            if (hasSignal) break
+            startFrame++
+        }
+
+        // 寻找结束非静音帧
+        var endFrame = totalFrames - 1
+        while (endFrame > startFrame) {
+            var hasSignal = false
+            for (ch in 0 until channels) {
+                if (abs(samples[endFrame * channels + ch].toInt()) > thresholdAbs) {
+                    hasSignal = true
+                    break
+                }
+            }
+            if (hasSignal) break
+            endFrame--
+        }
+
+        // 保留 10ms 的微量自然边距
+        val marginFrames = 120
+        startFrame = maxOf(0, startFrame - marginFrames)
+        endFrame = minOf(totalFrames - 1, endFrame + marginFrames)
+
+        val trimmedFrames = endFrame - startFrame + 1
+        if (trimmedFrames <= 0 || trimmedFrames == totalFrames) {
+            return pcmData
+        }
+
+        // 施加 5ms (约 60 帧) 线性微渐入与渐出，杜绝数字切音爆裂
+        val fadeFrames = minOf(60, trimmedFrames / 2)
+        val outSamples = ShortArray(trimmedFrames * channels)
+
+        for (i in 0 until trimmedFrames) {
+            val srcFrame = startFrame + i
+            val fadeFactor = when {
+                i < fadeFrames -> i.toFloat() / fadeFrames
+                i > trimmedFrames - fadeFrames -> (trimmedFrames - 1 - i).toFloat() / fadeFrames
+                else -> 1.0f
+            }
+
+            for (ch in 0 until channels) {
+                val orig = samples[srcFrame * channels + ch]
+                outSamples[i * channels + ch] = (orig * fadeFactor).toInt().toShort()
+            }
+        }
+
+        val outBytes = ByteArray(outSamples.size * 2)
+        ByteBuffer.wrap(outBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(outSamples)
+        return outBytes
     }
 
     /**

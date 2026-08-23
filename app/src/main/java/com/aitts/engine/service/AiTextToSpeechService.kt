@@ -4,6 +4,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.AudioFormat
 import android.os.Build
 import android.speech.tts.SynthesisCallback
@@ -11,20 +14,43 @@ import android.speech.tts.SynthesisRequest
 import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeechService
 import android.speech.tts.Voice
-import android.util.Log
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.PresetConfigs
 import kotlinx.coroutines.runBlocking
 import java.util.Locale
+import java.util.UUID
 
 /**
- * Android 标准 TextToSpeechService 引擎实现
- * 注册到系统全局，可被所有小说阅读器、TalkBack 和第三方 App 调用。
+ * Android 标准 TextToSpeechService 引擎实现 (v2.0.0 工业级服务)
+ * 1. 注册到系统全局，可被所有小说阅读器 (Legado / 阅读 / 静读天下 / 多看等)、TalkBack 和第三方 App 调用；
+ * 2. 具备会话级隔离精准取消机制与 AudioFocus 系统音频焦点感知 (通话与导航自动平滑避让)。
  */
 class AiTextToSpeechService : TextToSpeechService() {
 
     private lateinit var synthesizer: TtsSynthesizer
     private lateinit var configDataStore: ConfigDataStore
+    private lateinit var audioManager: AudioManager
+
+    @Volatile
+    private var activeSessionId: String = ""
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                configDataStore.log("AudioFocus 丢失，停止后台朗读")
+                onStop()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                configDataStore.log("AudioFocus 临时丢失 (如电话呼入)")
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                configDataStore.log("AudioFocus 临时避让 (如导航提示播报)")
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                configDataStore.log("AudioFocus 重新获取")
+            }
+        }
+    }
 
     private val stopReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -38,6 +64,8 @@ class AiTextToSpeechService : TextToSpeechService() {
         super.onCreate()
         configDataStore = ConfigDataStore.getInstance(this)
         synthesizer = TtsSynthesizer(this)
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
         try {
             val filter = IntentFilter(TtsNotificationManager.ACTION_STOP_TTS)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -48,7 +76,7 @@ class AiTextToSpeechService : TextToSpeechService() {
         } catch (e: Exception) {
             // ignore
         }
-        configDataStore.log("AiTextToSpeechService 系统服务已启动并就绪")
+        configDataStore.log("AiTextToSpeechService v2.0.0 系统服务已启动并就绪")
     }
 
     override fun onDestroy() {
@@ -58,7 +86,7 @@ class AiTextToSpeechService : TextToSpeechService() {
         } catch (e: Exception) {
             // ignore
         }
-        synthesizer.stop()
+        synthesizer.stop(activeSessionId)
         TtsNotificationManager.cancelPlaybackNotification(this)
         configDataStore.log("AiTextToSpeechService 系统服务已销毁")
     }
@@ -107,6 +135,9 @@ class AiTextToSpeechService : TextToSpeechService() {
         if (request == null || callback == null) return
 
         val text = request.charSequenceText?.toString() ?: ""
+        val sessionId = UUID.randomUUID().toString().take(8)
+        activeSessionId = sessionId
+
         if (text.isBlank()) {
             callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
             callback.done()
@@ -115,10 +146,10 @@ class AiTextToSpeechService : TextToSpeechService() {
 
         try {
             runBlocking {
-                synthesizer.processSynthesisRequest(request, callback)
+                synthesizer.processSynthesisRequest(request, callback, sessionId)
             }
         } catch (e: Exception) {
-            configDataStore.log("onSynthesizeText 异常: ${e.message}")
+            configDataStore.log("onSynthesizeText [$sessionId] 异常: ${e.message}")
             try {
                 callback.error(TextToSpeech.ERROR_SYNTHESIS)
             } catch (ce: Exception) {
@@ -128,9 +159,10 @@ class AiTextToSpeechService : TextToSpeechService() {
     }
 
     override fun onStop() {
-        synthesizer.stop()
+        val sessionToCancel = activeSessionId
+        synthesizer.stop(sessionToCancel)
         TtsNotificationManager.cancelPlaybackNotification(this)
-        configDataStore.log("收到系统 onStop() 终止朗读信号")
+        configDataStore.log("收到系统 onStop() 信号，已精准中断会话 [$sessionToCancel]")
     }
 
     override fun onGetVoices(): MutableList<Voice> {
@@ -149,25 +181,23 @@ class AiTextToSpeechService : TextToSpeechService() {
                 Voice.QUALITY_VERY_HIGH,
                 Voice.LATENCY_NORMAL,
                 false,
-                setOf(v.gender)
+                setOf("networkTts", "ai", "neural")
             )
             voices.add(voiceObj)
         }
 
-        // 2. 注入当前已配置的自定义大模型音色 (MIMO、MiniMax、豆包等)
-        val customProviders = configDataStore.providersFlow.value
-        for (p in customProviders) {
-            if (voices.none { it.name == p.voiceId }) {
-                val voiceObj = Voice(
-                    p.voiceId.ifBlank { p.id },
-                    Locale.CHINESE,
-                    Voice.QUALITY_VERY_HIGH,
-                    Voice.LATENCY_NORMAL,
-                    false,
-                    setOf("neutral")
-                )
-                voices.add(voiceObj)
-            }
+        // 2. 注入当前已配置的自定义提供商音色
+        val currentProvider = configDataStore.getActiveProvider()
+        if (currentProvider.voiceId.isNotBlank()) {
+            val customVoice = Voice(
+                currentProvider.voiceId,
+                Locale.CHINESE,
+                Voice.QUALITY_VERY_HIGH,
+                Voice.LATENCY_NORMAL,
+                false,
+                setOf("custom", currentProvider.type.name)
+            )
+            voices.add(0, customVoice)
         }
 
         return voices
@@ -179,15 +209,10 @@ class AiTextToSpeechService : TextToSpeechService() {
             return active.voiceId
         }
         val language = lang?.lowercase(Locale.getDefault()) ?: ""
-        return if (language.startsWith("zh") || language.startsWith("zho") || language.startsWith("chi")) {
-            "zh-CN-XiaoxiaoNeural"
-        } else {
+        return if (language.startsWith("en")) {
             "en-US-EmmaMultilingualNeural"
+        } else {
+            "zh-CN-XiaoxiaoNeural"
         }
-    }
-
-    override fun onIsValidVoiceName(voiceName: String?): Int {
-        if (voiceName == null) return TextToSpeech.ERROR
-        return TextToSpeech.SUCCESS
     }
 }

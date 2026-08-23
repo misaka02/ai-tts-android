@@ -83,6 +83,15 @@ class EmotionDetectorTest {
     }
 
     @Test
+    fun testColdArrogantAndConfusedDetection() {
+        val coldQuote = "魔尊漠然冷笑道"
+        assertEquals(EmotionDetector.EmotionType.COLD_ARROGANT, EmotionDetector.detectEmotion(coldQuote))
+
+        val confusedQuote = "弟子疑惑不解地问道"
+        assertEquals(EmotionDetector.EmotionType.CONFUSED_INQUIRING, EmotionDetector.detectEmotion(confusedQuote))
+    }
+
+    @Test
     fun testIntegratedSentenceSplittingWithEmotion() {
         val input = "他愤怒地咆哮道：“谁敢动我妹妹一根汗毛！”随后拔剑出鞘。"
         val segments = SentenceSplitter.splitTextWithRoles(input)

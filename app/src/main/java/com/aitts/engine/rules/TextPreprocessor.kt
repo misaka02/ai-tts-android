@@ -3,11 +3,12 @@ package com.aitts.engine.rules
 import com.aitts.engine.data.ReplacementRule
 
 /**
- * 文本预处理器：
+ * 文本预处理器 3.0：
  * 1. 执行用户配置的正则发音替换规则
  * 2. 规范化特殊字符与排版标点
  * 3. 过滤不可读控制字符、Markdown 噪音与 HTML 网页标签
- * 4. 智能中文数字与章节编号发音转换 (如 "第123章" -> "第一百二十三章", "2026年" -> "二零二六年")
+ * 4. 智能多模式中文数字转换 (手机号逐位读“幺”、时间、金额、百分比、章节编号与年份)
+ * 5. 英文缩写与现代科技词汇连读规整 (AcronymNormalizer)
  */
 object TextPreprocessor {
 
@@ -15,6 +16,7 @@ object TextPreprocessor {
     private val regexCache = mutableMapOf<String, Regex>()
 
     private val digitChars = charArrayOf('零', '一', '二', '三', '四', '五', '六', '七', '八', '九')
+    private val phoneDigitChars = charArrayOf('零', '幺', '二', '三', '四', '五', '六', '七', '八', '九')
     private val units = arrayOf("", "十", "百", "千")
     private val bigUnits = arrayOf("", "万", "亿")
 
@@ -29,18 +31,21 @@ object TextPreprocessor {
         // 1. 清洗 HTML/Markdown 与网络链接
         result = cleanMarkupAndFormatting(result)
 
-        // 2. 优先应用用户自定义替换规则 (用户规则具备最高优先级)
+        // 2. 英文缩写与专有名词发音规整 (如 AI, WiFi, GPT-4o, USB-C, 1080P)
+        result = AcronymNormalizer.normalize(result)
+
+        // 3. 优先应用用户自定义替换规则 (用户规则具备最高优先级)
         for (rule in rules) {
             if (!rule.enabled || rule.pattern.isBlank()) continue
             result = applyRule(result, rule)
         }
 
-        // 3. 智能中文数字与章节转换 (可选)
+        // 4. 智能中文数字、手机号、时间、金额与章节转换 (可选)
         if (enableNumberNormalization) {
             result = normalizeChineseNumbers(result)
         }
 
-        // 4. 规范化空白与控制字符
+        // 5. 规范化空白与控制字符
         result = normalizeWhitespace(result)
 
         return result
@@ -112,12 +117,19 @@ object TextPreprocessor {
     }
 
     /**
-     * 智能中文数字与章节编号发音转换
+     * 智能多模式中文数字转换 (手机号、时间、金额、年份、百分比、章节)
      */
     fun normalizeChineseNumbers(input: String): String {
         var res = input
 
-        // 1. 章节与序数转换：如 "第123章" -> "第一百二十三章"
+        // 1. 11位手机号识别：逐位读出并用“幺”代替“一”（例如 13800138000 -> 幺三八零零幺三八零零零）
+        val phoneRegex = Regex("(?<!\\d)(1[3-9]\\d{9})(?!\\d)")
+        res = phoneRegex.replace(res) { match ->
+            val numStr = match.groupValues[1]
+            numStr.map { phoneDigitChars[it - '0'] }.joinToString("")
+        }
+
+        // 2. 章节与序数转换：如 "第123章" -> "第一百二十三章"
         val ordinalRegex = Regex("第(\\d{1,8})([章节卷回集页名次天年条步把位段])")
         res = ordinalRegex.replace(res) { match ->
             val numStr = match.groupValues[1]
@@ -126,7 +138,32 @@ object TextPreprocessor {
             "第$chineseNum$suffix"
         }
 
-        // 2. 年份转换：如 "2026年" -> "二零二六年"
+        // 3. 时间转换：如 "14:30" -> "十四点三十分"
+        val timeRegex = Regex("(?<!\\d)([0-2]?\\d):([0-5]\\d)(?!\\d)")
+        res = timeRegex.replace(res) { match ->
+            val hour = match.groupValues[1].toIntOrNull() ?: 0
+            val min = match.groupValues[2].toIntOrNull() ?: 0
+            val hourStr = convertIntToChinese(hour.toLong())
+            val minStr = if (min == 0) "整" else "${convertIntToChinese(min.toLong())}分"
+            "${hourStr}点$minStr"
+        }
+
+        // 4. 金额转换：如 "¥100.5" -> "一百点五元"
+        val currencyRegex = Regex("[¥￥](\\d+(?:\\.\\d+)?)")
+        res = currencyRegex.replace(res) { match ->
+            val amount = match.groupValues[1]
+            if (amount.contains(".")) {
+                val parts = amount.split(".")
+                val intPart = convertIntToChinese(parts[0].toLongOrNull() ?: 0)
+                val decPart = parts[1].map { digitChars[it - '0'] }.joinToString("")
+                "${intPart}点${decPart}元"
+            } else {
+                val chineseNum = convertIntToChinese(amount.toLongOrNull() ?: 0)
+                "${chineseNum}元"
+            }
+        }
+
+        // 5. 年份转换：如 "2026年" -> "二零二六年"
         val yearRegex = Regex("(\\d{4})年")
         res = yearRegex.replace(res) { match ->
             val digits = match.groupValues[1]
@@ -134,7 +171,7 @@ object TextPreprocessor {
             "${chineseDigits}年"
         }
 
-        // 3. 百分比转换：如 "50%" -> "百分之五十", "99.5%" -> "百分之九十九点五"
+        // 6. 百分比转换：如 "50%" -> "百分之五十", "99.5%" -> "百分之九十九点五"
         val percentRegex = Regex("(\\d+(?:\\.\\d+)?)%")
         res = percentRegex.replace(res) { match ->
             val numStr = match.groupValues[1]

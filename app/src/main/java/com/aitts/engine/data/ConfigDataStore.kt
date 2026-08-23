@@ -114,8 +114,9 @@ class ConfigDataStore(private val context: Context) {
 
     fun getActiveProvider(): TtsProviderConfig {
         val activeId = _settingsFlow.value.activeProviderId
-        return _providersFlow.value.find { it.id == activeId }
+        return _providersFlow.value.find { it.id == activeId && it.enabled }
             ?: _providersFlow.value.firstOrNull { it.enabled }
+            ?: _providersFlow.value.find { it.id == activeId }
             ?: PresetConfigs.createDefaultProviders().first()
     }
 
@@ -267,10 +268,15 @@ class ConfigDataStore(private val context: Context) {
         return json.encodeToString(_rulesFlow.value)
     }
 
-    fun exportAllConfigJson(): String {
+    fun exportAllConfigJson(desensitize: Boolean = false): String {
+        val providersToExport = if (desensitize) {
+            _providersFlow.value.map { it.copy(apiKey = "") }
+        } else {
+            _providersFlow.value
+        }
         val backupData = BackupPayload(
             settings = _settingsFlow.value,
-            providers = _providersFlow.value,
+            providers = providersToExport,
             rules = _rulesFlow.value
         )
         return json.encodeToString(backupData)
