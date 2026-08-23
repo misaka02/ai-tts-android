@@ -12,23 +12,27 @@ import androidx.compose.ui.graphics.Color
 
 val LocalAppPalette = staticCompositionLocalOf { AppPaletteTheme.OCEAN_AZURE }
 
-fun buildColorScheme(palette: AppPaletteTheme, isDark: Boolean): ColorScheme {
+fun buildColorScheme(palette: AppPaletteTheme, isDark: Boolean, isAmoledPureBlack: Boolean = false): ColorScheme {
     val primary = palette.primaryColor
     val primaryDark = palette.previewColor
 
     return if (isDark) {
-        val (bg, surface, card, border) = when (palette) {
-            AppPaletteTheme.OCEAN_AZURE -> Quad(Color(0xFF070B12), Color(0xFF101726), Color(0xFF182338), Color(0xFF2B3D5C))
-            AppPaletteTheme.EMERALD_JADE -> Quad(Color(0xFF050E09), Color(0xFF0C1D15), Color(0xFF142B20), Color(0xFF244837))
-            AppPaletteTheme.TITANIUM_SLATE -> Quad(Color(0xFF090D15), Color(0xFF141B28), Color(0xFF1F293B), Color(0xFF33435C))
-            AppPaletteTheme.SUNSET_AMBER -> Quad(Color(0xFF0F0A04), Color(0xFF1A1308), Color(0xFF291E10), Color(0xFF45341E))
-            AppPaletteTheme.MORANDI_GRAPHITE -> Quad(Color(0xFF0C0E12), Color(0xFF161B22), Color(0xFF222832), Color(0xFF37414F))
-            AppPaletteTheme.NEON_CYBERPUNK -> Quad(Color(0xFF100512), Color(0xFF1C0A20), Color(0xFF2B1032), Color(0xFF4C1D57))
-            AppPaletteTheme.AURORA_MINT -> Quad(Color(0xFF040F0D), Color(0xFF0A1B18), Color(0xFF112925), Color(0xFF1F453F))
-            AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFF110508), Color(0xFF1E0B10), Color(0xFF2E121A), Color(0xFF4E202C))
-            AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFF070712), Color(0xFF0F0F20), Color(0xFF181830), Color(0xFF2C2C52))
-            AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFF110603), Color(0xFF1F0C06), Color(0xFF2E140B), Color(0xFF4C2415))
-            AppPaletteTheme.OLED_BLACK -> Quad(Color(0xFF000000), Color(0xFF0D0D0D), Color(0xFF141414), Color(0xFF262626))
+        val (bg, surface, card, border) = if (isAmoledPureBlack || palette == AppPaletteTheme.OLED_BLACK) {
+            Quad(Color(0xFF000000), Color(0xFF0D0D0D), Color(0xFF141414), Color(0xFF262626))
+        } else {
+            when (palette) {
+                AppPaletteTheme.OCEAN_AZURE -> Quad(Color(0xFF070B12), Color(0xFF101726), Color(0xFF182338), Color(0xFF2B3D5C))
+                AppPaletteTheme.EMERALD_JADE -> Quad(Color(0xFF050E09), Color(0xFF0C1D15), Color(0xFF142B20), Color(0xFF244837))
+                AppPaletteTheme.TITANIUM_SLATE -> Quad(Color(0xFF090D15), Color(0xFF141B28), Color(0xFF1F293B), Color(0xFF33435C))
+                AppPaletteTheme.SUNSET_AMBER -> Quad(Color(0xFF0F0A04), Color(0xFF1A1308), Color(0xFF291E10), Color(0xFF45341E))
+                AppPaletteTheme.MORANDI_GRAPHITE -> Quad(Color(0xFF0C0E12), Color(0xFF161B22), Color(0xFF222832), Color(0xFF37414F))
+                AppPaletteTheme.NEON_CYBERPUNK -> Quad(Color(0xFF100512), Color(0xFF1C0A20), Color(0xFF2B1032), Color(0xFF4C1D57))
+                AppPaletteTheme.AURORA_MINT -> Quad(Color(0xFF040F0D), Color(0xFF0A1B18), Color(0xFF112925), Color(0xFF1F453F))
+                AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFF110508), Color(0xFF1E0B10), Color(0xFF2E121A), Color(0xFF4E202C))
+                AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFF070712), Color(0xFF0F0F20), Color(0xFF181830), Color(0xFF2C2C52))
+                AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFF110603), Color(0xFF1F0C06), Color(0xFF2E140B), Color(0xFF4C2415))
+                AppPaletteTheme.OLED_BLACK -> Quad(Color(0xFF000000), Color(0xFF0D0D0D), Color(0xFF141414), Color(0xFF262626))
+            }
         }
 
         darkColorScheme(
@@ -85,6 +89,7 @@ private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 fun AiTtsEngineTheme(
     themeMode: String = "SYSTEM",
     themePalette: String = "OCEAN_AZURE",
+    isAmoledPureBlack: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val isDark = when (themeMode) {
@@ -94,7 +99,7 @@ fun AiTtsEngineTheme(
     }
 
     val palette = AppPaletteTheme.fromKey(themePalette)
-    val colorScheme = buildColorScheme(palette, isDark)
+    val colorScheme = buildColorScheme(palette, isDark, isAmoledPureBlack)
 
     CompositionLocalProvider(LocalAppPalette provides palette) {
         MaterialTheme(

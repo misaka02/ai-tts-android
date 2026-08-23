@@ -185,7 +185,8 @@ data class GlobalSettings(
     val connectTimeoutSeconds: Int = 15,
     val readTimeoutSeconds: Int = 60,
     val appThemeMode: String = "SYSTEM", // SYSTEM / DARK / LIGHT
-    val appThemePalette: String = "OCEAN_AZURE", // OCEAN_AZURE, EMERALD_JADE, TITANIUM_SLATE, SUNSET_AMBER, MORANDI_GRAPHITE
+    val appThemePalette: String = "OCEAN_AZURE", // OCEAN_AZURE, EMERALD_JADE, TITANIUM_SLATE, SUNSET_AMBER, MORANDI_GRAPHITE...
+    val isAmoledPureBlack: Boolean = false, // A屏纯黑极夜模式 (在深色模式下所有配色统一强制绝对纯黑 #000000)
     val sentencePauseMs: Int = 200, // 标点分句后注入静音停顿毫秒数，大幅提升小说听感自然度
     val fallbackProviderId: String = "edge_tts_default", // 主引擎异常时全局自动故障转移备用引擎
     val autoFallbackOnFailure: Boolean = true, // 启用自动故障降级

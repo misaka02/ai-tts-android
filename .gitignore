@@ -16,7 +16,9 @@ local.properties
 
 # Android build outputs
 app/build/
-build/
+# Local persistent agent & user instructions
+.user_instructions.md
+*.local.md
 *.apk
 !ai-tts-engine-v1.0.0.apk
 *.aab

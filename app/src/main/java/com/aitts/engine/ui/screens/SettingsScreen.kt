@@ -175,23 +175,39 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("预设主题色系 (含 OLED 纯黑)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        AssistChip(
-                            onClick = {
-                                configDataStore.updateSettings(
-                                    settings.copy(appThemeMode = "DARK", appThemePalette = "OLED_BLACK")
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("A 屏纯黑极夜模式 (AMOLED Black)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text(
+                                    "开启后深色模式下所有配色统一强制 #000000 纯黑背景与底栏，关闭发光像素极致省电",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Toast.makeText(context, "已开启 A屏纯黑 OLED 极夜模式", Toast.LENGTH_SHORT).show()
-                            },
-                            label = { Text("⚡ 一键 A屏纯黑", fontSize = 11.sp) }
-                        )
+                            }
+                            Switch(
+                                checked = settings.isAmoledPureBlack,
+                                onCheckedChange = {
+                                    configDataStore.updateSettings(settings.copy(isAmoledPureBlack = it))
+                                }
+                            )
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("预设设计色调 (10+ 套配色方案)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(8.dp))
 
                     FlowRow(

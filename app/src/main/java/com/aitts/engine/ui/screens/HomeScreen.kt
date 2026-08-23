@@ -347,6 +347,56 @@ fun HomeScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        item(contentType = "header") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "AI TTS",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = "v${com.aitts.engine.BuildConfig.VERSION_NAME}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "经典列表交互视图",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AssistChip(
+                        onClick = { configDataStore.updateSettings(settings.copy(appUiStyle = "BENTO")) },
+                        label = { Text("🚀 Bento", fontSize = 11.sp) }
+                    )
+                    AssistChip(
+                        onClick = { configDataStore.updateSettings(settings.copy(appUiStyle = "STUDIO")) },
+                        label = { Text("🎛️ Studio", fontSize = 11.sp) }
+                    )
+                }
+            }
+        }
+
         item(contentType = "permission") {
             Spacer(modifier = Modifier.height(4.dp))
             PermissionCard(

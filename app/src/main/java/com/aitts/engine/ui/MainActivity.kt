@@ -3,6 +3,7 @@ package com.aitts.engine.ui
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -59,7 +60,8 @@ class MainActivity : ComponentActivity() {
 
             AiTtsEngineTheme(
                 themeMode = settings.appThemeMode,
-                themePalette = settings.appThemePalette
+                themePalette = settings.appThemePalette,
+                isAmoledPureBlack = settings.isAmoledPureBlack
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -99,8 +101,13 @@ fun MainAppNavHost(configDataStore: ConfigDataStore) {
             if (bottomNavItems.any { it.route == currentRoute }) {
                 val primaryColor = MaterialTheme.colorScheme.primary
                 NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp
+                    containerColor = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp,
+                    modifier = androidx.compose.ui.Modifier.border(
+                        width = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                        shape = androidx.compose.ui.graphics.RectangleShape
+                    )
                 ) {
                     bottomNavItems.forEach { screen ->
                         val isSelected = currentRoute == screen.route
