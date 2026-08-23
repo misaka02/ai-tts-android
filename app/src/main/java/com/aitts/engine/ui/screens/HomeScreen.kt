@@ -128,6 +128,19 @@ fun HomeScreen(
     }
 
     val settings by configDataStore.settingsFlow.collectAsState()
+
+    if (settings.appUiStyle == "STUDIO") {
+        ModernStudioHomeScreen(
+            configDataStore = configDataStore,
+            onNavigateToEditProvider = onNavigateToEditProvider,
+            onNavigateToTestBench = onNavigateToTestBench,
+            onToggleUiStyle = {
+                configDataStore.updateSettings(settings.copy(appUiStyle = "CLASSIC"))
+            }
+        )
+        return
+    }
+
     val providers by configDataStore.providersFlow.collectAsState()
     val historyItems by configDataStore.historyFlow.collectAsState()
 
@@ -634,6 +647,18 @@ fun HomeScreen(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AssistChip(
+                        onClick = {
+                            configDataStore.updateSettings(settings.copy(appUiStyle = "STUDIO"))
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            Toast.makeText(context, "已切换为 Next-Gen Studio 调音台工作台", Toast.LENGTH_SHORT).show()
+                        },
+                        label = { Text("Studio 模式", fontSize = 11.sp) },
+                        leadingIcon = {
+                            Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    )
+
                     IconButton(
                         onClick = { showSleepTimerDialog = true }
                     ) {

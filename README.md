@@ -7,7 +7,7 @@
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-purple.svg)](https://kotlinlang.org/)
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-blueviolet.svg)](https://developer.android.com/jetpack/compose)
-[![Latest Release](https://img.shields.io/badge/Release-v2.0.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
+[![Latest Release](https://img.shields.io/badge/Release-v2.1.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
 
 <br/>
 
@@ -44,6 +44,7 @@
 
 ## 🛠️ 主要功能特性
 
+- **双 UI 界面自由切换**：支持「Next-Gen Studio 调音台工作台」与「经典紧凑列表」双套交互布局，界面顶部一键即时无缝切换。
 - **流式并发预取**：播放当前段落时在后台异步预取下一句，降低长文本句间停顿。
 - **内存音频解码与重采样**：音频流在内存中直接解码并保真重采样为 24000Hz 16-bit 单声道，避免跨音色切换时采样率失步变调。
 - **小说多角色与情绪识别**：支持识别引号对白与引述语，可配置旁白、男主、女主、长者等多声线协同朗读，并注入情绪微调提示。

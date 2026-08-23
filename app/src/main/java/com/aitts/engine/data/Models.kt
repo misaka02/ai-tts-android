@@ -198,7 +198,8 @@ data class GlobalSettings(
     val eqPresetId: String = "passthrough", // 音效 EQ 预设方案 (clear_voice, warm_broadcast, gentle_ear_protect, passthrough, custom)
     val voiceClarityBoostEnabled: Boolean = false, // 人声清晰度增强滤镜 (Clear Voice EQ)
     val loudnessGainFactor: Float = 1.0f, // 软件级响度增益与动态均衡 (1.0x ~ 2.0x)
-    val sleepTimerMinutes: Int = 0 // 听书睡眠定时器 (分钟，0为关闭)
+    val sleepTimerMinutes: Int = 0, // 听书睡眠定时器 (分钟，0为关闭)
+    val appUiStyle: String = "STUDIO" // 界面设计风格 (STUDIO: 全新沉浸式工作台, CLASSIC: 经典列表)
 )
 
 /**

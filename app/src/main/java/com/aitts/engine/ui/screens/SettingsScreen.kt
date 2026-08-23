@@ -172,6 +172,24 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text("界面设计与交互布局风格", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("STUDIO" to "✨ Next-Gen 调音台工作台", "CLASSIC" to "📋 经典紧凑列表").forEach { (style, label) ->
+                            FilterChip(
+                                selected = settings.appUiStyle == style,
+                                onClick = {
+                                    configDataStore.updateSettings(settings.copy(appUiStyle = style))
+                                },
+                                label = { Text(label, fontSize = 12.sp) }
+                            )
+                        }
+                    }
                 }
             }
         }
