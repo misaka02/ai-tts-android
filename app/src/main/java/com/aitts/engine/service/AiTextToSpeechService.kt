@@ -168,7 +168,27 @@ class AiTextToSpeechService : TextToSpeechService() {
     override fun onGetVoices(): MutableList<Voice> {
         val voices = mutableListOf<Voice>()
 
-        // 1. 注入所有 Edge TTS 高质量神经网络音色
+        // 1. 注入用户配置的全部 AI 模型与音色 (活跃模型置顶)
+        val allProviders = configDataStore.providersFlow.value
+        val activeProvider = configDataStore.getActiveProvider()
+        for (p in allProviders) {
+            val voiceName = p.name.ifBlank { p.id }
+            val customVoice = Voice(
+                voiceName,
+                Locale.CHINESE,
+                Voice.QUALITY_VERY_HIGH,
+                Voice.LATENCY_NORMAL,
+                false,
+                setOf("custom", p.type.name, p.id)
+            )
+            if (p.id == activeProvider.id) {
+                voices.add(0, customVoice)
+            } else {
+                voices.add(customVoice)
+            }
+        }
+
+        // 2. 注入所有 Edge TTS 高质量神经网络音色
         for (v in PresetConfigs.edgeVoices) {
             val locale = try {
                 Locale.forLanguageTag(v.locale)
@@ -186,33 +206,11 @@ class AiTextToSpeechService : TextToSpeechService() {
             voices.add(voiceObj)
         }
 
-        // 2. 注入当前已配置的自定义提供商音色
-        val currentProvider = configDataStore.getActiveProvider()
-        if (currentProvider.voiceId.isNotBlank()) {
-            val customVoice = Voice(
-                currentProvider.voiceId,
-                Locale.CHINESE,
-                Voice.QUALITY_VERY_HIGH,
-                Voice.LATENCY_NORMAL,
-                false,
-                setOf("custom", currentProvider.type.name)
-            )
-            voices.add(0, customVoice)
-        }
-
         return voices
     }
 
     override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String {
         val active = configDataStore.getActiveProvider()
-        if (active.voiceId.isNotBlank()) {
-            return active.voiceId
-        }
-        val language = lang?.lowercase(Locale.getDefault()) ?: ""
-        return if (language.startsWith("en")) {
-            "en-US-EmmaMultilingualNeural"
-        } else {
-            "zh-CN-XiaoxiaoNeural"
-        }
+        return active.name.ifBlank { active.voiceId.ifBlank { "zh-CN-XiaoxiaoNeural" } }
     }
 }

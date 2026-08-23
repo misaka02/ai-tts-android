@@ -142,7 +142,9 @@ fun BentoConsoleHomeScreen(
     configDataStore: ConfigDataStore,
     onNavigateToEditProvider: (String) -> Unit,
     onNavigateToTestBench: () -> Unit,
-    onSwitchUiStyle: (String) -> Unit
+    onSwitchUiStyle: (String) -> Unit,
+    testText: String = "欢迎体验 AI TTS 全新 Bento 全息声球工作台！真实物理频域示波器正在实时捕获声学能量。",
+    onTestTextChange: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -168,9 +170,6 @@ fun BentoConsoleHomeScreen(
     val sleepRemainingSec by sleepTimerManager.remainingSecondsFlow.collectAsState()
     val isSleepTimerActive by sleepTimerManager.isActiveFlow.collectAsState()
 
-    var testText by remember {
-        mutableStateOf("欢迎体验 AI TTS 全新 Bento 全息声球工作台！真实物理频域示波器正在实时捕获声学能量。")
-    }
     var isFetchingHitokoto by remember { mutableStateOf(false) }
     var quoteSourceHint by remember { mutableStateOf<String?>(null) }
     var isSynthesizing by remember { mutableStateOf(false) }
@@ -583,7 +582,7 @@ fun BentoConsoleHomeScreen(
                             AssistChip(
                                 onClick = {
                                     val item = QuoteService.getRandomLocalQuote()
-                                    testText = item.text
+                                    onTestTextChange(item.text)
                                     quoteSourceHint = "分类: ${item.category}"
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 },
@@ -596,7 +595,7 @@ fun BentoConsoleHomeScreen(
                                         isFetchingHitokoto = true
                                         scope.launch {
                                             val item = QuoteService.fetchOnlineHitokoto()
-                                            testText = item.text
+                                            onTestTextChange(item.text)
                                             quoteSourceHint = item.source ?: "一言金句"
                                             isFetchingHitokoto = false
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -619,13 +618,13 @@ fun BentoConsoleHomeScreen(
                     OutlinedTextField(
                         value = testText,
                         onValueChange = {
-                            testText = it
+                            onTestTextChange(it)
                             quoteSourceHint = null
                         },
                         trailingIcon = {
                             if (testText.isNotBlank()) {
                                 IconButton(onClick = {
-                                    testText = ""
+                                    onTestTextChange("")
                                     quoteSourceHint = null
                                 }) {
                                     Icon(Icons.Default.Clear, contentDescription = "清空", modifier = Modifier.size(16.dp))

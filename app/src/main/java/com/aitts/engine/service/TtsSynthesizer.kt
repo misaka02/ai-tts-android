@@ -77,7 +77,15 @@ class TtsSynthesizer(private val context: Context) {
         }
 
         val settings = configDataStore.settingsFlow.value
-        val providerConfig = configDataStore.getActiveProvider()
+        val requestedVoice = request.voiceName
+        val matchedProvider = if (!requestedVoice.isNullOrBlank()) {
+            configDataStore.providersFlow.value.find {
+                it.name.equals(requestedVoice, ignoreCase = true) ||
+                it.id.equals(requestedVoice, ignoreCase = true) ||
+                it.voiceId.equals(requestedVoice, ignoreCase = true)
+            }
+        } else null
+        val providerConfig = matchedProvider ?: configDataStore.getActiveProvider()
         val rules = configDataStore.rulesFlow.value
 
         // 适配系统传入的语速与音调参数（100 为标准 1.0）

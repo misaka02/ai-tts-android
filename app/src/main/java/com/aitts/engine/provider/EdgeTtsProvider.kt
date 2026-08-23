@@ -106,7 +106,7 @@ class EdgeTtsProvider(
         val ratePercent = ((config.speed - 1.0f) * 100).toInt()
         val pitchPercent = ((config.pitch - 1.0f) * 100).toInt()
         val rateStr = if (ratePercent >= 0) "+$ratePercent%" else "$ratePercent%"
-        val pitchStr = if (pitchPercent >= 0) "+${pitchPercent}Hz" else "${pitchPercent}Hz"
+        val pitchStr = if (pitchPercent >= 0) "+$pitchPercent%" else "$pitchPercent%"
         val volumeStr = "+0%"
 
         val voiceName = formatEdgeVoiceName(config.voiceId.ifBlank { "zh-CN-XiaoxiaoNeural" })

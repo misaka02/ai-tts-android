@@ -114,15 +114,22 @@ class ConfigDataStore(private val context: Context) {
 
     fun getActiveProvider(): TtsProviderConfig {
         val activeId = _settingsFlow.value.activeProviderId
-        return _providersFlow.value.find { it.id == activeId && it.enabled }
+        return _providersFlow.value.find { it.id == activeId }
             ?: _providersFlow.value.firstOrNull { it.enabled }
-            ?: _providersFlow.value.find { it.id == activeId }
+            ?: _providersFlow.value.firstOrNull()
             ?: PresetConfigs.createDefaultProviders().first()
     }
 
     fun setActiveProviderId(id: String) {
         val current = _settingsFlow.value
         updateSettings(current.copy(activeProviderId = id))
+        // 自动激活该模型
+        val providers = _providersFlow.value.toMutableList()
+        val index = providers.indexOfFirst { it.id == id }
+        if (index >= 0 && !providers[index].enabled) {
+            providers[index] = providers[index].copy(enabled = true)
+            saveProviders(providers)
+        }
     }
 
     // --- Providers ---

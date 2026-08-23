@@ -133,7 +133,9 @@ fun HomeScreen(
                     onNavigateToTestBench = onNavigateToTestBench,
                     onSwitchUiStyle = { newStyle ->
                         configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
-                    }
+                    },
+                    testText = testText,
+                    onTestTextChange = { testText = it }
                 )
             }
             "STUDIO" -> {
@@ -143,7 +145,9 @@ fun HomeScreen(
                     onNavigateToTestBench = onNavigateToTestBench,
                     onSwitchUiStyle = { newStyle ->
                         configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
-                    }
+                    },
+                    testText = testText,
+                    onTestTextChange = { testText = it }
                 )
             }
             else -> {
@@ -153,44 +157,48 @@ fun HomeScreen(
                     onNavigateToTestBench = onNavigateToTestBench,
                     onSwitchUiStyle = { newStyle ->
                         configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
-                    }
+                    },
+                    testText = testText,
+                    onTestTextChange = { testText = it }
                 )
             }
         }
 
         // 🌟 2. 全局常驻自由拖拽悬浮主控坞 (Universal Global Floating Master Dock)
-        FloatingMasterDock(
-            activeProvider = activeProvider,
-            currentUiStyle = settings.appUiStyle,
-            dockModeName = settings.floatingDockMode,
-            initialX = settings.floatingDockX,
-            initialY = settings.floatingDockY,
-            isPlaying = isPlaying,
-            isSynthesizing = isSynthesizing,
-            onPlayToggle = {
-                if (isPlaying || isSynthesizing) {
-                    stopPlayback()
-                } else {
-                    activeProvider?.let { playSpeechWithProvider(it, testText) }
-                }
-            },
-            onRandomQuote = {
-                val item = QuoteService.getRandomLocalQuote()
-                testText = item.text
-            },
-            onSwitchUiStyle = { newStyle ->
-                configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
-            },
-            onOpenProviderConfig = onNavigateToEditProvider,
-            onUpdateDockState = { mode, x, y ->
-                configDataStore.updateSettings(
-                    settings.copy(
-                        floatingDockMode = mode,
-                        floatingDockX = x,
-                        floatingDockY = y
+        if (settings.isFloatingDockEnabled) {
+            FloatingMasterDock(
+                activeProvider = activeProvider,
+                currentUiStyle = settings.appUiStyle,
+                dockModeName = settings.floatingDockMode,
+                initialX = settings.floatingDockX,
+                initialY = settings.floatingDockY,
+                isPlaying = isPlaying,
+                isSynthesizing = isSynthesizing,
+                onPlayToggle = {
+                    if (isPlaying || isSynthesizing) {
+                        stopPlayback()
+                    } else {
+                        activeProvider?.let { playSpeechWithProvider(it, testText) }
+                    }
+                },
+                onRandomQuote = {
+                    val item = QuoteService.getRandomLocalQuote()
+                    testText = item.text
+                },
+                onSwitchUiStyle = { newStyle ->
+                    configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
+                },
+                onOpenProviderConfig = onNavigateToEditProvider,
+                onUpdateDockState = { mode, x, y ->
+                    configDataStore.updateSettings(
+                        settings.copy(
+                            floatingDockMode = mode,
+                            floatingDockX = x,
+                            floatingDockY = y
+                        )
                     )
-                )
-            }
-        )
+                }
+            )
+        }
     }
 }

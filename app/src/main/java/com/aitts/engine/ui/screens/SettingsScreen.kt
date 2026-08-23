@@ -534,6 +534,35 @@ private fun ThemeSettingsCard(settings: com.aitts.engine.data.GlobalSettings, co
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("启用全能悬浮主控坞 (Floating Master Dock)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(
+                            "在主页显示可自由拖拽、随心贴边变换形态（胶囊/竖排/Pie轮盘/贴边）的试听与主控坞",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = settings.isFloatingDockEnabled,
+                        onCheckedChange = { configDataStore.updateSettings(settings.copy(isFloatingDockEnabled = it)) }
+                    )
+                }
+            }
         }
     }
 }

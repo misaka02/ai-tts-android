@@ -1,7 +1,6 @@
 package com.aitts.engine.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -45,6 +44,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -68,6 +68,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.ui.theme.BrandTheme
@@ -93,12 +95,7 @@ enum class TooltipPosition {
 }
 
 /**
- * 🌟 全主题通用人机工学自由拖拽主控悬浮坞 (v3.2.0 Ultra-Fluid Edition)
- * 1. 【GPU 硬件加速】Pie 扇形轮盘采用 graphicsLayer 变换，零掉帧 120FPS 瞬时弹出；
- * 2. 【长按放大与不遮挡气泡】按住按钮时图标平滑放大 1.25x，文字气泡显示在按钮周围（绝不被手指遮挡），在按钮上松手即触发；移开手指取消；
- * 3. 【一级菜单防误触】移除一级菜单中的主题切换按键，彻底杜绝误触；
- * 4. 【精炼子菜单文本】子菜单选项文本精简清晰（Bento / 调音台 / 黑胶）；
- * 5. 【贴边收纳与侧面板联动】贴边收纳按钮严格贴合最近侧边，点击即展开对应位置侧边面板。
+ * 🌟 全主题通用人机工学自由拖拽主控悬浮坞 (v3.2.0 Ultra-Fluid & Full-Control Edition)
  */
 @Composable
 fun FloatingMasterDock(
@@ -138,6 +135,7 @@ fun FloatingMasterDock(
 
     var isPieExpanded by remember { mutableStateOf(false) }
     var showModeMenu by remember { mutableStateOf(false) }
+    var showPlayQuickConfig by remember { mutableStateOf(false) }
 
     BoxWithConstraints(
         modifier = modifier
@@ -149,7 +147,7 @@ fun FloatingMasterDock(
 
         val (dockWidthPx, dockHeightPx) = when (dockMode) {
             DockDisplayMode.EXPANDED_HORIZONTAL -> with(density) { Pair((maxWidth - 28.dp).toPx(), 54.dp.toPx()) }
-            DockDisplayMode.SIDEBAR_VERTICAL -> with(density) { Pair(60.dp.toPx(), 270.dp.toPx()) }
+            DockDisplayMode.SIDEBAR_VERTICAL -> with(density) { Pair(62.dp.toPx(), 280.dp.toPx()) }
             DockDisplayMode.PIE_RADIAL -> with(density) { Pair(56.dp.toPx(), 56.dp.toPx()) }
             DockDisplayMode.EDGE_STASHED -> with(density) { Pair(26.dp.toPx(), 64.dp.toPx()) }
         }
@@ -157,13 +155,13 @@ fun FloatingMasterDock(
         val minX = when (dockMode) {
             DockDisplayMode.EXPANDED_HORIZONTAL -> 0f
             DockDisplayMode.SIDEBAR_VERTICAL -> -screenWidthPx / 2f + dockWidthPx / 2f + with(density) { 6.dp.toPx() }
-            DockDisplayMode.PIE_RADIAL -> -screenWidthPx / 2f + dockWidthPx / 2f + with(density) { 16.dp.toPx() }
+            DockDisplayMode.PIE_RADIAL -> -screenWidthPx / 2f + dockWidthPx / 2f + with(density) { 20.dp.toPx() }
             DockDisplayMode.EDGE_STASHED -> -screenWidthPx / 2f + dockWidthPx / 2f
         }
         val maxX = when (dockMode) {
             DockDisplayMode.EXPANDED_HORIZONTAL -> 0f
             DockDisplayMode.SIDEBAR_VERTICAL -> screenWidthPx / 2f - dockWidthPx / 2f - with(density) { 6.dp.toPx() }
-            DockDisplayMode.PIE_RADIAL -> screenWidthPx / 2f - dockWidthPx / 2f - with(density) { 16.dp.toPx() }
+            DockDisplayMode.PIE_RADIAL -> screenWidthPx / 2f - dockWidthPx / 2f - with(density) { 20.dp.toPx() }
             DockDisplayMode.EDGE_STASHED -> screenWidthPx / 2f - dockWidthPx / 2f
         }
         val minY = -screenHeightPx + dockHeightPx + with(density) { 72.dp.toPx() }
@@ -248,7 +246,7 @@ fun FloatingMasterDock(
                     // ↕️ 竖排侧边栏 (宽松布局，绑定对应侧边位置)
                     Surface(
                         modifier = Modifier
-                            .width(60.dp)
+                            .width(62.dp)
                             .graphicsLayer {
                                 shadowElevation = 10.dp.toPx()
                                 shape = RoundedCornerShape(22.dp)
@@ -273,7 +271,7 @@ fun FloatingMasterDock(
                         Column(
                             modifier = Modifier.padding(vertical = 12.dp, horizontal = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             // 拖拽手柄
                             Box(
@@ -283,26 +281,58 @@ fun FloatingMasterDock(
                                     .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(2.dp))
                             )
 
-                            // 播放 / 停止主键
-                            FluidTouchWrapper(
-                                tooltip = if (isPlaying) "停止朗读" else "试听发音",
-                                tooltipPosition = if (isAtLeft) TooltipPosition.RIGHT else TooltipPosition.LEFT,
-                                onClick = onPlayToggle
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = activeBrandColor,
-                                    modifier = Modifier.size(44.dp)
+                            // 播放 / 停止主键 (长按弹出配置快捷键)
+                            Box {
+                                FluidTouchWrapper(
+                                    tooltip = if (isPlaying) "停止" else "试听",
+                                    tooltipPosition = if (isAtLeft) TooltipPosition.RIGHT else TooltipPosition.LEFT,
+                                    onClick = onPlayToggle,
+                                    onLongRelease = { showPlayQuickConfig = true }
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        if (isSynthesizing) {
-                                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                                        } else {
-                                            Icon(
-                                                imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
-                                                contentDescription = "播放/停止",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(22.dp)
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = activeBrandColor,
+                                        modifier = Modifier.size(42.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            if (isSynthesizing) {
+                                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                            } else {
+                                                Icon(
+                                                    imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                                    contentDescription = "播放/停止",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (showPlayQuickConfig) {
+                                    Popup(
+                                        alignment = if (isAtLeft) Alignment.CenterEnd else Alignment.CenterStart,
+                                        offset = IntOffset(if (isAtLeft) 130 else -130, 0),
+                                        onDismissRequest = { showPlayQuickConfig = false }
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MaterialTheme.colorScheme.inverseSurface,
+                                            shadowElevation = 8.dp,
+                                            modifier = Modifier.pointerInput(Unit) {
+                                                awaitEachGesture {
+                                                    awaitFirstDown()
+                                                    activeProvider?.let { onOpenProviderConfig(it.id) }
+                                                    showPlayQuickConfig = false
+                                                }
+                                            }
+                                        ) {
+                                            Text(
+                                                text = "⚙️ 进入模型设置",
+                                                color = MaterialTheme.colorScheme.inverseOnSurface,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                             )
                                         }
                                     }
@@ -311,7 +341,7 @@ fun FloatingMasterDock(
 
                             // 随机语料
                             FluidTouchWrapper(
-                                tooltip = "随机语料",
+                                tooltip = "换句",
                                 tooltipPosition = if (isAtLeft) TooltipPosition.RIGHT else TooltipPosition.LEFT,
                                 onClick = onRandomQuote
                             ) {
@@ -326,10 +356,10 @@ fun FloatingMasterDock(
                                 }
                             }
 
-                            // 形态切换菜单
+                            // 形态与主题二级菜单
                             Box {
                                 FluidTouchWrapper(
-                                    tooltip = "切换形态",
+                                    tooltip = "菜单",
                                     tooltipPosition = if (isAtLeft) TooltipPosition.RIGHT else TooltipPosition.LEFT,
                                     onClick = { showModeMenu = true }
                                 ) {
@@ -339,7 +369,7 @@ fun FloatingMasterDock(
                                         modifier = Modifier.size(38.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.MoreVert, contentDescription = "形态菜单", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.MoreVert, contentDescription = "功能菜单", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 }
@@ -347,6 +377,7 @@ fun FloatingMasterDock(
                                 DockModeDropdown(
                                     expanded = showModeMenu,
                                     currentDockMode = dockMode,
+                                    currentUiStyle = currentUiStyle,
                                     onDismiss = { showModeMenu = false },
                                     onSwitchDockMode = { newMode ->
                                         dockMode = newMode
@@ -355,13 +386,14 @@ fun FloatingMasterDock(
                                         }
                                         onUpdateDockState(newMode.name, posX, posY)
                                         showModeMenu = false
-                                    }
+                                    },
+                                    onSwitchUiStyle = onSwitchUiStyle
                                 )
                             }
 
                             // 贴边收纳快捷键
                             FluidTouchWrapper(
-                                tooltip = "收纳到侧边",
+                                tooltip = "收纳",
                                 tooltipPosition = if (isAtLeft) TooltipPosition.RIGHT else TooltipPosition.LEFT,
                                 onClick = {
                                     dockMode = DockDisplayMode.EDGE_STASHED
@@ -391,41 +423,75 @@ fun FloatingMasterDock(
                             animationSpec = spring(dampingRatio = 0.72f, stiffness = 800f)
                         )
 
-                        val radiusPx = with(density) { 80.dp.toPx() }
+                        val radiusPx = with(density) { 92.dp.toPx() }
 
                         val isNearRight = clampedX > screenWidthPx * 0.18f
                         val isNearLeft = clampedX < -screenWidthPx * 0.18f
                         val isNearTop = clampedY < -screenHeightPx * 0.6f
 
+                        data class PieItem(
+                            val icon: ImageVector,
+                            val label: String,
+                            val isPrimary: Boolean = false,
+                            val action: () -> Unit
+                        )
+
                         val pieItems = listOf(
-                            Triple(Icons.Default.Casino, "换语料") { onRandomQuote() },
-                            Triple(Icons.Default.Settings, "配置") { activeProvider?.let { onOpenProviderConfig(it.id) } },
-                            Triple(Icons.AutoMirrored.Filled.ViewSidebar, "竖排") {
-                                dockMode = DockDisplayMode.SIDEBAR_VERTICAL
-                                onUpdateDockState(dockMode.name, posX, posY)
-                            },
-                            Triple(Icons.Default.ViewAgenda, "胶囊") {
-                                dockMode = DockDisplayMode.EXPANDED_HORIZONTAL
-                                posX = 0f
-                                onUpdateDockState(dockMode.name, posX, posY)
-                            },
-                            Triple(Icons.Default.CloseFullscreen, "收纳") {
-                                dockMode = DockDisplayMode.EDGE_STASHED
-                                posX = if (isAtLeft) minX else maxX
-                                onUpdateDockState(dockMode.name, posX, posY)
-                            }
+                            PieItem(
+                                icon = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                label = if (isPlaying) "停止" else "试听",
+                                isPrimary = true,
+                                action = {
+                                    onPlayToggle()
+                                    isPieExpanded = false
+                                }
+                            ),
+                            PieItem(
+                                icon = Icons.Default.Casino,
+                                label = "换句",
+                                action = {
+                                    // 连续快速换句，不强制收起轮盘
+                                    onRandomQuote()
+                                }
+                            ),
+                            PieItem(
+                                icon = Icons.Default.Settings,
+                                label = "配置",
+                                action = {
+                                    activeProvider?.let { onOpenProviderConfig(it.id) }
+                                    isPieExpanded = false
+                                }
+                            ),
+                            PieItem(
+                                icon = Icons.Default.MoreVert,
+                                label = "菜单",
+                                action = {
+                                    showModeMenu = true
+                                    isPieExpanded = false
+                                }
+                            ),
+                            PieItem(
+                                icon = Icons.Default.CloseFullscreen,
+                                label = "收纳",
+                                action = {
+                                    dockMode = DockDisplayMode.EDGE_STASHED
+                                    posX = if (isAtLeft) minX else maxX
+                                    onUpdateDockState(dockMode.name, posX, posY)
+                                    isPieExpanded = false
+                                }
+                            )
                         )
 
                         val angles = remember(isNearRight, isNearLeft, isNearTop) {
                             when {
-                                isNearRight -> listOf(120.0, 150.0, 180.0, 210.0, 240.0) // 靠右侧：向左扇形展开
-                                isNearLeft -> listOf(-60.0, -30.0, 0.0, 30.0, 60.0)       // 靠左侧：向右扇形展开
-                                isNearTop -> listOf(30.0, 60.0, 90.0, 120.0, 150.0)      // 靠顶部：向下扇形展开
-                                else -> listOf(-140.0, -100.0, -60.0, -20.0, 20.0)       // 靠底部：向上扇形展开
+                                isNearRight -> listOf(115.0, 145.0, 180.0, 215.0, 245.0) // 靠右侧：向左扇形展开
+                                isNearLeft -> listOf(-65.0, -35.0, 0.0, 35.0, 65.0)       // 靠左侧：向右扇形展开
+                                isNearTop -> listOf(25.0, 55.0, 90.0, 125.0, 155.0)      // 靠顶部：向下扇形展开
+                                else -> listOf(-150.0, -115.0, -75.0, -35.0, 0.0)       // 靠底部：向上扇形展开
                             }
                         }
 
-                        pieItems.forEachIndexed { index, (icon, label, action) ->
+                        pieItems.forEachIndexed { index, item ->
                             val angleRad = Math.toRadians(angles.getOrElse(index) { index * 72.0 - 90.0 })
                             val targetX = (radiusPx * cos(angleRad)).toFloat()
                             val targetY = (radiusPx * sin(angleRad)).toFloat()
@@ -441,32 +507,53 @@ fun FloatingMasterDock(
                                     }
                             ) {
                                 FluidTouchWrapper(
-                                    tooltip = label,
+                                    tooltip = item.label,
                                     tooltipPosition = TooltipPosition.ABOVE,
-                                    onClick = {
-                                        action()
-                                        isPieExpanded = false
-                                    }
+                                    onClick = item.action
                                 ) {
-                                    Surface(
-                                        modifier = Modifier.size(40.dp),
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.surfaceVariant,
-                                        border = BorderStroke(1.dp, activeBrandColor.copy(alpha = 0.6f)),
-                                        shadowElevation = 6.dp
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.padding(2.dp)
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(icon, contentDescription = label, tint = activeBrandColor, modifier = Modifier.size(19.dp))
+                                        Surface(
+                                            modifier = Modifier.size(42.dp),
+                                            shape = CircleShape,
+                                            color = if (item.isPrimary) activeBrandColor else MaterialTheme.colorScheme.surface,
+                                            border = BorderStroke(1.5.dp, activeBrandColor.copy(alpha = 0.7f)),
+                                            shadowElevation = 6.dp
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = item.icon,
+                                                    contentDescription = item.label,
+                                                    tint = if (item.isPrimary) Color.White else activeBrandColor,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                                        ) {
+                                            Text(
+                                                text = item.label,
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                maxLines = 1
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
 
-                        // 中心主控球
+                        // 中心主控 Hub 球（纯轮盘开关中心）
                         Surface(
                             modifier = Modifier
-                                .size(56.dp)
+                                .size(54.dp)
                                 .graphicsLayer {
                                     shadowElevation = 10.dp.toPx()
                                     shape = CircleShape
@@ -485,31 +572,42 @@ fun FloatingMasterDock(
                                     )
                                 },
                             shape = CircleShape,
-                            color = if (isPlaying) activeBrandColor else MaterialTheme.colorScheme.surface,
+                            color = MaterialTheme.colorScheme.surface,
                             border = BorderStroke(2.dp, activeBrandColor)
                         ) {
                             FluidTouchWrapper(
-                                tooltip = if (isPlaying) "停止朗读" else "轻触展开轮盘，长按试听",
+                                tooltip = if (isPieExpanded) "收起轮盘" else "展开轮盘",
                                 tooltipPosition = TooltipPosition.ABOVE,
                                 onClick = {
                                     isPieExpanded = !isPieExpanded
-                                },
-                                onLongRelease = onPlayToggle
+                                }
                             ) {
                                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                    if (isSynthesizing) {
-                                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = activeBrandColor, strokeWidth = 2.5.dp)
-                                    } else {
-                                        Icon(
-                                            imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PieChart,
-                                            contentDescription = "Pie轮盘核心",
-                                            tint = if (isPlaying) Color.White else activeBrandColor,
-                                            modifier = Modifier.size(26.dp)
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.PieChart,
+                                        contentDescription = "Pie轮盘控制中心",
+                                        tint = activeBrandColor,
+                                        modifier = Modifier.size(26.dp)
+                                    )
                                 }
                             }
                         }
+
+                        DockModeDropdown(
+                            expanded = showModeMenu,
+                            currentDockMode = dockMode,
+                            currentUiStyle = currentUiStyle,
+                            onDismiss = { showModeMenu = false },
+                            onSwitchDockMode = { newMode ->
+                                dockMode = newMode
+                                if (newMode == DockDisplayMode.EDGE_STASHED) {
+                                    posX = if (isAtLeft) minX else maxX
+                                }
+                                onUpdateDockState(newMode.name, posX, posY)
+                                showModeMenu = false
+                            },
+                            onSwitchUiStyle = onSwitchUiStyle
+                        )
                     }
                 }
 
@@ -590,7 +688,7 @@ fun FloatingMasterDock(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 FluidTouchWrapper(
-                                    tooltip = "换句名言",
+                                    tooltip = "换句",
                                     tooltipPosition = TooltipPosition.ABOVE,
                                     onClick = onRandomQuote
                                 ) {
@@ -607,7 +705,7 @@ fun FloatingMasterDock(
 
                                 Box {
                                     FluidTouchWrapper(
-                                        tooltip = "形态切换",
+                                        tooltip = "菜单",
                                         tooltipPosition = TooltipPosition.ABOVE,
                                         onClick = { showModeMenu = true }
                                     ) {
@@ -625,6 +723,7 @@ fun FloatingMasterDock(
                                     DockModeDropdown(
                                         expanded = showModeMenu,
                                         currentDockMode = dockMode,
+                                        currentUiStyle = currentUiStyle,
                                         onDismiss = { showModeMenu = false },
                                         onSwitchDockMode = { newMode ->
                                             dockMode = newMode
@@ -633,37 +732,70 @@ fun FloatingMasterDock(
                                             }
                                             onUpdateDockState(newMode.name, posX, posY)
                                             showModeMenu = false
-                                        }
+                                        },
+                                        onSwitchUiStyle = onSwitchUiStyle
                                     )
                                 }
 
-                                // 播放 / 停止实体按键
-                                FluidTouchWrapper(
-                                    tooltip = if (isPlaying) "停止朗读" else "试听发音",
-                                    tooltipPosition = TooltipPosition.ABOVE,
-                                    onClick = onPlayToggle
-                                ) {
-                                    Button(
-                                        onClick = {}, // 由 FluidTouchWrapper 接管手势
-                                        colors = ButtonDefaults.buttonColors(containerColor = activeBrandColor),
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.height(36.dp)
+                                // 播放 / 停止实体按键 (长按弹出配置快捷键)
+                                Box {
+                                    FluidTouchWrapper(
+                                        tooltip = if (isPlaying) "停止" else "试听",
+                                        tooltipPosition = TooltipPosition.ABOVE,
+                                        onClick = onPlayToggle,
+                                        onLongRelease = { showPlayQuickConfig = true }
                                     ) {
-                                        if (isSynthesizing) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(16.dp),
-                                                color = Color.White,
-                                                strokeWidth = 2.dp
-                                            )
-                                        } else {
-                                            Icon(
-                                                imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
-                                                contentDescription = "播放/停止",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(if (isPlaying) "停止" else "试听", fontSize = 12.sp, color = Color.White)
+                                        Button(
+                                            onClick = {}, // 由 FluidTouchWrapper 接管手势
+                                            colors = ButtonDefaults.buttonColors(containerColor = activeBrandColor),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.height(36.dp)
+                                        ) {
+                                            if (isSynthesizing) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    color = Color.White,
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                                    contentDescription = "播放/停止",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(if (isPlaying) "停止" else "试听", fontSize = 12.sp, color = Color.White)
+                                            }
+                                        }
+                                    }
+
+                                    if (showPlayQuickConfig) {
+                                        Popup(
+                                            alignment = Alignment.TopCenter,
+                                            offset = IntOffset(0, -110),
+                                            onDismissRequest = { showPlayQuickConfig = false }
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = MaterialTheme.colorScheme.inverseSurface,
+                                                shadowElevation = 8.dp,
+                                                modifier = Modifier.pointerInput(Unit) {
+                                                    awaitEachGesture {
+                                                        awaitFirstDown()
+                                                        activeProvider?.let { onOpenProviderConfig(it.id) }
+                                                        showPlayQuickConfig = false
+                                                    }
+                                                }
+                                            ) {
+                                                Text(
+                                                    text = "⚙️ 进入模型设置",
+                                                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -677,9 +809,9 @@ fun FloatingMasterDock(
 }
 
 /**
- * 🌟 流畅触控包裹器 (Fluid Touch Gesture & Non-Obscured Tooltip Badge)
+ * 🌟 流畅触控包裹器 (Fluid Touch Gesture & Non-Obscured Tooltip Badge via Top-Level Popup)
  * - 按住时图标平滑放大 1.25x；
- * - 气泡跳出在按钮外侧（绝不被手指遮挡）；
+ * - 气泡跳出在按钮外侧（绝不被手指遮挡，通过 Popup 顶层呈现不被任何组件裁切）；
  * - 手指在按钮内松开触发 onClick()；
  * - 手指移出按钮范围取消触发并恢复原样。
  */
@@ -697,7 +829,7 @@ private fun FluidTouchWrapper(
     var pressStartTime by remember { mutableStateOf(0L) }
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed && isInside) 1.25f else 1.0f,
+        targetValue = if (isPressed && isInside) 1.22f else 1.0f,
         animationSpec = spring(dampingRatio = 0.65f, stiffness = 500f)
     )
 
@@ -719,7 +851,7 @@ private fun FluidTouchWrapper(
                             // 抬起
                             val elapsed = System.currentTimeMillis() - pressStartTime
                             if (isInside) {
-                                if (elapsed > 600 && onLongRelease != null) {
+                                if (elapsed > 550 && onLongRelease != null) {
                                     onLongRelease()
                                 } else {
                                     onClick()
@@ -740,39 +872,42 @@ private fun FluidTouchWrapper(
                 }
             }
     ) {
-        // 浮动提示文字气泡（显示在按钮四周，绝不被手指挡住）
-        AnimatedVisibility(
-            visible = isPressed && isInside,
-            enter = fadeIn(tween(80)) + scaleIn(tween(80)),
-            exit = fadeOut(tween(80)) + scaleOut(tween(80)),
-            modifier = Modifier
-                .offset(
-                    x = when (tooltipPosition) {
-                        TooltipPosition.LEFT -> (-50).dp
-                        TooltipPosition.RIGHT -> 50.dp
-                        else -> 0.dp
-                    },
-                    y = when (tooltipPosition) {
-                        TooltipPosition.ABOVE -> (-40).dp
-                        TooltipPosition.BELOW -> 40.dp
-                        else -> 0.dp
-                    }
+        // 浮动提示文字气泡（通过 Popup 顶层浮动渲染，绝不被手指挡住，绝不被任何父容器裁剪）
+        if (isPressed && isInside && tooltip.isNotBlank()) {
+            Popup(
+                alignment = when (tooltipPosition) {
+                    TooltipPosition.ABOVE -> Alignment.TopCenter
+                    TooltipPosition.BELOW -> Alignment.BottomCenter
+                    TooltipPosition.LEFT -> Alignment.CenterStart
+                    TooltipPosition.RIGHT -> Alignment.CenterEnd
+                },
+                offset = when (tooltipPosition) {
+                    TooltipPosition.ABOVE -> IntOffset(0, -120)
+                    TooltipPosition.BELOW -> IntOffset(0, 120)
+                    TooltipPosition.LEFT -> IntOffset(-130, 0)
+                    TooltipPosition.RIGHT -> IntOffset(130, 0)
+                },
+                properties = PopupProperties(
+                    focusable = false,
+                    dismissOnBackPress = false,
+                    dismissOnClickOutside = false
                 )
-                .zIndex(100f)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.95f),
-                shadowElevation = 8.dp
             ) {
-                Text(
-                    text = tooltip,
-                    color = MaterialTheme.colorScheme.inverseOnSurface,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    maxLines = 1
-                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.95f),
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                ) {
+                    Text(
+                        text = tooltip,
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        maxLines = 1
+                    )
+                }
             }
         }
 
@@ -789,24 +924,57 @@ private fun FluidTouchWrapper(
 }
 
 /**
- * 🌟 纯粹形态下拉切换菜单 (精简文案)
+ * 🌟 纯粹形态与工作台主题下拉切换菜单 (二级菜单全功能)
  */
 @Composable
 private fun DockModeDropdown(
     expanded: Boolean,
     currentDockMode: DockDisplayMode,
+    currentUiStyle: String,
     onDismiss: () -> Unit,
-    onSwitchDockMode: (DockDisplayMode) -> Unit
+    onSwitchDockMode: (DockDisplayMode) -> Unit,
+    onSwitchUiStyle: (String) -> Unit
 ) {
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss
     ) {
         Text(
-            text = "📐 悬浮坞形态",
+            text = "🎨 软件工作台主题",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        )
+        DropdownMenuItem(
+            text = { Text("Bento 工作台" + if (currentUiStyle == "BENTO") " ✓" else "") },
+            onClick = {
+                onSwitchUiStyle("BENTO")
+                onDismiss()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("DAW 调音台" + if (currentUiStyle == "STUDIO") " ✓" else "") },
+            onClick = {
+                onSwitchUiStyle("STUDIO")
+                onDismiss()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("黑胶阅览舱" + if (currentUiStyle == "VINYL" || currentUiStyle == "CLASSIC") " ✓" else "") },
+            onClick = {
+                onSwitchUiStyle("VINYL")
+                onDismiss()
+            }
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        Text(
+            text = "📐 悬浮坞形态",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
         )
         DropdownMenuItem(

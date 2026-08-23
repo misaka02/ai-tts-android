@@ -141,7 +141,9 @@ fun ModernStudioHomeScreen(
     configDataStore: ConfigDataStore,
     onNavigateToEditProvider: (String) -> Unit,
     onNavigateToTestBench: () -> Unit,
-    onSwitchUiStyle: (String) -> Unit
+    onSwitchUiStyle: (String) -> Unit,
+    testText: String = "欢迎使用 AI TTS Studio 专业音频工作台！大模型拟真声线正在为您实时合成发音。",
+    onTestTextChange: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -169,9 +171,6 @@ fun ModernStudioHomeScreen(
 
     var showStyleMenu by remember { mutableStateOf(false) }
 
-    var testText by remember {
-        mutableStateOf("欢迎使用 AI TTS Studio 专业音频工作台！大模型拟真声线正在为您实时合成发音。")
-    }
     var isFetchingHitokoto by remember { mutableStateOf(false) }
     var quoteSourceHint by remember { mutableStateOf<String?>(null) }
     var isSynthesizing by remember { mutableStateOf(false) }
@@ -673,7 +672,7 @@ fun ModernStudioHomeScreen(
                             AssistChip(
                                 onClick = {
                                     val item = QuoteService.getRandomLocalQuote()
-                                    testText = item.text
+                                    onTestTextChange(item.text)
                                     quoteSourceHint = "分类: ${item.category}"
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 },
@@ -686,7 +685,7 @@ fun ModernStudioHomeScreen(
                                         isFetchingHitokoto = true
                                         scope.launch {
                                             val item = QuoteService.fetchOnlineHitokoto()
-                                            testText = item.text
+                                            onTestTextChange(item.text)
                                             quoteSourceHint = item.source ?: "一言金句"
                                             isFetchingHitokoto = false
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -717,7 +716,7 @@ fun ModernStudioHomeScreen(
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                 modifier = Modifier.clickable {
                                     val item = QuoteService.getRandomLocalQuote(cat)
-                                    testText = item.text
+                                    onTestTextChange(item.text)
                                     quoteSourceHint = "分类: $cat"
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
@@ -737,13 +736,13 @@ fun ModernStudioHomeScreen(
                     OutlinedTextField(
                         value = testText,
                         onValueChange = {
-                            testText = it
+                            onTestTextChange(it)
                             quoteSourceHint = null
                         },
                         trailingIcon = {
                             if (testText.isNotBlank()) {
                                 IconButton(onClick = {
-                                    testText = ""
+                                    onTestTextChange("")
                                     quoteSourceHint = null
                                 }) {
                                     Icon(Icons.Default.Clear, contentDescription = "清空", modifier = Modifier.size(16.dp))

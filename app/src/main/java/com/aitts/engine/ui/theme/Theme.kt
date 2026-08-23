@@ -1,5 +1,6 @@
 package com.aitts.engine.ui.theme
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -7,8 +8,12 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 val LocalAppPalette = staticCompositionLocalOf { AppPaletteTheme.OCEAN_AZURE }
 
@@ -100,6 +105,20 @@ fun AiTtsEngineTheme(
 
     val palette = AppPaletteTheme.fromKey(themePalette)
     val colorScheme = buildColorScheme(palette, isDark, isAmoledPureBlack)
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val statusBarColor = if (isAmoledPureBlack && isDark) android.graphics.Color.BLACK else colorScheme.background.toArgb()
+            val navBarColor = if (isAmoledPureBlack && isDark) android.graphics.Color.BLACK else colorScheme.surface.toArgb()
+            window.statusBarColor = statusBarColor
+            window.navigationBarColor = navBarColor
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !isDark
+            insetsController.isAppearanceLightNavigationBars = !isDark
+        }
+    }
 
     CompositionLocalProvider(LocalAppPalette provides palette) {
         MaterialTheme(

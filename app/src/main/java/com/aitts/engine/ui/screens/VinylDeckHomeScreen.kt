@@ -153,7 +153,9 @@ fun VinylDeckHomeScreen(
     configDataStore: ConfigDataStore,
     onNavigateToEditProvider: (String) -> Unit,
     onNavigateToTestBench: () -> Unit,
-    onSwitchUiStyle: (String) -> Unit
+    onSwitchUiStyle: (String) -> Unit,
+    testText: String = "欢迎使用 AI TTS Vinyl 黑胶沉浸式阅览舱！旋转唱盘正在为您流式合成拟真声线。",
+    onTestTextChange: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -182,9 +184,6 @@ fun VinylDeckHomeScreen(
 
     var showStyleMenu by remember { mutableStateOf(false) }
 
-    var testText by remember {
-        mutableStateOf("欢迎使用 AI TTS Vinyl 黑胶沉浸式阅览舱！旋转唱盘正在为您流式合成拟真声线。")
-    }
     var isFetchingHitokoto by remember { mutableStateOf(false) }
     var quoteSourceHint by remember { mutableStateOf<String?>(null) }
     var isSynthesizing by remember { mutableStateOf(false) }
@@ -541,11 +540,12 @@ fun VinylDeckHomeScreen(
                                 }
                             }
 
-                            // 唱盘中央品牌标签（旋转中）
+                            // 唱盘中央品牌标签（点击直达模型设置）
                             Box(
                                 modifier = Modifier
                                     .size(46.dp)
                                     .rotate(if (isPlaying) vinylRotation else 0f)
+                                    .clickable { activeProvider?.let { onNavigateToEditProvider(it.id) } }
                                     .background(
                                         Brush.radialGradient(
                                             listOf(activeBrandColor, activeBrandColor.copy(alpha = 0.65f))
@@ -715,13 +715,22 @@ fun VinylDeckHomeScreen(
                             }
                         }
 
+                        OutlinedButton(
+                            onClick = { activeProvider?.let { onNavigateToEditProvider(it.id) } },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text("参数", fontSize = 11.5.sp)
+                        }
+
                         AssistChip(
                             onClick = {
                                 val item = QuoteService.getRandomLocalQuote()
-                                testText = item.text
+                                onTestTextChange(item.text)
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             },
-                            label = { Text("🎲 随机语料", fontSize = 11.sp) }
+                            label = { Text("🎲 随机", fontSize = 11.sp) }
                         )
 
                         AssistChip(
@@ -730,7 +739,7 @@ fun VinylDeckHomeScreen(
                                     isFetchingHitokoto = true
                                     scope.launch {
                                         val item = QuoteService.fetchOnlineHitokoto()
-                                        testText = item.text
+                                        onTestTextChange(item.text)
                                         isFetchingHitokoto = false
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
