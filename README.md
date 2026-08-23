@@ -13,11 +13,11 @@
 <br/>
 
 > [!IMPORTANT]
-> **🤖 本项目的全部底层架构、业务代码、UI 设计、单元测试与文档发布均由 AI（Google DeepMind Antigravity）全自动自主构建与维护。**
+> **🤖 本项目的全部底层架构、业务代码、UI 设计、单元测试与文档发布均由 AI 智能体（Google DeepMind Antigravity）全自动自主构建与维护。**
 
 <br/>
 
-**AI TTS Android Engine** 是一个基于 Android 标准 `TextToSpeechService` 实现的系统级在线语音引擎，可将各大主流 AI 大模型语音接口接入为安卓系统默认 TTS，供「开源阅读 (Legado)」、「静读天下」及系统读屏等第三方应用直接调用。
+**AI TTS Android Engine** 是一个基于 Android 标准 `TextToSpeechService` 实现的系统级在线语音引擎，支持将各大主流 AI 大模型语音接口接入为安卓系统默认 TTS，供「开源阅读 (Legado)」、「静读天下」及系统读屏等第三方应用直接调用。
 
 </div>
 
@@ -50,21 +50,27 @@
 
 ## 🛠️ 核心功能特性
 
-- **三套 UI 范式自由切换**：支持「🚀 Bento 全息声球工作台」、「🎛️ DAW 专业调音台」与「📋 经典紧凑列表」三套交互布局。
-- **10 套高对比专属主题**：深海曜蓝、极客翡翠、钛金极简、落日暖金、莫兰迪灰、赛博霓虹、极光薄荷、樱花幽粉、暗夜曜石、炽阳枫红，深浅模式层级分明。
-- **真实 STFT 物理示波器**：纯内存 PCM 短时傅里叶变换与 32 频段 Mel 能量映射，实时呈现人声共鸣与物理重力回落阻尼。
-- **文件级全量配置备份**：接入 SAF 框架支持直接导出与导入 `.json` 备份文件，无剪贴板容量限制。
-- **流式并发预取**：后台异步预取下一句音频，消除长文本段落停顿。
-- **小说多角色与情绪识别**：智能识别对话与旁白，支持多声线协同朗读与情绪微调提示。
-- **发音规则清洗**：自定义正则替换规则、11 位手机号读“幺”、数字/金额规范化。
-- **超轻量体积**：R8 全模式优化剪裁，安装包仅 **1.78 MB**。
+- **Android 系统标准 TTS 桥接**：完整继承 `TextToSpeechService`，系统读屏与第三方阅读器零门槛一键对接。
+- **流式并发预取调度**：播放当前句时在后台并发预取下一句音频，有效消除长文本朗读的句间卡顿。
+- **小说多角色对话与情绪识别**：智能切分对白与旁白并匹配不同音色，支持情绪提示词精准注入。
+- **纯内存音频解码与保真重采样**：音频在 RAM 内存中流式解码并统一重采样至 24000Hz 16-bit，无磁盘磨损与变调失步。
+- **发音清洗与规范化**：内置正则替换规则、11 位手机号读“幺”、时间/金额规范化与英文缩写连读。
+- **本地缓存与故障自动切换**：支持合成音频本地缓存节省配额，主引擎异常时自动降级至备选引擎。
+- **极致精简体积**：R8 全模式剪裁混淆，安装包仅 **1.78 MB**。
+
+---
+
+## 💖 致谢
+
+- **AI 智能体开发构建**：[Google DeepMind Antigravity](https://deepmind.google/)（本项目全自主代码设计、实现与维护）。
+- **语音模型与服务支持**：[小米 MiMo](https://platform.xiaomimimo.com/) · [微软 Edge-TTS](https://github.com/rany2/edge-tts) · [Google Gemini](https://ai.google.dev/) · [MiniMax](https://www.minimaxi.com/) · [火山引擎](https://www.volcengine.com/) · [硅基流动](https://www.siliconflow.com/) · [Fish Audio](https://fish.audio/) · [阶跃星辰](https://platform.stepfun.com/) · [OpenAI](https://openai.com/)
+- **开源生态与阅读软件**：[开源阅读 (Legado)](https://github.com/gedoor/legado) · [静读天下](http://www.moondownload.com/) · [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) · [CosyVoice](https://github.com/FunAudioLLM/CosyVoice)
 
 ---
 
 ## 💻 编译构建
 
 ```bash
-# 克隆仓库
 git clone https://github.com/misaka02/ai-tts-android.git
 cd ai-tts-android
 

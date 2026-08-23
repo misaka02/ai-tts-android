@@ -15,7 +15,8 @@ enum class AppPaletteTheme(val key: String, val title: String, val primaryColor:
     AURORA_MINT("AURORA_MINT", "极光薄荷", Color(0xFF14B8A6), Color(0xFF0D9488)),
     CHERRY_BLOSSOM("CHERRY_BLOSSOM", "樱花幽粉", Color(0xFFF43F5E), Color(0xFFE11D48)),
     OBSIDIAN_NIGHT("OBSIDIAN_NIGHT", "暗夜曜石", Color(0xFF6366F1), Color(0xFF4F46E5)),
-    CORAL_CRIMSON("CORAL_CRIMSON", "炽阳枫红", Color(0xFFEA580C), Color(0xFFC2410C));
+    CORAL_CRIMSON("CORAL_CRIMSON", "炽阳枫红", Color(0xFFEA580C), Color(0xFFC2410C)),
+    PURE_BLACK("PURE_BLACK", "纯黑极夜", Color(0xFFE2E8F0), Color(0xFF94A3B8));
 
     companion object {
         fun fromKey(key: String): AppPaletteTheme {
