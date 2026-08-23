@@ -7,7 +7,7 @@
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-purple.svg)](https://kotlinlang.org/)
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-blueviolet.svg)](https://developer.android.com/jetpack/compose)
-[![Latest Release](https://img.shields.io/badge/Release-v2.2.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
+[![Latest Release](https://img.shields.io/badge/Release-v2.3.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
 [![APK Size](https://img.shields.io/badge/APK_Size-1.76MB-blue.svg)](https://github.com/misaka02/ai-tts-android/releases)
 
 <br/>
@@ -46,7 +46,9 @@
 ## 🛠️ 主要功能特性
 
 - **三大 UI 交互范式自由切换**：支持「🚀 Bento 全息声球工作台」、「🎛️ DAW 专业调音台」与「📋 经典紧凑列表」三种完全不同设计语言的交互界面，顶部一键即时无缝切换。
-- **32-Band 真实物理音频频谱与 FFT 示波器**：通过硬件 Visualizer 与实时 PCM FFT 频域能量采样，根据实际发音的声学特征（元音共鸣、辅音摩擦、语速停顿、强弱起伏）真实动态跳动。
+- **10 套高品质专属主题色系**：深海曜蓝、极客翡翠、钛金极简、落日暖金、莫兰迪灰、赛博霓虹、极光薄荷、樱花幽粉、暗夜曜石、炽阳枫红，深浅模式无缝自适应。
+- **真实 STFT 物理音频频谱仪**：通过纯内存 PCM 短时傅里叶变换与 32 频段 Mel 能量映射，实时反映人声基音、共振峰与辅音摩擦动态，具备物理重力回落阻尼。
+- **文件级安全备份与恢复**：支持使用系统文件选择器直接导出与导入 `.json` 全量配置备份文件，彻底绕过剪贴板容量上限。
 - **超轻量极致体积**：通过 R8 全模式混淆剪裁与资源精细剔除，安装包仅 **1.76 MB**。
 - **流式并发预取**：播放当前段落时在后台异步预取下一句，降低长文本句间停顿。
 - **内存音频解码与重采样**：音频流在内存中直接解码并保真重采样为 24000Hz 16-bit 单声道，避免跨音色切换时采样率失步变调。

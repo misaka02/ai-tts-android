@@ -23,6 +23,11 @@ fun buildColorScheme(palette: AppPaletteTheme, isDark: Boolean): ColorScheme {
             AppPaletteTheme.TITANIUM_SLATE -> Quad(Color(0xFF0D121D), Color(0xFF161E2E), Color(0xFF212B3E), Color(0xFF2E3D56))
             AppPaletteTheme.SUNSET_AMBER -> Quad(Color(0xFF130E07), Color(0xFF1F170D), Color(0xFF2E2214), Color(0xFF3F301D))
             AppPaletteTheme.MORANDI_GRAPHITE -> Quad(Color(0xFF101317), Color(0xFF1A1F26), Color(0xFF252D37), Color(0xFF343F4D))
+            AppPaletteTheme.NEON_CYBERPUNK -> Quad(Color(0xFF150A18), Color(0xFF200F25), Color(0xFF2D1534), Color(0xFF451F4F))
+            AppPaletteTheme.AURORA_MINT -> Quad(Color(0xFF071412), Color(0xFF0C201D), Color(0xFF132F2A), Color(0xFF1C423B))
+            AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFF17090D), Color(0xFF240E14), Color(0xFF33141D), Color(0xFF4B1D2A))
+            AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFF0A0A16), Color(0xFF111124), Color(0xFF191933), Color(0xFF26264C))
+            AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFF170A06), Color(0xFF241009), Color(0xFF33170D), Color(0xFF4A2213))
         }
 
         darkColorScheme(
@@ -47,6 +52,11 @@ fun buildColorScheme(palette: AppPaletteTheme, isDark: Boolean): ColorScheme {
             AppPaletteTheme.TITANIUM_SLATE -> Quad(Color(0xFFF8FAFC), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFE2E8F0))
             AppPaletteTheme.SUNSET_AMBER -> Quad(Color(0xFFFDF8F3), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFEDE3D8))
             AppPaletteTheme.MORANDI_GRAPHITE -> Quad(Color(0xFFECEFF1), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFDCE1E4))
+            AppPaletteTheme.NEON_CYBERPUNK -> Quad(Color(0xFFFDF4FF), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFF5D0FE))
+            AppPaletteTheme.AURORA_MINT -> Quad(Color(0xFFF0FDFA), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFCCFBF1))
+            AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFFFFF1F2), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFFFE4E6))
+            AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFFF5F5FF), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFE0E0FE))
+            AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFFFFF7ED), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFFFEDD5))
         }
 
         lightColorScheme(

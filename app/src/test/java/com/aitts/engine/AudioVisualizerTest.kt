@@ -30,7 +30,7 @@ class AudioVisualizerTest {
             pcm[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
         }
 
-        manager.startPcmSimulation(pcm, sampleRate)
+        manager.startRealPcmAnalysis(pcm, sampleRate)
         kotlinx.coroutines.delay(100)
 
         val bands = manager.spectrumFlow.value

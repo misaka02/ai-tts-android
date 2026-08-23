@@ -177,7 +177,21 @@ fun MainAppNavHost(configDataStore: ConfigDataStore) {
                 RulesScreen(configDataStore = configDataStore)
             }
             composable(Screen.TestBench.route) {
-                TestBenchScreen(configDataStore = configDataStore)
+                TestBenchScreen(
+                    configDataStore = configDataStore,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    },
+                    onNavigateHome = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(configDataStore = configDataStore)

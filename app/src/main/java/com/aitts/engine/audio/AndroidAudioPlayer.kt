@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -83,7 +84,18 @@ class AndroidAudioPlayer(private val context: Context) {
                     }
                     mediaPlayer = player
                     AudioVisualizerManager.getInstance().attachToSession(player.audioSessionId)
-                    AudioVisualizerManager.getInstance().startPcmSimulation(audioBytes)
+
+                    // 异步高速解码出真实 PCM 数据并驱动 STFT 频域示波器
+                    kotlinx.coroutines.CoroutineScope(Dispatchers.Default).launch {
+                        try {
+                            val decoded = AudioDecoder.decodeToPcm(audioBytes)
+                            if (decoded.pcmData.isNotEmpty()) {
+                                AudioVisualizerManager.getInstance().startRealPcmAnalysis(decoded.pcmData, decoded.sampleRate)
+                            }
+                        } catch (e: Exception) {
+                            Log.w("AudioPlayer", "示波器 PCM 解码分析异常: ${e.message}")
+                        }
+                    }
                 } catch (e: Exception) {
                     stop()
                     onError("播放器初始化失败: ${e.message}")

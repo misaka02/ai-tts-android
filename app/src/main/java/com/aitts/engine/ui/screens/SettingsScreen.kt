@@ -72,6 +72,13 @@ import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.permission.PermissionManager
 import com.aitts.engine.ui.components.SectionHeader
 import com.aitts.engine.ui.theme.AppPaletteTheme
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -86,6 +93,47 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
     var showImportDialog by remember { mutableStateOf(false) }
     var importJsonText by remember { mutableStateOf("") }
     var fallbackExpanded by remember { mutableStateOf(false) }
+
+    var pendingExportJson by remember { mutableStateOf<String?>(null) }
+
+    val createFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.openOutputStream(it)?.use { stream ->
+                    OutputStreamWriter(stream).use { writer ->
+                        writer.write(pendingExportJson ?: "")
+                    }
+                }
+                Toast.makeText(context, "已成功保存配置备份文件！", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "写入备份文件失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val openFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            try {
+                val content = context.contentResolver.openInputStream(it)?.use { stream ->
+                    BufferedReader(InputStreamReader(stream)).readText()
+                }
+                if (!content.isNullOrBlank()) {
+                    val success = configDataStore.importConfigJson(content)
+                    if (success) {
+                        Toast.makeText(context, "从备份文件恢复配置成功！", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(context, "备份文件格式无效，恢复失败", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "读取备份文件失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -745,19 +793,48 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("文件级安全备份 (推荐，无容量上限):", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
+                            onClick = {
+                                pendingExportJson = configDataStore.exportAllConfigJson(desensitize = false)
+                                createFileLauncher.launch("AI_TTS_Backup_${System.currentTimeMillis()}.json")
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("导出为文件", fontSize = 12.sp)
+                        }
+
+                        Button(
+                            onClick = {
+                                openFileLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("从文件恢复", fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("剪贴板快捷分享:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
                             onClick = {
                                 val json = configDataStore.exportAllConfigJson(desensitize = false)
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("AI_TTS_Config", json))
-                                Toast.makeText(context, "完整配置（含 Key）已复制到剪贴板！", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "完整配置已复制到剪贴板！", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("完整备份", fontSize = 12.sp)
+                            Text("复制含Key", fontSize = 11.5.sp)
                         }
 
                         OutlinedButton(
@@ -765,13 +842,13 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                                 val json = configDataStore.exportAllConfigJson(desensitize = true)
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("AI_TTS_Config_Safe", json))
-                                Toast.makeText(context, "脱敏配置（无 Key）已复制，可安全分享！", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "脱敏配置已复制，可安全分享！", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("脱敏分享", fontSize = 12.sp)
+                            Text("复制脱敏", fontSize = 11.5.sp)
                         }
                     }
 
@@ -779,9 +856,9 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         onClick = { showImportDialog = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = null)
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("从剪贴板 / JSON 导入配置")
+                        Text("手动粘贴 JSON 文本导入", fontSize = 12.sp)
                     }
                 }
             }

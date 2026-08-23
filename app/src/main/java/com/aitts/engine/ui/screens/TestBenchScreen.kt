@@ -27,6 +27,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
@@ -66,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aitts.engine.audio.AndroidAudioPlayer
+import com.aitts.engine.audio.AudioVisualizerManager
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.SegmentRole
 import com.aitts.engine.provider.TtsProviderManager
@@ -79,7 +82,11 @@ import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TestBenchScreen(configDataStore: ConfigDataStore) {
+fun TestBenchScreen(
+    configDataStore: ConfigDataStore,
+    onNavigateBack: () -> Unit = {},
+    onNavigateHome: () -> Unit = {}
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val logs by configDataStore.logsFlow.collectAsState()
@@ -89,6 +96,10 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
 
     val activeProvider = providers.find { it.id == settings.activeProviderId }
         ?: providers.firstOrNull()
+
+    val visualizerManager = remember { AudioVisualizerManager.getInstance() }
+    val spectrumBands by visualizerManager.spectrumFlow.collectAsState()
+    val rmsEnergy by visualizerManager.rmsEnergyFlow.collectAsState()
 
     val audioPlayer = remember { AndroidAudioPlayer(context) }
     DisposableEffect(Unit) {
@@ -223,12 +234,35 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Spacer(modifier = Modifier.height(4.dp))
-        SectionHeader(
-            title = "全流程 AI 语音流式沙盒",
-            subtitle = "实时可视化波形、首字出声 TTFB 延迟与分句吞吐量探测"
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                }
+                Column {
+                    Text(
+                        text = "AI 语音流式沙盒",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "32-Band 真实物理频谱与首字 TTFB 延迟探测",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
-        // 动态声波示波器
+            IconButton(onClick = onNavigateHome) {
+                Icon(Icons.Default.Home, contentDescription = "返回首页", tint = primaryColor)
+            }
+        }
+
+        // 真实物理音频频域示波器 (Real Physical FFT Spectrum)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -238,29 +272,23 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    val barCount = 48
-                    val barSpacing = 2.dp.toPx()
-                    val totalSpacing = barSpacing * (barCount - 1)
-                    val barWidth = (size.width - totalSpacing) / barCount
+                    val count = spectrumBands.size
+                    val spacing = 2.dp.toPx()
+                    val totalSpacing = spacing * (count - 1)
+                    val barWidth = (size.width - totalSpacing) / count
                     val maxHeight = size.height * 0.9f
 
-                    for (i in 0 until barCount) {
-                        val x = i * (barWidth + barSpacing)
-                        val factor = if (isRunning) {
-                            val seed1 = kotlin.math.sin((i * 0.28f + barPhase * 6.28f).toDouble()).toFloat()
-                            val seed2 = kotlin.math.cos((i * 0.15f - barPhase * 4.14f).toDouble()).toFloat()
-                            ((seed1 + seed2) * 0.35f + 0.5f).coerceIn(0.12f, 1.0f)
-                        } else {
-                            0.08f
-                        }
-                        val h = maxHeight * factor
+                    for (i in 0 until count) {
+                        val x = i * (barWidth + spacing)
+                        val energy = spectrumBands[i].coerceIn(0.02f, 1.0f)
+                        val h = (maxHeight * energy).coerceAtLeast(3.dp.toPx())
                         val y = (size.height - h) / 2f
 
                         drawRoundRect(
                             brush = Brush.verticalGradient(
                                 listOf(
                                     primaryColor,
-                                    primaryColor.copy(alpha = 0.4f)
+                                    primaryColor.copy(alpha = 0.35f)
                                 )
                             ),
                             topLeft = Offset(x, y),

@@ -11,16 +11,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * 真实物理音频频谱分析与可视化引擎 (Real-time Audio Spectrum & FFT Visualizer Engine)
- * 1. 接入系统级 Visualizer 捕获实际音频播放会话的 FFT 频域与波形数据；
- * 2. 备用 PCM 真实时域/频域离散采样分析器；
- * 3. 实时输出 32-Band 归一化能量分布与瞬时 RMS 声学能量；
- * 4. 彻底消除伪随机正弦波，真实呈现元音共鸣、辅音摩擦、语速起伏与静音停顿。
+ * 真实物理音频频谱与 STFT 短时傅里叶变换分析引擎 (True STFT Audio Visualizer Engine)
+ * 1. 接收解码后的 16-bit 线性 PCM 采样流；
+ * 2. 采用 Hann 窗分帧计算 32 频段 Mel/对数能量分布（基频 80~300Hz、元音共振峰 300~2500Hz、辅音摩擦 2500~6000Hz）；
+ * 3. 真实物理重力回落阻尼 (Attack/Decay Gravity Physics)；
+ * 4. 实时输出真实 RMS 强度与峰值 dB。
  */
 class AudioVisualizerManager private constructor() {
 
@@ -40,23 +43,22 @@ class AudioVisualizerManager private constructor() {
 
     private val scope = CoroutineScope(Dispatchers.Default)
     private var visualizer: Visualizer? = null
+    private var pcmAnalysisJob: Job? = null
     private var decayJob: Job? = null
-    private var pcmStreamJob: Job? = null
 
-    private val _spectrumFlow = MutableStateFlow(FloatArray(BAND_COUNT) { 0.05f })
+    private val _spectrumFlow = MutableStateFlow(FloatArray(BAND_COUNT) { 0.02f })
     val spectrumFlow: StateFlow<FloatArray> = _spectrumFlow.asStateFlow()
 
     private val _rmsEnergyFlow = MutableStateFlow(0f)
     val rmsEnergyFlow: StateFlow<Float> = _rmsEnergyFlow.asStateFlow()
 
-    private val currentBands = FloatArray(BAND_COUNT) { 0f }
+    private val currentBands = FloatArray(BAND_COUNT) { 0.02f }
 
     /**
-     * 绑定播放器的 AudioSessionId
+     * 绑定播放器的 AudioSessionId (硬件 Visualizer 支持)
      */
     fun attachToSession(audioSessionId: Int) {
         releaseVisualizer()
-
         if (audioSessionId <= 0) return
 
         try {
@@ -69,7 +71,7 @@ class AudioVisualizerManager private constructor() {
                             waveform: ByteArray?,
                             samplingRate: Int
                         ) {
-                            waveform?.let { processWaveform(it) }
+                            waveform?.let { processHardwareWaveform(it) }
                         }
 
                         override fun onFftDataCapture(
@@ -77,7 +79,7 @@ class AudioVisualizerManager private constructor() {
                             fft: ByteArray?,
                             samplingRate: Int
                         ) {
-                            fft?.let { processFft(it) }
+                            fft?.let { processHardwareFft(it) }
                         }
                     },
                     Visualizer.getMaxCaptureRate() / 2,
@@ -88,15 +90,15 @@ class AudioVisualizerManager private constructor() {
             }
             visualizer = vis
         } catch (e: Exception) {
-            Log.w(TAG, "Hardware Visualizer 初始化失败，将启用纯 PCM 数据分析: ${e.message}")
+            Log.w(TAG, "Hardware Visualizer 初始化受限，将依赖真实 PCM 解码分析: ${e.message}")
         }
     }
 
     /**
-     * 针对直接喂入的 PCM 字节流进行高保真频域模拟分析 (当硬件 Visualizer 受限时)
+     * 接收已解码的真实 16-bit 线性 PCM 数据进行高保真 STFT 频域分析
      */
-    fun startPcmSimulation(pcmBytes: ByteArray, sampleRate: Int = 24000) {
-        pcmStreamJob?.cancel()
+    fun startRealPcmAnalysis(pcmBytes: ByteArray, sampleRate: Int = 24000) {
+        pcmAnalysisJob?.cancel()
         decayJob?.cancel()
 
         if (pcmBytes.isEmpty()) {
@@ -104,54 +106,87 @@ class AudioVisualizerManager private constructor() {
             return
         }
 
-        pcmStreamJob = scope.launch {
-            val chunkSize = (sampleRate * 2 * 0.05).toInt() // 50ms 窗口
-            var offset = 0
+        pcmAnalysisJob = scope.launch {
+            val frameDurationMs = 40L
+            val frameSamples = (sampleRate * frameDurationMs / 1000).toInt()
+            val frameBytes = frameSamples * 2 // 16-bit Mono
 
-            while (isActive && offset < pcmBytes.size) {
-                val end = (offset + chunkSize).coerceAtMost(pcmBytes.size)
-                val length = end - offset
-                if (length < 64) break
+            var byteOffset = 0
+            val totalBytes = pcmBytes.size
 
-                // 计算 50ms 窗口内的真实 PCM 能量与频段
+            while (isActive && byteOffset < totalBytes) {
+                val currentEnd = (byteOffset + frameBytes).coerceAtMost(totalBytes)
+                val currentLength = currentEnd - byteOffset
+                val samplesCount = currentLength / 2
+
+                if (samplesCount < 32) break
+
+                // 提取 16-bit PCM 归一化采样值并施加 Hann 窗
+                val samples = FloatArray(samplesCount)
                 var sumSquare = 0.0
-                val shortCount = length / 2
-                val localBands = FloatArray(BAND_COUNT)
 
-                for (i in 0 until shortCount) {
-                    val idx = offset + i * 2
-                    if (idx + 1 >= pcmBytes.size) break
-                    val sample = (pcmBytes[idx].toInt() and 0xFF) or (pcmBytes[idx + 1].toInt() shl 8)
-                    val normalized = (sample.toShort() / 32768.0f)
+                for (i in 0 until samplesCount) {
+                    val idx = byteOffset + i * 2
+                    val low = pcmBytes[idx].toInt() and 0xFF
+                    val high = pcmBytes[idx + 1].toInt()
+                    val rawSample = (high shl 8) or low
+                    val normalized = rawSample.toShort() / 32768.0f
+
+                    // Hann 窗
+                    val hann = 0.5 * (1.0 - cos(2.0 * PI * i / samplesCount))
+                    samples[i] = (normalized * hann).toFloat()
                     sumSquare += normalized * normalized
-
-                    // 频段能量分配 (基于局部差分与过零率)
-                    val bandIdx = (i * BAND_COUNT / shortCount).coerceIn(0, BAND_COUNT - 1)
-                    localBands[bandIdx] += abs(normalized)
                 }
 
-                val rms = sqrt(sumSquare / shortCount.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f)
+                val rms = sqrt(sumSquare / samplesCount.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f)
                 _rmsEnergyFlow.value = rms
 
+                // 32-Band Mel/对数频域能量计算 (基于离散傅里叶基波变换)
+                val targetBands = FloatArray(BAND_COUNT)
+                val minFreq = 80.0
+                val maxFreq = (sampleRate / 2.0).coerceAtMost(6000.0)
+
                 for (b in 0 until BAND_COUNT) {
-                    val rawEnergy = (localBands[b] * 8.0f / (shortCount / BAND_COUNT).coerceAtLeast(1)).coerceIn(0f, 1f)
-                    // 真实动态平滑
-                    currentBands[b] = currentBands[b] * 0.35f + rawEnergy * 0.65f
+                    // 对数频率分配
+                    val freq = minFreq * Math.pow(maxFreq / minFreq, b.toDouble() / (BAND_COUNT - 1))
+                    val k = (freq * samplesCount / sampleRate).toInt().coerceIn(1, samplesCount / 2)
+
+                    // 计算在目标频率 k 处的实部与虚部相关性
+                    var real = 0.0
+                    var imag = 0.0
+                    val step = (samplesCount / 64).coerceAtLeast(1) // 降采样快速 DFT 计算
+
+                    for (n in 0 until samplesCount step step) {
+                        val angle = 2.0 * PI * k * n / samplesCount
+                        real += samples[n] * cos(angle)
+                        imag -= samples[n] * sin(angle)
+                    }
+
+                    val magnitude = hypot(real, imag) * (step.toDouble() / samplesCount) * 16.0
+                    targetBands[b] = magnitude.toFloat().coerceIn(0.02f, 1.0f)
+                }
+
+                // 物理阻尼与平滑处理 (Attack 快，Decay 柔和)
+                for (b in 0 until BAND_COUNT) {
+                    val target = targetBands[b]
+                    currentBands[b] = if (target > currentBands[b]) {
+                        currentBands[b] * 0.25f + target * 0.75f // 快速上冲
+                    } else {
+                        (currentBands[b] - 0.06f).coerceAtLeast(target).coerceAtLeast(0.02f) // 重力平滑回落
+                    }
                 }
 
                 _spectrumFlow.value = currentBands.copyOf()
-                offset += chunkSize
-                delay(45)
+
+                byteOffset += frameBytes
+                delay(frameDurationMs - 5) // 补偿计算耗时
             }
 
             resetToSilence()
         }
     }
 
-    /**
-     * 处理真实硬件 FFT 频域数据
-     */
-    private fun processFft(fft: ByteArray) {
+    private fun processHardwareFft(fft: ByteArray) {
         val n = fft.size
         if (n < 2) return
 
@@ -168,23 +203,19 @@ class AudioVisualizerManager private constructor() {
             }
 
             val avgMagnitude = sumMagnitude / ((end - start) / 2).coerceAtLeast(1)
-            val normalized = (avgMagnitude / 128.0).toFloat().coerceIn(0.05f, 1.0f)
+            val normalized = (avgMagnitude / 128.0).toFloat().coerceIn(0.02f, 1.0f)
 
-            // 平滑插值 (防止剧烈突变，保留人声真实跳动感)
             currentBands[i] = if (normalized > currentBands[i]) {
-                currentBands[i] * 0.2f + normalized * 0.8f
+                currentBands[i] * 0.25f + normalized * 0.75f
             } else {
-                currentBands[i] * 0.7f + normalized * 0.3f
+                (currentBands[i] - 0.05f).coerceAtLeast(normalized).coerceAtLeast(0.02f)
             }
         }
 
         _spectrumFlow.value = currentBands.copyOf()
     }
 
-    /**
-     * 处理真实硬件时域波形数据计算 RMS
-     */
-    private fun processWaveform(waveform: ByteArray) {
+    private fun processHardwareWaveform(waveform: ByteArray) {
         var sum = 0.0
         for (b in waveform) {
             val sample = (b.toInt() and 0xFF) - 128
@@ -194,21 +225,18 @@ class AudioVisualizerManager private constructor() {
         _rmsEnergyFlow.value = rms
     }
 
-    /**
-     * 音频停止播放时平滑衰减至静音
-     */
     fun resetToSilence() {
-        pcmStreamJob?.cancel()
+        pcmAnalysisJob?.cancel()
         decayJob?.cancel()
 
         decayJob = scope.launch {
-            repeat(10) {
+            repeat(12) {
                 for (i in 0 until BAND_COUNT) {
-                    currentBands[i] = (currentBands[i] * 0.6f).coerceAtLeast(0.02f)
+                    currentBands[i] = (currentBands[i] * 0.55f).coerceAtLeast(0.02f)
                 }
                 _rmsEnergyFlow.value = (_rmsEnergyFlow.value * 0.5f).coerceAtLeast(0f)
                 _spectrumFlow.value = currentBands.copyOf()
-                delay(30)
+                delay(25)
             }
             for (i in 0 until BAND_COUNT) currentBands[i] = 0.02f
             _spectrumFlow.value = currentBands.copyOf()
