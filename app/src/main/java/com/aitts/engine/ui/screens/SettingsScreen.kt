@@ -523,9 +523,9 @@ private fun ThemeSettingsCard(settings: com.aitts.engine.data.GlobalSettings, co
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(
-                    "BENTO" to "🚀 Bento 全息声球工作台",
-                    "STUDIO" to "🎛️ DAW 专业硬件调音台",
-                    "VINYL" to "📻 Vinyl 黑胶沉浸阅览舱"
+                    "BENTO" to "Bento 工作台",
+                    "STUDIO" to "DAW 调音台",
+                    "VINYL" to "黑胶阅览舱"
                 ).forEach { (style, label) ->
                     FilterChip(
                         selected = settings.appUiStyle == style || (style == "VINYL" && settings.appUiStyle == "CLASSIC"),
