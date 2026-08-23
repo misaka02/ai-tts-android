@@ -129,28 +129,40 @@ fun HomeScreen(
 
     val settings by configDataStore.settingsFlow.collectAsState()
 
-    if (settings.appUiStyle == "BENTO") {
-        BentoConsoleHomeScreen(
-            configDataStore = configDataStore,
-            onNavigateToEditProvider = onNavigateToEditProvider,
-            onNavigateToTestBench = onNavigateToTestBench,
-            onSwitchUiStyle = { newStyle ->
-                configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
-            }
-        )
-        return
-    }
-
-    if (settings.appUiStyle == "STUDIO") {
-        ModernStudioHomeScreen(
-            configDataStore = configDataStore,
-            onNavigateToEditProvider = onNavigateToEditProvider,
-            onNavigateToTestBench = onNavigateToTestBench,
-            onSwitchUiStyle = { newStyle ->
-                configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
-            }
-        )
-        return
+    when (settings.appUiStyle) {
+        "BENTO" -> {
+            BentoConsoleHomeScreen(
+                configDataStore = configDataStore,
+                onNavigateToEditProvider = onNavigateToEditProvider,
+                onNavigateToTestBench = onNavigateToTestBench,
+                onSwitchUiStyle = { newStyle ->
+                    configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
+                }
+            )
+            return
+        }
+        "STUDIO" -> {
+            ModernStudioHomeScreen(
+                configDataStore = configDataStore,
+                onNavigateToEditProvider = onNavigateToEditProvider,
+                onNavigateToTestBench = onNavigateToTestBench,
+                onSwitchUiStyle = { newStyle ->
+                    configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
+                }
+            )
+            return
+        }
+        else -> {
+            VinylDeckHomeScreen(
+                configDataStore = configDataStore,
+                onNavigateToEditProvider = onNavigateToEditProvider,
+                onNavigateToTestBench = onNavigateToTestBench,
+                onSwitchUiStyle = { newStyle ->
+                    configDataStore.updateSettings(settings.copy(appUiStyle = newStyle))
+                }
+            )
+            return
+        }
     }
 
     val providers by configDataStore.providersFlow.collectAsState()

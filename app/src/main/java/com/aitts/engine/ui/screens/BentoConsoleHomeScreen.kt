@@ -349,9 +349,9 @@ fun BentoConsoleHomeScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("📋 经典紧凑列表") },
+                                text = { Text("📻 Vinyl 黑胶沉浸阅览舱") },
                                 onClick = {
-                                    onSwitchUiStyle("CLASSIC")
+                                    onSwitchUiStyle("VINYL")
                                     showStyleMenu = false
                                 }
                             )

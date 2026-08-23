@@ -51,6 +51,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -501,4 +502,125 @@ fun ProviderCard(
             }
         }
     }
+}
+
+@Composable
+fun SleepTimerDialog(
+    sleepTimerManager: com.aitts.engine.service.SleepTimerManager,
+    onDismiss: () -> Unit
+) {
+    val remainingSec by sleepTimerManager.remainingSecondsFlow.collectAsState()
+    val isActive by sleepTimerManager.isActiveFlow.collectAsState()
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("睡眠听书定时器") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (isActive) {
+                    val m = remainingSec / 60
+                    val s = remainingSec % 60
+                    Text(
+                        text = "倒计时中: %02d:%02d".format(m, s),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                    Button(
+                        onClick = {
+                            sleepTimerManager.stopTimer()
+                            onDismiss()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("取消定时")
+                    }
+                } else {
+                    Text("选择听书自动停止倒计时:")
+                    val presets = listOf(15, 30, 45, 60, 90)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        presets.forEach { mins ->
+                            androidx.compose.material3.FilterChip(
+                                selected = false,
+                                onClick = {
+                                    sleepTimerManager.startTimer(mins)
+                                    onDismiss()
+                                },
+                                label = { Text("${mins}分") }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
+}
+
+@Composable
+fun HistoryDialog(
+    historyItems: List<com.aitts.engine.data.SpeechHistoryItem>,
+    onDismiss: () -> Unit,
+    onClearHistory: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("朗读历史与统计 (${historyItems.size})") },
+        text = {
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(320.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (historyItems.isEmpty()) {
+                    item {
+                        Text("暂无朗读历史记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    items(historyItems.take(30).size) { index ->
+                        val item = historyItems[index]
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text(item.text, maxLines = 2, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("${item.providerName} · ${item.characterCount}字", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${item.costMs}ms", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                onClearHistory()
+                onDismiss()
+            }) {
+                Text("清空历史")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
 }
