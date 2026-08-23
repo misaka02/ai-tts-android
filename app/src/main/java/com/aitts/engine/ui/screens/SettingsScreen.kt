@@ -181,7 +181,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
             val categories = listOf(
                 "⚙️ 系统",
                 "🎨 外观",
-                "📖 听书声学",
+                "📖 听书",
                 "⚡ 网络",
                 "💾 备份"
             )
@@ -516,16 +516,16 @@ private fun ThemeSettingsCard(settings: com.aitts.engine.data.GlobalSettings, co
             }
 
             Spacer(modifier = Modifier.height(14.dp))
-            Text("界面设计与交互布局风格 (3 大殿堂级模式)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text("界面设计与交互布局风格", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(8.dp))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(
-                    "BENTO" to "Bento 工作台",
-                    "STUDIO" to "DAW 调音台",
-                    "VINYL" to "黑胶阅览舱"
+                    "BENTO" to "网格面板",
+                    "STUDIO" to "调音台",
+                    "VINYL" to "黑胶唱机"
                 ).forEach { (style, label) ->
                     FilterChip(
                         selected = settings.appUiStyle == style || (style == "VINYL" && settings.appUiStyle == "CLASSIC"),
@@ -588,7 +588,7 @@ private fun NovelSettingsCard(settings: com.aitts.engine.data.GlobalSettings, co
                 Column(modifier = Modifier.weight(1f)) {
                     Text("启用智能标点分句", fontWeight = FontWeight.SemiBold)
                     Text(
-                        "长段落按标点拆分并发预拉取，彻底告别卡顿",
+                        if (settings.isSentenceSplittingEnabled) "长段落按标点拆分并发预拉取，首句秒开" else "当前已关闭：整页或整段文本将作为一个整体直接发送给大模型合成",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -599,41 +599,43 @@ private fun NovelSettingsCard(settings: com.aitts.engine.data.GlobalSettings, co
                 )
             }
 
-            if (settings.isSentenceSplittingEnabled) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "单句最大字数阈值: ${settings.maxSentenceLength} 字",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = "超出该字数时强制拆分。若希望整段直接合成，可调大至 300~500 字或直接关闭上方分句开关。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Slider(
-                    value = settings.maxSentenceLength.toFloat(),
-                    onValueChange = { configDataStore.updateSettings(settings.copy(maxSentenceLength = it.toInt())) },
-                    valueRange = 30f..500f,
-                    steps = 47
-                )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "单句最大字数阈值: ${settings.maxSentenceLength} 字" + if (!settings.isSentenceSplittingEnabled) " (已关闭分句，整段直出)" else "",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (settings.isSentenceSplittingEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "超出该字数时强制拆分。若希望整段直接合成，可调大至 300~500 字或直接关闭上方分句开关。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Slider(
+                value = settings.maxSentenceLength.toFloat(),
+                onValueChange = { configDataStore.updateSettings(settings.copy(maxSentenceLength = it.toInt())) },
+                valueRange = 30f..500f,
+                steps = 47,
+                enabled = settings.isSentenceSplittingEnabled
+            )
 
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "句间自然呼吸停顿: ${settings.sentencePauseMs} ms",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = "在每句话播完后自动注入微量静音，模拟真人呼吸节奏（设为0则紧凑快读）。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Slider(
-                    value = settings.sentencePauseMs.toFloat(),
-                    onValueChange = { configDataStore.updateSettings(settings.copy(sentencePauseMs = it.toInt())) },
-                    valueRange = 0f..600f,
-                    steps = 12
-                )
-            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "句间自然呼吸停顿: ${settings.sentencePauseMs} ms" + if (!settings.isSentenceSplittingEnabled) " (关闭分句时不生效)" else "",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (settings.isSentenceSplittingEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "在每句话播完后自动注入微量静音，模拟真人呼吸节奏（设为0则紧凑快读）。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Slider(
+                value = settings.sentencePauseMs.toFloat(),
+                onValueChange = { configDataStore.updateSettings(settings.copy(sentencePauseMs = it.toInt())) },
+                valueRange = 0f..600f,
+                steps = 12,
+                enabled = settings.isSentenceSplittingEnabled
+            )
 
             Spacer(modifier = Modifier.height(10.dp))
             Row(

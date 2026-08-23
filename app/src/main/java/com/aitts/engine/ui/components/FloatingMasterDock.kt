@@ -996,21 +996,21 @@ private fun DockModeDropdown(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
         )
         DropdownMenuItem(
-            text = { Text("Bento 工作台" + if (currentUiStyle == "BENTO") " ✓" else "") },
+            text = { Text("网格面板" + if (currentUiStyle == "BENTO") " ✓" else "") },
             onClick = {
                 onSwitchUiStyle("BENTO")
                 onDismiss()
             }
         )
         DropdownMenuItem(
-            text = { Text("DAW 调音台" + if (currentUiStyle == "STUDIO") " ✓" else "") },
+            text = { Text("调音台" + if (currentUiStyle == "STUDIO") " ✓" else "") },
             onClick = {
                 onSwitchUiStyle("STUDIO")
                 onDismiss()
             }
         )
         DropdownMenuItem(
-            text = { Text("黑胶阅览舱" + if (currentUiStyle == "VINYL" || currentUiStyle == "CLASSIC") " ✓" else "") },
+            text = { Text("黑胶唱机" + if (currentUiStyle == "VINYL" || currentUiStyle == "CLASSIC") " ✓" else "") },
             onClick = {
                 onSwitchUiStyle("VINYL")
                 onDismiss()

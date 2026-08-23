@@ -435,28 +435,28 @@ fun VinylDeckHomeScreen(
                         Box {
                             AssistChip(
                                 onClick = { showStyleMenu = true },
-                                label = { Text("📻 Vinyl 唱机", fontSize = 11.sp) }
+                                label = { Text("黑胶唱机", fontSize = 11.sp) }
                             )
                             DropdownMenu(
                                 expanded = showStyleMenu,
                                 onDismissRequest = { showStyleMenu = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("🚀 Bento 全息声球工作台") },
+                                    text = { Text("网格面板") },
                                     onClick = {
                                         onSwitchUiStyle("BENTO")
                                         showStyleMenu = false
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("🎛️ DAW 专业调音台") },
+                                    text = { Text("调音台") },
                                     onClick = {
                                         onSwitchUiStyle("STUDIO")
                                         showStyleMenu = false
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("📻 Vinyl 黑胶沉浸阅览舱") },
+                                    text = { Text("黑胶唱机") },
                                     onClick = {
                                         onSwitchUiStyle("VINYL")
                                         showStyleMenu = false

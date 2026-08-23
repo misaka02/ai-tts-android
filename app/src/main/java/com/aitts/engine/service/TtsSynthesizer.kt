@@ -235,10 +235,20 @@ class TtsSynthesizer(private val context: Context) {
                 val decoded = AudioDecoder.decodeToPcm(rawAudioBytes, mergedConfig.sampleRate)
                 if (decoded.pcmData.isEmpty()) continue
 
-                // 实时高精度 PCM 采样率自适应重采样与单声道混音（彻底杜绝变调与爆音）
+                // 实时高精度 PCM 采样率自适应重采样与单声道混音（对于无服务端音调的大模型，由客户端 DSP 实时变调）
+                val effectiveSourceRate = if (mergedConfig.type == com.aitts.engine.data.ProviderType.EDGE_TTS ||
+                                              mergedConfig.type == com.aitts.engine.data.ProviderType.AZURE ||
+                                              mergedConfig.type == com.aitts.engine.data.ProviderType.DOUBAO ||
+                                              mergedConfig.type == com.aitts.engine.data.ProviderType.MINIMAX ||
+                                              mergedConfig.pitch == 1.0f) {
+                    decoded.sampleRate
+                } else {
+                    (decoded.sampleRate / mergedConfig.pitch.coerceIn(0.5f, 2.0f)).toInt()
+                }
+
                 val resampledPcm = AudioResampler.resample(
                     pcmData = decoded.pcmData,
-                    sourceSampleRate = decoded.sampleRate,
+                    sourceSampleRate = effectiveSourceRate,
                     sourceChannels = decoded.channelCount,
                     targetSampleRate = targetSampleRate,
                     targetChannels = 1
