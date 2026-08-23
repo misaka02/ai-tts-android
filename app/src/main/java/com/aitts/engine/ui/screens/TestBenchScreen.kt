@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
@@ -36,12 +37,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import com.aitts.engine.rules.QuoteService
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -95,9 +98,11 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
     }
 
     var textInput by remember {
-        mutableStateOf("“你确定这台AI引擎的延迟能低于300ms吗？”林萧紧盯着控制台屏幕问道。苏月微微一笑：“不但低于300毫秒，而且还支持旁白与对话自动双角色协同切换，听感如同专业CV配音。”")
+        mutableStateOf("“这柄天玄诛仙剑，乃是上古神魔遗留在凡间的至宝。”老者抚须长叹道。少年握紧剑柄，目光坚定：“前辈放心，我必以它荡平魔域！”")
     }
 
+    var isFetchingHitokoto by remember { mutableStateOf(false) }
+    var quoteSourceHint by remember { mutableStateOf<String?>(null) }
     var isRunning by remember { mutableStateOf(false) }
     var latencyMs by remember { mutableStateOf<Long?>(null) }
     var totalSentences by remember { mutableStateOf(0) }
@@ -271,44 +276,103 @@ fun TestBenchScreen(configDataStore: ConfigDataStore) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("测试朗读语料:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        AssistChip(
+                            onClick = {
+                                val item = QuoteService.getRandomLocalQuote()
+                                textInput = item.text
+                                quoteSourceHint = "分类: ${item.category}"
+                            },
+                            label = { Text("🎲 随机语料", fontSize = 10.5.sp) }
+                        )
+
+                        AssistChip(
+                            onClick = {
+                                if (!isFetchingHitokoto) {
+                                    isFetchingHitokoto = true
+                                    scope.launch {
+                                        val item = QuoteService.fetchOnlineHitokoto()
+                                        textInput = item.text
+                                        quoteSourceHint = item.source ?: "一言金句"
+                                        isFetchingHitokoto = false
+                                    }
+                                }
+                            },
+                            label = {
+                                if (isFetchingHitokoto) {
+                                    CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("拉取中...", fontSize = 10.5.sp)
+                                } else {
+                                    Text("🌐 一言金句", fontSize = 10.5.sp)
+                                }
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
                 OutlinedTextField(
                     value = textInput,
-                    onValueChange = { textInput = it },
-                    label = { Text("小说测试文本 (支持引号对白双音色)") },
+                    onValueChange = {
+                        textInput = it
+                        quoteSourceHint = null
+                    },
+                    trailingIcon = {
+                        if (textInput.isNotBlank()) {
+                            IconButton(onClick = {
+                                textInput = ""
+                                quoteSourceHint = null
+                            }) {
+                                Icon(Icons.Default.Clear, contentDescription = "清空", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    label = { Text("小说测试文本 (支持多角色对白与情感识别)") },
                     modifier = Modifier.fillMaxWidth(),
-                    maxLines = 4
+                    maxLines = 4,
+                    shape = RoundedCornerShape(12.dp)
                 )
+
+                if (quoteSourceHint != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "💡 $quoteSourceHint",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text("快捷小说文本片段预设:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("快捷分类语料:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(4.dp))
 
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    AssistChip(
-                        onClick = {
-                            textInput = "“这柄天玄诛仙剑，乃是上古神魔遗留在凡间的至宝。”老者抚须长叹道。少年握紧剑柄，目光坚定：“前辈放心，我必以它荡平魔域！”"
-                        },
-                        label = { Text("玄幻修仙对白", fontSize = 10.5.sp) }
-                    )
-                    AssistChip(
-                        onClick = {
-                            textInput = "公元2026年第128章，他在江南水乡重逢了青梅竹马。女孩撑着油纸伞轻声说：“你终于回来了，我等了整整五年。”"
-                        },
-                        label = { Text("言情重逢+数字", fontSize = 10.5.sp) }
-                    )
-                    AssistChip(
-                        onClick = {
-                            textInput = "“嫌疑人在昨晚23点45分离开案发现场，并在城东路口丢弃了凶器。”警官冷冷地看着审讯椅上的男人。"
-                        },
-                        label = { Text("悬疑审讯对白", fontSize = 10.5.sp) }
-                    )
+                    listOf("小说剧场", "经典文学", "科技数码", "新闻播报", "日常闲聊").forEach { cat ->
+                        AssistChip(
+                            onClick = {
+                                val item = QuoteService.getRandomLocalQuote(cat)
+                                textInput = item.text
+                                quoteSourceHint = "分类: $cat"
+                            },
+                            label = { Text(cat, fontSize = 10.sp) }
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))

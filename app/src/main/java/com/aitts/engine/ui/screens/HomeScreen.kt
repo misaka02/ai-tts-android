@@ -42,13 +42,22 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Timer
+import com.aitts.engine.rules.QuoteService
 import com.aitts.engine.service.SleepTimerManager
 import com.aitts.engine.audio.AudioEnhancer
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -127,6 +136,8 @@ fun HomeScreen(
     val isSleepTimerActive by sleepTimerManager.isActiveFlow.collectAsState()
 
     var testText by remember { mutableStateOf("欢迎使用 AI TTS 系统语音引擎！当前正在通过智能大模型为您朗读文本。") }
+    var isFetchingHitokoto by remember { mutableStateOf(false) }
+    var quoteSourceHint by remember { mutableStateOf<String?>(null) }
     var isSynthesizing by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     var currentTestingProviderId by remember { mutableStateOf<String?>(null) }
@@ -360,16 +371,17 @@ fun HomeScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(48.dp)
                                 .background(
                                     Brush.radialGradient(
-                                        listOf(activeBrandColor.copy(alpha = 0.3f), Color.Transparent)
+                                        listOf(activeBrandColor.copy(alpha = 0.25f), Color.Transparent)
                                     ),
                                     CircleShape
                                 ),
@@ -379,7 +391,7 @@ fun HomeScreen(
                                 imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                                 contentDescription = null,
                                 tint = activeBrandColor,
-                                modifier = Modifier.size(26.dp)
+                                modifier = Modifier.size(28.dp)
                             )
                         }
 
@@ -393,23 +405,153 @@ fun HomeScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(
-                                text = "${activeProvider?.type?.displayName} · 音色: ${activeProvider?.voiceId?.ifBlank { "默认" }} · 语速 ${activeProvider?.speed}x",
+                                text = "${activeProvider?.type?.displayName} · 音色: ${activeProvider?.voiceId?.ifBlank { "默认" }}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 核心参数胶囊标签行
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = "${activeProvider?.sampleRate ?: 24000}Hz",
+                                fontSize = 10.5.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = "语速 ${activeProvider?.speed ?: 1.0f}x",
+                                fontSize = 10.5.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (activeProvider?.isDualRoleEnabled == true) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = if (activeProvider?.isDualRoleEnabled == true) "4声线有声剧场" else "标准单音色",
+                                fontSize = 10.5.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = if (activeProvider?.isDualRoleEnabled == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (settings.isAudioCacheEnabled) SuccessGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = if (settings.isAudioCacheEnabled) "极速本地缓存" else "在线直连",
+                                fontSize = 10.5.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = if (settings.isAudioCacheEnabled) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    // 试听语料快捷生成与在线金句工具栏
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "试听文本:",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            AssistChip(
+                                onClick = {
+                                    val item = QuoteService.getRandomLocalQuote()
+                                    testText = item.text
+                                    quoteSourceHint = "分类: ${item.category}"
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
+                                label = { Text("🎲 随机语料", fontSize = 11.sp) }
+                            )
+
+                            AssistChip(
+                                onClick = {
+                                    if (!isFetchingHitokoto) {
+                                        isFetchingHitokoto = true
+                                        scope.launch {
+                                            val item = QuoteService.fetchOnlineHitokoto()
+                                            testText = item.text
+                                            quoteSourceHint = item.source ?: "一言金句"
+                                            isFetchingHitokoto = false
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        }
+                                    }
+                                },
+                                label = {
+                                    if (isFetchingHitokoto) {
+                                        CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("拉取中...", fontSize = 11.sp)
+                                    } else {
+                                        Text("🌐 一言金句", fontSize = 11.sp)
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
                         value = testText,
-                        onValueChange = { testText = it },
-                        label = { Text("发音快速试听文本") },
+                        onValueChange = {
+                            testText = it
+                            quoteSourceHint = null
+                        },
+                        trailingIcon = {
+                            if (testText.isNotBlank()) {
+                                IconButton(onClick = {
+                                    testText = ""
+                                    quoteSourceHint = null
+                                }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "清空文本", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        },
+                        placeholder = { Text("输入或随机获取试听文本...") },
                         modifier = Modifier.fillMaxWidth(),
-                        maxLines = 3
+                        maxLines = 4,
+                        shape = RoundedCornerShape(12.dp)
                     )
+
+                    if (quoteSourceHint != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "💡 $quoteSourceHint",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(
@@ -425,6 +567,7 @@ fun HomeScreen(
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = activeBrandColor),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f)
                         ) {
                             if (isSynthesizing && currentTestingProviderId == activeProvider?.id) {
@@ -447,16 +590,18 @@ fun HomeScreen(
                         }
 
                         OutlinedButton(
-                            onClick = { activeProvider?.let { onNavigateToEditProvider(it.id) } }
+                            onClick = { activeProvider?.let { onNavigateToEditProvider(it.id) } },
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text("调节参数")
+                            Text("调节参数", fontSize = 12.5.sp)
                         }
 
                         if (lastSynthesizedBytes != null) {
                             OutlinedButton(
                                 onClick = {
                                     exportAndShareAudio(lastSynthesizedBytes!!, lastSynthesizedProviderName)
-                                }
+                                },
+                                shape = RoundedCornerShape(10.dp)
                             ) {
                                 Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))

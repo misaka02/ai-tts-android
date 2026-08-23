@@ -94,7 +94,7 @@ class AiTextToSpeechService : TextToSpeechService() {
     override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int {
         val language = lang?.lowercase(Locale.getDefault()) ?: ""
         return when {
-            language.startsWith("zh") || language.startsWith("zho") || language.startsWith("chi") -> {
+            language.startsWith("zh") || language.startsWith("zho") || language.startsWith("chi") || language.startsWith("cmn") -> {
                 TextToSpeech.LANG_COUNTRY_AVAILABLE
             }
             language.startsWith("en") || language.startsWith("eng") -> {
