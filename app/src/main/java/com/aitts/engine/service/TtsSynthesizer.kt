@@ -89,8 +89,8 @@ class TtsSynthesizer(private val context: Context) {
         val rules = configDataStore.rulesFlow.value
 
         // 适配系统传入的语速与音调参数（100 为标准 1.0）
-        val systemSpeed = request.speechRate / 100.0f
-        val systemPitch = request.pitch / 100.0f
+        val systemSpeed = if (request.speechRate > 0) request.speechRate / 100.0f else 1.0f
+        val systemPitch = if (request.pitch > 0) request.pitch / 100.0f else 1.0f
         val effectiveSpeed = (providerConfig.speed * systemSpeed * settings.globalSpeed).coerceIn(0.2f, 3.0f)
         val effectivePitch = (providerConfig.pitch * systemPitch * settings.globalPitch).coerceIn(0.2f, 2.0f)
 
@@ -175,8 +175,10 @@ class TtsSynthesizer(private val context: Context) {
         }
 
         try {
-            // 预先启动首句及第二句的并发拉取
-            for (lookAhead in 0 until minOf(2, segments.size)) {
+            val prefetchWindow = 4
+
+            // 预先启动前 4 句的并发预拉取，彻底消除段落与句子间的网络等待
+            for (lookAhead in 0 until minOf(prefetchWindow, segments.size)) {
                 val seg = segments[lookAhead]
                 val segConfig = getConfigForSegment(seg)
                 sessionCache[lookAhead] = async(Dispatchers.IO) {
@@ -200,13 +202,15 @@ class TtsSynthesizer(private val context: Context) {
                     )
                 }
 
-                // 随着进度推进，自动向前预拉取第 i+2 句
-                val nextPrefetchIndex = i + 2
-                if (nextPrefetchIndex < segments.size && !sessionCache.containsKey(nextPrefetchIndex)) {
-                    val nextSeg = segments[nextPrefetchIndex]
-                    val nextSegConfig = getConfigForSegment(nextSeg)
-                    sessionCache[nextPrefetchIndex] = async(Dispatchers.IO) {
-                        fetchOrSynthesizeAudio(nextSeg.text, nextSegConfig, settings)
+                // 随着进度推进，自动向前并发预拉取前方 4 句
+                for (ahead in 1..prefetchWindow) {
+                    val nextPrefetchIndex = i + ahead
+                    if (nextPrefetchIndex < segments.size && !sessionCache.containsKey(nextPrefetchIndex)) {
+                        val nextSeg = segments[nextPrefetchIndex]
+                        val nextSegConfig = getConfigForSegment(nextSeg)
+                        sessionCache[nextPrefetchIndex] = async(Dispatchers.IO) {
+                            fetchOrSynthesizeAudio(nextSeg.text, nextSegConfig, settings)
+                        }
                     }
                 }
 

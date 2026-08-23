@@ -24,7 +24,12 @@ object SharedHttpClient {
         private set
 
     private fun buildDefaultClient(): OkHttpClient {
+        val dispatcher = okhttp3.Dispatcher().apply {
+            maxRequests = 128
+            maxRequestsPerHost = 32
+        }
         return OkHttpClient.Builder()
+            .dispatcher(dispatcher)
             .connectionPool(sharedConnectionPool)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)

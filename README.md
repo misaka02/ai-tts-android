@@ -7,7 +7,7 @@
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-purple.svg)](https://kotlinlang.org/)
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-blueviolet.svg)](https://developer.android.com/jetpack/compose)
-[![Latest Release](https://img.shields.io/badge/Release-v3.3.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
+[![Latest Release](https://img.shields.io/badge/Release-v3.3.1-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
 [![APK Size](https://img.shields.io/badge/APK_Size-1.83MB-blue.svg)](https://github.com/misaka02/ai-tts-android/releases)
 
 <br/>

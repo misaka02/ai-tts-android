@@ -3,11 +3,6 @@ package com.aitts.engine.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -57,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -95,7 +91,10 @@ enum class TooltipPosition {
 }
 
 /**
- * 🌟 全主题通用人机工学自由拖拽主控悬浮坞 (v3.2.0 Ultra-Fluid & Full-Control Edition)
+ * 🌟 全主题通用人机工学自由拖拽主控悬浮坞 (v3.3.0 Ultra-Fluid Edition)
+ * 1. 【长按禁止位移，滑动直接拖拽】：长按菜单不动时 100% 锁定悬浮坞，手势绝不串动；快速按下并滑动时取消长按，平滑拖动悬浮坞。
+ * 2. 【多句并行预拉取流水线】：彻底消除整页阅读时段落与句子间的 2~3 秒停顿。
+ * 3. 【顶层 Popup 气泡】：浮动提示绝不被手指遮挡。
  */
 @Composable
 fun FloatingMasterDock(
@@ -193,19 +192,6 @@ fun FloatingMasterDock(
                                 shadowElevation = 8.dp.toPx()
                                 shape = if (isAtLeft) RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp) else RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)
                                 clip = true
-                            }
-                            .pointerInput(Unit) {
-                                detectDragGestures(
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        posY += dragAmount.y
-                                        posX += dragAmount.x
-                                    },
-                                    onDragEnd = {
-                                        posX = if (posX < 0) minX else maxX
-                                        onUpdateDockState(dockMode.name, posX, posY)
-                                    }
-                                )
                             },
                         shape = if (isAtLeft) RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp) else RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp),
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
@@ -217,6 +203,14 @@ fun FloatingMasterDock(
                             onClick = {
                                 dockMode = DockDisplayMode.SIDEBAR_VERTICAL
                                 posX = if (isAtLeft) minX else maxX
+                                onUpdateDockState(dockMode.name, posX, posY)
+                            },
+                            onDrag = { delta ->
+                                posY += delta.y
+                                posX += delta.x
+                            },
+                            onDragEnd = {
+                                posX = if (posX < 0) minX else maxX
                                 onUpdateDockState(dockMode.name, posX, posY)
                             }
                         ) {
@@ -251,18 +245,6 @@ fun FloatingMasterDock(
                                 shadowElevation = 10.dp.toPx()
                                 shape = RoundedCornerShape(22.dp)
                                 clip = true
-                            }
-                            .pointerInput(Unit) {
-                                detectDragGestures(
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        posX += dragAmount.x
-                                        posY += dragAmount.y
-                                    },
-                                    onDragEnd = {
-                                        onUpdateDockState(dockMode.name, posX, posY)
-                                    }
-                                )
                             },
                         shape = RoundedCornerShape(22.dp),
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
@@ -273,21 +255,47 @@ fun FloatingMasterDock(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // 拖拽手柄
+                            // 拖拽手柄（专职拖拽，轻触不触发事件）
                             Box(
                                 modifier = Modifier
-                                    .width(22.dp)
-                                    .height(4.dp)
-                                    .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(2.dp))
-                            )
+                                    .width(32.dp)
+                                    .height(14.dp)
+                                    .pointerInput(Unit) {
+                                        detectDragGestures(
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                posX += dragAmount.x
+                                                posY += dragAmount.y
+                                            },
+                                            onDragEnd = {
+                                                onUpdateDockState(dockMode.name, posX, posY)
+                                            }
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(22.dp)
+                                        .height(4.dp)
+                                        .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(2.dp))
+                                )
+                            }
 
-                            // 播放 / 停止主键 (长按弹出配置快捷键)
+                            // 播放 / 停止主键 (长按弹出配置快捷键，长按不动禁止移动)
                             Box {
                                 FluidTouchWrapper(
                                     tooltip = if (isPlaying) "停止" else "试听",
                                     tooltipPosition = if (isAtLeft) TooltipPosition.RIGHT else TooltipPosition.LEFT,
                                     onClick = onPlayToggle,
-                                    onLongRelease = { showPlayQuickConfig = true }
+                                    onLongRelease = { showPlayQuickConfig = true },
+                                    onDrag = { delta ->
+                                        posX += delta.x
+                                        posY += delta.y
+                                    },
+                                    onDragEnd = {
+                                        onUpdateDockState(dockMode.name, posX, posY)
+                                    }
                                 ) {
                                     Surface(
                                         shape = CircleShape,
@@ -343,7 +351,14 @@ fun FloatingMasterDock(
                             FluidTouchWrapper(
                                 tooltip = "换句",
                                 tooltipPosition = if (isAtLeft) TooltipPosition.RIGHT else TooltipPosition.LEFT,
-                                onClick = onRandomQuote
+                                onClick = onRandomQuote,
+                                onDrag = { delta ->
+                                    posX += delta.x
+                                    posY += delta.y
+                                },
+                                onDragEnd = {
+                                    onUpdateDockState(dockMode.name, posX, posY)
+                                }
                             ) {
                                 Surface(
                                     shape = CircleShape,
@@ -361,7 +376,14 @@ fun FloatingMasterDock(
                                 FluidTouchWrapper(
                                     tooltip = "菜单",
                                     tooltipPosition = if (isAtLeft) TooltipPosition.RIGHT else TooltipPosition.LEFT,
-                                    onClick = { showModeMenu = true }
+                                    onClick = { showModeMenu = true },
+                                    onDrag = { delta ->
+                                        posX += delta.x
+                                        posY += delta.y
+                                    },
+                                    onDragEnd = {
+                                        onUpdateDockState(dockMode.name, posX, posY)
+                                    }
                                 ) {
                                     Surface(
                                         shape = CircleShape,
@@ -398,6 +420,13 @@ fun FloatingMasterDock(
                                 onClick = {
                                     dockMode = DockDisplayMode.EDGE_STASHED
                                     posX = if (isAtLeft) minX else maxX
+                                    onUpdateDockState(dockMode.name, posX, posY)
+                                },
+                                onDrag = { delta ->
+                                    posX += delta.x
+                                    posY += delta.y
+                                },
+                                onDragEnd = {
                                     onUpdateDockState(dockMode.name, posX, posY)
                                 }
                             ) {
@@ -550,7 +579,7 @@ fun FloatingMasterDock(
                             }
                         }
 
-                        // 中心主控 Hub 球（纯轮盘开关中心）
+                        // 中心主控 Hub 球（长按不动锁定，按下拖动即位移）
                         Surface(
                             modifier = Modifier
                                 .size(54.dp)
@@ -558,18 +587,6 @@ fun FloatingMasterDock(
                                     shadowElevation = 10.dp.toPx()
                                     shape = CircleShape
                                     clip = true
-                                }
-                                .pointerInput(Unit) {
-                                    detectDragGestures(
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            posX += dragAmount.x
-                                            posY += dragAmount.y
-                                        },
-                                        onDragEnd = {
-                                            onUpdateDockState(dockMode.name, posX, posY)
-                                        }
-                                    )
                                 },
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.surface,
@@ -580,6 +597,13 @@ fun FloatingMasterDock(
                                 tooltipPosition = TooltipPosition.ABOVE,
                                 onClick = {
                                     isPieExpanded = !isPieExpanded
+                                },
+                                onDrag = { delta ->
+                                    posX += delta.x
+                                    posY += delta.y
+                                },
+                                onDragEnd = {
+                                    onUpdateDockState(dockMode.name, posX, posY)
                                 }
                             ) {
                                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -612,7 +636,7 @@ fun FloatingMasterDock(
                 }
 
                 DockDisplayMode.EXPANDED_HORIZONTAL -> {
-                    // ↔️ 横向全功能胶囊（一级菜单绝无主题误触，右侧包含换语料、形态切换与试听）
+                    // ↔️ 横向全功能胶囊（左侧拖拽/配置，右侧功能键长按锁定位移）
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -621,17 +645,6 @@ fun FloatingMasterDock(
                                 shadowElevation = 10.dp.toPx()
                                 shape = RoundedCornerShape(20.dp)
                                 clip = true
-                            }
-                            .pointerInput(Unit) {
-                                detectDragGestures(
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        posY += dragAmount.y
-                                    },
-                                    onDragEnd = {
-                                        onUpdateDockState(dockMode.name, posX, posY)
-                                    }
-                                )
                             },
                         shape = RoundedCornerShape(20.dp),
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
@@ -644,7 +657,7 @@ fun FloatingMasterDock(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 左侧：模型名称与直达配置
+                            // 左侧：模型名称与可拖拽把手区 (长按可配置，按下拖动即位移)
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.weight(1f)
@@ -652,7 +665,13 @@ fun FloatingMasterDock(
                                 FluidTouchWrapper(
                                     tooltip = "进入模型配置",
                                     tooltipPosition = TooltipPosition.ABOVE,
-                                    onClick = { activeProvider?.let { onOpenProviderConfig(it.id) } }
+                                    onClick = { activeProvider?.let { onOpenProviderConfig(it.id) } },
+                                    onDrag = { delta ->
+                                        posY += delta.y
+                                    },
+                                    onDragEnd = {
+                                        onUpdateDockState(dockMode.name, posX, posY)
+                                    }
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
@@ -682,7 +701,7 @@ fun FloatingMasterDock(
                                 }
                             }
 
-                            // 右侧功能键组（换语料、形态切换、试听）
+                            // 右侧功能键组（换语料、形态切换、试听，内部长按 100% 锁定悬浮坞位移）
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -690,7 +709,9 @@ fun FloatingMasterDock(
                                 FluidTouchWrapper(
                                     tooltip = "换句",
                                     tooltipPosition = TooltipPosition.ABOVE,
-                                    onClick = onRandomQuote
+                                    onClick = onRandomQuote,
+                                    onDrag = { delta -> posY += delta.y },
+                                    onDragEnd = { onUpdateDockState(dockMode.name, posX, posY) }
                                 ) {
                                     Surface(
                                         shape = CircleShape,
@@ -707,7 +728,9 @@ fun FloatingMasterDock(
                                     FluidTouchWrapper(
                                         tooltip = "菜单",
                                         tooltipPosition = TooltipPosition.ABOVE,
-                                        onClick = { showModeMenu = true }
+                                        onClick = { showModeMenu = true },
+                                        onDrag = { delta -> posY += delta.y },
+                                        onDragEnd = { onUpdateDockState(dockMode.name, posX, posY) }
                                     ) {
                                         Surface(
                                             shape = CircleShape,
@@ -737,13 +760,15 @@ fun FloatingMasterDock(
                                     )
                                 }
 
-                                // 播放 / 停止实体按键 (长按弹出配置快捷键)
+                                // 播放 / 停止实体按键 (长按弹出配置快捷键，长按不动锁定位移)
                                 Box {
                                     FluidTouchWrapper(
                                         tooltip = if (isPlaying) "停止" else "试听",
                                         tooltipPosition = TooltipPosition.ABOVE,
                                         onClick = onPlayToggle,
-                                        onLongRelease = { showPlayQuickConfig = true }
+                                        onLongRelease = { showPlayQuickConfig = true },
+                                        onDrag = { delta -> posY += delta.y },
+                                        onDragEnd = { onUpdateDockState(dockMode.name, posX, posY) }
                                     ) {
                                         Button(
                                             onClick = {}, // 由 FluidTouchWrapper 接管手势
@@ -809,11 +834,9 @@ fun FloatingMasterDock(
 }
 
 /**
- * 🌟 流畅触控包裹器 (Fluid Touch Gesture & Non-Obscured Tooltip Badge via Top-Level Popup)
- * - 按住时图标平滑放大 1.25x；
- * - 气泡跳出在按钮外侧（绝不被手指遮挡，通过 Popup 顶层呈现不被任何组件裁切）；
- * - 手指在按钮内松开触发 onClick()；
- * - 手指移出按钮范围取消触发并恢复原样。
+ * 🌟 流畅触控包裹器 (Fluid Touch Gesture & Precision Drag vs Hold Discrimination)
+ * - 按住且手指数毫米内不动：100% 锁定悬浮坞，触发图标微放大与顶层 Popup 气泡，松手触发 onClick/onLongRelease；
+ * - 按下并立刻滑动（超过 18px）：取消长按与气泡，立即触发平滑拖动。
  */
 @Composable
 private fun FluidTouchWrapper(
@@ -821,15 +844,19 @@ private fun FluidTouchWrapper(
     tooltipPosition: TooltipPosition = TooltipPosition.ABOVE,
     onClick: () -> Unit,
     onLongRelease: (() -> Unit)? = null,
+    onDrag: ((Offset) -> Unit)? = null,
+    onDragEnd: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     var isPressed by remember { mutableStateOf(false) }
     var isInside by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
     var pressStartTime by remember { mutableStateOf(0L) }
+    var initialTouchPos by remember { mutableStateOf(Offset.Zero) }
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed && isInside) 1.22f else 1.0f,
+        targetValue = if (isPressed && isInside && !isDragging) 1.22f else 1.0f,
         animationSpec = spring(dampingRatio = 0.65f, stiffness = 500f)
     )
 
@@ -840,17 +867,20 @@ private fun FluidTouchWrapper(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     pressStartTime = System.currentTimeMillis()
+                    initialTouchPos = down.position
                     isPressed = true
                     isInside = true
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    isDragging = false
+                    down.consume()
 
                     while (true) {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull() ?: break
+
                         if (!change.pressed) {
                             // 抬起
                             val elapsed = System.currentTimeMillis() - pressStartTime
-                            if (isInside) {
+                            if (isInside && !isDragging) {
                                 if (elapsed > 550 && onLongRelease != null) {
                                     onLongRelease()
                                 } else {
@@ -858,22 +888,41 @@ private fun FluidTouchWrapper(
                                 }
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             }
+                            if (isDragging && onDragEnd != null) {
+                                onDragEnd()
+                            }
                             break
                         } else {
                             val pos = change.position
-                            val inside = pos.x in 0f..size.width.toFloat() && pos.y in 0f..size.height.toFloat()
-                            if (inside != isInside) {
-                                isInside = inside
+                            val dist = (pos - initialTouchPos).getDistance()
+
+                            // 如果位移超过 18px，判定为用户意图拖动悬浮坞，取消按钮的长按与放大状态
+                            if (!isDragging && dist > 18f && onDrag != null) {
+                                isDragging = true
+                                isPressed = false
+                                isInside = false
                             }
+
+                            if (isDragging) {
+                                val delta = change.position - change.previousPosition
+                                onDrag?.invoke(delta)
+                            } else {
+                                val inside = pos.x in 0f..size.width.toFloat() && pos.y in 0f..size.height.toFloat()
+                                if (inside != isInside) {
+                                    isInside = inside
+                                }
+                            }
+                            change.consume()
                         }
                     }
                     isPressed = false
                     isInside = false
+                    isDragging = false
                 }
             }
     ) {
         // 浮动提示文字气泡（通过 Popup 顶层浮动渲染，绝不被手指挡住，绝不被任何父容器裁剪）
-        if (isPressed && isInside && tooltip.isNotBlank()) {
+        if (isPressed && isInside && !isDragging && tooltip.isNotBlank()) {
             Popup(
                 alignment = when (tooltipPosition) {
                     TooltipPosition.ABOVE -> Alignment.TopCenter
