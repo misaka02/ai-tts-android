@@ -18,6 +18,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -85,15 +87,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.aitts.engine.audio.AndroidAudioPlayer
 import com.aitts.engine.audio.AudioEnhancer
 import com.aitts.engine.audio.AudioVisualizerManager
@@ -104,6 +111,7 @@ import com.aitts.engine.permission.PermissionManager
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.QuoteService
 import com.aitts.engine.service.SleepTimerManager
+import com.aitts.engine.ui.components.FloatingMasterDock
 import com.aitts.engine.ui.components.PermissionCard
 import com.aitts.engine.ui.components.SystemTtsGuideCard
 import com.aitts.engine.ui.theme.BrandTheme
@@ -111,6 +119,7 @@ import com.aitts.engine.ui.theme.SuccessGreen
 import com.aitts.engine.ui.theme.WarningOrange
 import kotlinx.coroutines.launch
 import java.io.File
+import kotlin.math.roundToInt
 
 /**
  * Next-Gen AI Audio Studio 工作台界面 (v2.1.0 全新声学调音台架构)
@@ -172,6 +181,10 @@ fun ModernStudioHomeScreen(
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showHistoryDialog by remember { mutableStateOf(false) }
     var showQuickProviderMenu by remember { mutableStateOf(false) }
+    var draggingProviderId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val swapThresholdPx = remember(density) { with(density) { 70.dp.toPx() } }
 
     var permissionState by remember {
         mutableStateOf(PermissionManager.checkPermissions(context))
@@ -286,134 +299,107 @@ fun ModernStudioHomeScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // 顶部 Studio 标题栏与风格切换
-        item(contentType = "studio_appbar") {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                Brush.linearGradient(listOf(activeBrandColor, MaterialTheme.colorScheme.tertiary)),
-                                RoundedCornerShape(10.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.GraphicEq,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = "AI TTS Studio",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black
-                        )
-                        Text(
-                            text = "v${com.aitts.engine.BuildConfig.VERSION_NAME} 专业调音台工作台",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { showSleepTimerDialog = true }, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = Icons.Default.Bedtime,
-                            contentDescription = "睡眠定时",
-                            tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    IconButton(onClick = { showHistoryDialog = true }, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "历史统计",
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Box {
-                        AssistChip(
-                            onClick = { showStyleMenu = true },
-                            label = { Text("🎛️ Studio", fontSize = 11.sp) }
-                        )
-                        DropdownMenu(
-                            expanded = showStyleMenu,
-                            onDismissRequest = { showStyleMenu = false }
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // 顶部 Studio 标题栏与风格切换
+            item(contentType = "studio_appbar") {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(
+                                    Brush.linearGradient(listOf(activeBrandColor, MaterialTheme.colorScheme.tertiary)),
+                                    RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("🚀 Bento 全息声球工作台") },
-                                onClick = {
-                                    onSwitchUiStyle("BENTO")
-                                    showStyleMenu = false
-                                }
+                            Icon(
+                                imageVector = Icons.Default.GraphicEq,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
                             )
-                            DropdownMenuItem(
-                                text = { Text("🎛️ DAW 专业调音台") },
-                                onClick = {
-                                    onSwitchUiStyle("STUDIO")
-                                    showStyleMenu = false
-                                }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "AI TTS Studio",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black
                             )
-                            DropdownMenuItem(
-                                text = { Text("📻 Vinyl 黑胶沉浸阅览舱") },
-                                onClick = {
-                                    onSwitchUiStyle("VINYL")
-                                    showStyleMenu = false
-                                }
+                            Text(
+                                text = "v${com.aitts.engine.BuildConfig.VERSION_NAME} 专业调音台工作台",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { showSleepTimerDialog = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Bedtime,
+                                contentDescription = "睡眠定时",
+                                tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(onClick = { showHistoryDialog = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = "历史统计",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Box {
+                            AssistChip(
+                                onClick = { showStyleMenu = true },
+                                label = { Text("🎛️ Studio", fontSize = 11.sp) }
+                            )
+                            DropdownMenu(
+                                expanded = showStyleMenu,
+                                onDismissRequest = { showStyleMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("🚀 Bento 全息声球工作台") },
+                                    onClick = {
+                                        onSwitchUiStyle("BENTO")
+                                        showStyleMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("🎛️ DAW 专业调音台") },
+                                    onClick = {
+                                        onSwitchUiStyle("STUDIO")
+                                        showStyleMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("📻 Vinyl 黑胶沉浸阅览舱") },
+                                    onClick = {
+                                        onSwitchUiStyle("VINYL")
+                                        showStyleMenu = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
-
-        if (!permissionState.isAllGranted) {
-            item(contentType = "permission") {
-                PermissionCard(
-                    permissionState = permissionState,
-                    onRequestAll = {
-                        activity?.let {
-                            PermissionManager.requestBasicPermissions(it)
-                            PermissionManager.requestAllFilesAccess(it)
-                            PermissionManager.requestIgnoreBatteryOptimizations(it)
-                            permissionState = PermissionManager.checkPermissions(context)
-                        }
-                    },
-                    onRequestIgnoreBattery = {
-                        activity?.let {
-                            PermissionManager.requestIgnoreBatteryOptimizations(it)
-                            permissionState = PermissionManager.checkPermissions(context)
-                        }
-                    },
-                    onRequestAllFiles = {
-                        activity?.let {
-                            PermissionManager.requestAllFilesAccess(it)
-                            permissionState = PermissionManager.checkPermissions(context)
-                        }
-                    }
-                )
-            }
-        }
 
         item(contentType = "guide") {
             SystemTtsGuideCard(
@@ -811,10 +797,47 @@ fun ModernStudioHomeScreen(
         items(filteredProviders, key = { it.id }) { provider ->
             val isCurrentActive = provider.id == settings.activeProviderId
             val brandColor = remember(provider.type) { BrandTheme.getColorForType(provider.type) }
+            val isItemDragging = draggingProviderId == provider.id
 
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .zIndex(if (isItemDragging) 10f else 1f)
+                    .offset { IntOffset(0, if (isItemDragging) dragOffsetY.roundToInt() else 0) }
+                    .shadow(if (isItemDragging) 12.dp else 1.dp, RoundedCornerShape(16.dp))
+                    .pointerInput(provider.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                draggingProviderId = provider.id
+                                dragOffsetY = 0f
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragOffsetY += dragAmount.y
+                                val fromIdx = providers.indexOfFirst { it.id == provider.id }
+                                if (fromIdx != -1) {
+                                    if (dragOffsetY > swapThresholdPx && fromIdx < providers.size - 1) {
+                                        configDataStore.reorderProviders(fromIdx, fromIdx + 1)
+                                        dragOffsetY -= swapThresholdPx
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    } else if (dragOffsetY < -swapThresholdPx && fromIdx > 0) {
+                                        configDataStore.reorderProviders(fromIdx, fromIdx - 1)
+                                        dragOffsetY += swapThresholdPx
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                }
+                            },
+                            onDragEnd = {
+                                draggingProviderId = null
+                                dragOffsetY = 0f
+                            },
+                            onDragCancel = {
+                                draggingProviderId = null
+                                dragOffsetY = 0f
+                            }
+                        )
+                    }
                     .combinedClickable(
                         onClick = {
                             configDataStore.updateSettings(settings.copy(activeProviderId = provider.id))
@@ -914,9 +937,34 @@ fun ModernStudioHomeScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(72.dp))
         }
     }
+
+    // 🌟 全局可拖拽主控坞 (Universal Draggable Floating Master Dock)
+    FloatingMasterDock(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        activeProvider = activeProvider,
+        currentUiStyle = "STUDIO",
+        isPlaying = isPlaying,
+        isSynthesizing = isSynthesizing,
+        onPlayToggle = {
+            if (isPlaying || isSynthesizing) {
+                stopPlayback()
+            } else {
+                activeProvider?.let { playSpeechWithProvider(it, testText) }
+            }
+        },
+        onRandomQuote = {
+            val item = QuoteService.getRandomLocalQuote()
+            testText = item.text
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        },
+        onSwitchUiStyle = onSwitchUiStyle,
+        onOpenProviderConfig = onNavigateToEditProvider
+    )
 
     // 睡眠定时器对话框
     if (showSleepTimerDialog) {
@@ -1017,5 +1065,6 @@ fun ModernStudioHomeScreen(
                 }
             }
         )
+    }
     }
 }

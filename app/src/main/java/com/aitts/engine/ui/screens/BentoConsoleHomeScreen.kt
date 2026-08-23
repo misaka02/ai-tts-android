@@ -107,6 +107,7 @@ import com.aitts.engine.permission.PermissionManager
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.QuoteService
 import com.aitts.engine.service.SleepTimerManager
+import com.aitts.engine.ui.components.FloatingMasterDock
 import com.aitts.engine.ui.components.PermissionCard
 import com.aitts.engine.ui.components.SystemTtsGuideCard
 import com.aitts.engine.ui.theme.BrandTheme
@@ -266,12 +267,13 @@ fun BentoConsoleHomeScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
         // 🌟 顶部全息状态胶囊栏
         item(contentType = "bento_topbar") {
             Spacer(modifier = Modifier.height(4.dp))
@@ -360,34 +362,6 @@ fun BentoConsoleHomeScreen(
                         }
                     }
                 }
-            }
-        }
-
-        if (!permissionState.isAllGranted) {
-            item(contentType = "permission") {
-                PermissionCard(
-                    permissionState = permissionState,
-                    onRequestAll = {
-                        activity?.let {
-                            PermissionManager.requestBasicPermissions(it)
-                            PermissionManager.requestAllFilesAccess(it)
-                            PermissionManager.requestIgnoreBatteryOptimizations(it)
-                            permissionState = PermissionManager.checkPermissions(context)
-                        }
-                    },
-                    onRequestIgnoreBattery = {
-                        activity?.let {
-                            PermissionManager.requestIgnoreBatteryOptimizations(it)
-                            permissionState = PermissionManager.checkPermissions(context)
-                        }
-                    },
-                    onRequestAllFiles = {
-                        activity?.let {
-                            PermissionManager.requestAllFilesAccess(it)
-                            permissionState = PermissionManager.checkPermissions(context)
-                        }
-                    }
-                )
             }
         }
 
@@ -818,104 +792,30 @@ fun BentoConsoleHomeScreen(
         }
     }
 
-    // 🌟 底部人机工学悬浮主控坞 (Floating Master Thumb Dock - 单手拇指轻松触达)
-    Surface(
+    // 🌟 底部人机工学悬浮主控坞 (Universal Draggable Floating Master Dock)
+    FloatingMasterDock(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-            .shadow(12.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, activeBrandColor.copy(alpha = 0.4f))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .weight(1f)
-                    .combinedClickable(
-                        onClick = {
-                            activeProvider?.let { playSpeechWithProvider(it, testText) }
-                        },
-                        onDoubleClick = {
-                            activeProvider?.let { onNavigateToEditProvider(it.id) }
-                        }
-                    )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(activeBrandColor.copy(alpha = 0.2f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.VolumeUp,
-                        contentDescription = null,
-                        tint = activeBrandColor,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = activeProvider?.name ?: "未激活引擎",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = "双击进设置 · 点击立即试听",
-                        fontSize = 9.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        activeProvider = activeProvider,
+        currentUiStyle = "BENTO",
+        isPlaying = isPlaying,
+        isSynthesizing = isSynthesizing,
+        onPlayToggle = {
+            if (isPlaying || isSynthesizing) {
+                stopPlayback()
+            } else {
+                activeProvider?.let { playSpeechWithProvider(it, testText) }
             }
-
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                IconButton(
-                    onClick = {
-                        val item = QuoteService.getRandomLocalQuote()
-                        testText = item.text
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.Casino, contentDescription = "随机语料", modifier = Modifier.size(16.dp))
-                }
-
-                Button(
-                    onClick = {
-                        if (isPlaying || isSynthesizing) {
-                            stopPlayback()
-                        } else {
-                            activeProvider?.let { playSpeechWithProvider(it, testText) }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = activeBrandColor),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(34.dp)
-                ) {
-                    if (isSynthesizing) {
-                        CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp, color = Color.White)
-                    } else if (isPlaying) {
-                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("停止", fontSize = 11.5.sp)
-                    } else {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("试听", fontSize = 11.5.sp)
-                    }
-                }
-            }
-        }
-    }
+        },
+        onRandomQuote = {
+            val item = QuoteService.getRandomLocalQuote()
+            testText = item.text
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        },
+        onSwitchUiStyle = onSwitchUiStyle,
+        onOpenProviderConfig = onNavigateToEditProvider
+    )
 
     // 睡眠定时器对话框
     if (showSleepTimerDialog) {
@@ -1016,5 +916,6 @@ fun BentoConsoleHomeScreen(
                 }
             }
         )
+    }
     }
 }

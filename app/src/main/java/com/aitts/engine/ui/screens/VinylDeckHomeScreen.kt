@@ -127,6 +127,7 @@ import com.aitts.engine.permission.PermissionManager
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.QuoteService
 import com.aitts.engine.service.SleepTimerManager
+import com.aitts.engine.ui.components.FloatingMasterDock
 import com.aitts.engine.ui.components.HistoryDialog
 import com.aitts.engine.ui.components.PermissionCard
 import com.aitts.engine.ui.components.SleepTimerDialog
@@ -349,157 +350,130 @@ fun VinylDeckHomeScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // 🌟 顶部黑胶电台状态栏
-        item(contentType = "vinyl_topbar") {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(
-                                Brush.linearGradient(listOf(activeBrandColor, MaterialTheme.colorScheme.secondary)),
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Radio,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "AI TTS",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Black
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // 🌟 顶部黑胶电台状态栏
+            item(contentType = "vinyl_topbar") {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(
+                                    Brush.linearGradient(listOf(activeBrandColor, MaterialTheme.colorScheme.secondary)),
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Radio,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                            ) {
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "v${com.aitts.engine.BuildConfig.VERSION_NAME}",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    text = "AI TTS",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                ) {
+                                    Text(
+                                        text = "v${com.aitts.engine.BuildConfig.VERSION_NAME}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "黑胶唱机沉浸式阅览舱",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { showSleepTimerDialog = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Bedtime,
+                                contentDescription = "睡眠定时",
+                                tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(onClick = { showHistoryDialog = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = "历史统计",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Box {
+                            AssistChip(
+                                onClick = { showStyleMenu = true },
+                                label = { Text("📻 Vinyl 唱机", fontSize = 11.sp) }
+                            )
+                            DropdownMenu(
+                                expanded = showStyleMenu,
+                                onDismissRequest = { showStyleMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("🚀 Bento 全息声球工作台") },
+                                    onClick = {
+                                        onSwitchUiStyle("BENTO")
+                                        showStyleMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("🎛️ DAW 专业调音台") },
+                                    onClick = {
+                                        onSwitchUiStyle("STUDIO")
+                                        showStyleMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("📻 Vinyl 黑胶沉浸阅览舱") },
+                                    onClick = {
+                                        onSwitchUiStyle("VINYL")
+                                        showStyleMenu = false
+                                    }
                                 )
                             }
                         }
-                        Text(
-                            text = "黑胶唱机沉浸式阅览舱",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { showSleepTimerDialog = true }, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = Icons.Default.Bedtime,
-                            contentDescription = "睡眠定时",
-                            tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    IconButton(onClick = { showHistoryDialog = true }, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "历史统计",
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Box {
-                        AssistChip(
-                            onClick = { showStyleMenu = true },
-                            label = { Text("📻 Vinyl 唱机", fontSize = 11.sp) }
-                        )
-                        DropdownMenu(
-                            expanded = showStyleMenu,
-                            onDismissRequest = { showStyleMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("🚀 Bento 全息声球工作台") },
-                                onClick = {
-                                    onSwitchUiStyle("BENTO")
-                                    showStyleMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("🎛️ DAW 专业调音台") },
-                                onClick = {
-                                    onSwitchUiStyle("STUDIO")
-                                    showStyleMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("📻 Vinyl 黑胶沉浸阅览舱") },
-                                onClick = {
-                                    onSwitchUiStyle("VINYL")
-                                    showStyleMenu = false
-                                }
-                            )
-                        }
                     }
                 }
             }
-        }
 
-        if (!permissionState.isAllGranted) {
-            item(contentType = "permission") {
-                PermissionCard(
-                    permissionState = permissionState,
-                    onRequestAll = {
-                        activity?.let {
-                            PermissionManager.requestBasicPermissions(it)
-                            PermissionManager.requestAllFilesAccess(it)
-                            PermissionManager.requestIgnoreBatteryOptimizations(it)
-                            permissionState = PermissionManager.checkPermissions(context)
-                        }
-                    },
-                    onRequestIgnoreBattery = {
-                        activity?.let {
-                            PermissionManager.requestIgnoreBatteryOptimizations(it)
-                            permissionState = PermissionManager.checkPermissions(context)
-                        }
-                    },
-                    onRequestAllFiles = {
-                        activity?.let {
-                            PermissionManager.requestAllFilesAccess(it)
-                            permissionState = PermissionManager.checkPermissions(context)
-                        }
+            item(contentType = "guide") {
+                SystemTtsGuideCard(
+                    onOpenSettings = {
+                        activity?.let { PermissionManager.openSystemTtsSettings(it) }
                     }
                 )
             }
-        }
-
-        item(contentType = "guide") {
-            SystemTtsGuideCard(
-                onOpenSettings = {
-                    activity?.let { PermissionManager.openSystemTtsSettings(it) }
-                }
-            )
-        }
 
         // 🌟 核心黑胶留声机沉浸式主舱 (Hero Vinyl Turntable Station)
         item(contentType = "vinyl_player") {
@@ -885,7 +859,7 @@ fun VinylDeckHomeScreen(
                                 },
                                 onDrag = { change, dragAmount ->
                                     change.consume()
-                                    dragOffsetY += dragAmount.y
+                                    handleItemDrag(provider.id, dragAmount.y)
                                 },
                                 onDragEnd = {
                                     draggingProviderId = null
@@ -1008,9 +982,34 @@ fun VinylDeckHomeScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(72.dp))
         }
     }
+
+    // 🌟 全局可拖拽主控坞 (Universal Draggable Floating Master Dock)
+    FloatingMasterDock(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        activeProvider = activeProvider,
+        currentUiStyle = "VINYL",
+        isPlaying = isPlaying,
+        isSynthesizing = isSynthesizing,
+        onPlayToggle = {
+            if (isPlaying || isSynthesizing) {
+                stopPlayback()
+            } else {
+                activeProvider?.let { playSpeechWithProvider(it, testText) }
+            }
+        },
+        onRandomQuote = {
+            val item = QuoteService.getRandomLocalQuote()
+            testText = item.text
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        },
+        onSwitchUiStyle = onSwitchUiStyle,
+        onOpenProviderConfig = onNavigateToEditProvider
+    )
 
     if (showSleepTimerDialog) {
         SleepTimerDialog(
@@ -1025,5 +1024,6 @@ fun VinylDeckHomeScreen(
             onDismiss = { showHistoryDialog = false },
             onClearHistory = { configDataStore.clearHistory() }
         )
+    }
     }
 }

@@ -105,8 +105,9 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
     var importJsonText by remember { mutableStateOf("") }
     var fallbackExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var permissionState by remember { mutableStateOf(PermissionManager.checkPermissions(context)) }
 
-    val pagerState = rememberPagerState(pageCount = { 4 })
+    val pagerState = rememberPagerState(pageCount = { 5 })
     var pendingExportJson by remember { mutableStateOf<String?>(null) }
 
     val createFileLauncher = rememberLauncherForActivityResult(
@@ -165,7 +166,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("搜索设置 (如: 纯黑 / 代理 / 语速 / 缓存 / 停顿)...", fontSize = 12.sp) },
+            placeholder = { Text("搜索设置 (如: 系统 / 权限 / 纯黑 / 代理 / 语速 / 缓存)...", fontSize = 12.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
             modifier = Modifier
                 .fillMaxWidth()
@@ -178,6 +179,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
 
         if (searchQuery.isBlank()) {
             val categories = listOf(
+                "⚙️ 系统",
                 "🎨 外观",
                 "🔊 声学",
                 "⚡ 网络",
@@ -198,7 +200,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                         text = {
                             Text(
                                 text = title,
-                                fontSize = 12.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Normal
                             )
                         }
@@ -219,12 +221,47 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                 ) {
                     when (page) {
                         0 -> {
+                            // ⚙️ 系统权限与系统 TTS 对接
+                            item(contentType = "system_tts_card") {
+                                SystemTtsCard(activity)
+                            }
+                            item(contentType = "permission_card") {
+                                SectionHeader(
+                                    title = "系统级常驻与运行权限",
+                                    subtitle = "确保后台朗读不中断及文件存储支持"
+                                )
+                                com.aitts.engine.ui.components.PermissionCard(
+                                    permissionState = permissionState,
+                                    onRequestAll = {
+                                        activity?.let {
+                                            PermissionManager.requestBasicPermissions(it)
+                                            PermissionManager.requestAllFilesAccess(it)
+                                            PermissionManager.requestIgnoreBatteryOptimizations(it)
+                                            permissionState = PermissionManager.checkPermissions(context)
+                                        }
+                                    },
+                                    onRequestIgnoreBattery = {
+                                        activity?.let {
+                                            PermissionManager.requestIgnoreBatteryOptimizations(it)
+                                            permissionState = PermissionManager.checkPermissions(context)
+                                        }
+                                    },
+                                    onRequestAllFiles = {
+                                        activity?.let {
+                                            PermissionManager.requestAllFilesAccess(it)
+                                            permissionState = PermissionManager.checkPermissions(context)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        1 -> {
                             // 🎨 外观主题
                             item(contentType = "theme_card") {
                                 ThemeSettingsCard(settings, configDataStore)
                             }
                         }
-                        1 -> {
+                        2 -> {
                             // 🔊 发音声学
                             item(contentType = "novel_card") {
                                 NovelSettingsCard(settings, configDataStore)
@@ -236,7 +273,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                                 HapticSettingsCard(settings, configDataStore)
                             }
                         }
-                        2 -> {
+                        3 -> {
                             // ⚡ 并发网络
                             item(contentType = "failover_card") {
                                 FailoverSettingsCard(settings, providers, configDataStore, fallbackExpanded) { fallbackExpanded = it }
@@ -248,7 +285,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                                 CacheSettingsCard(settings, configDataStore, cacheManager, cacheStats) { cacheStats = it }
                             }
                         }
-                        3 -> {
+                        4 -> {
                             // 💾 备份与关于
                             item(contentType = "backup_card") {
                                 BackupSettingsCard(
@@ -263,9 +300,6 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                                     },
                                     onOpenImportDialog = { showImportDialog = true }
                                 )
-                            }
-                            item(contentType = "system_tts_card") {
-                                SystemTtsCard(activity)
                             }
                             item(contentType = "about_card") {
                                 AboutSettingsCard(context)
