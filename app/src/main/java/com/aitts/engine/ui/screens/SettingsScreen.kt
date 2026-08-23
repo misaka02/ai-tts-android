@@ -181,7 +181,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
             val categories = listOf(
                 "⚙️ 系统",
                 "🎨 外观",
-                "🔊 声学",
+                "📖 听书声学",
                 "⚡ 网络",
                 "💾 备份"
             )
@@ -605,11 +605,16 @@ private fun NovelSettingsCard(settings: com.aitts.engine.data.GlobalSettings, co
                     text = "单句最大字数阈值: ${settings.maxSentenceLength} 字",
                     style = MaterialTheme.typography.bodyMedium
                 )
+                Text(
+                    text = "超出该字数时强制拆分。若希望整段直接合成，可调大至 300~500 字或直接关闭上方分句开关。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Slider(
                     value = settings.maxSentenceLength.toFloat(),
                     onValueChange = { configDataStore.updateSettings(settings.copy(maxSentenceLength = it.toInt())) },
-                    valueRange = 30f..150f,
-                    steps = 12
+                    valueRange = 30f..500f,
+                    steps = 47
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
