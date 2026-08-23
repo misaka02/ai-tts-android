@@ -18,6 +18,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,15 +46,20 @@ import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -181,10 +187,11 @@ fun ModernStudioHomeScreen(
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showHistoryDialog by remember { mutableStateOf(false) }
     var showQuickProviderMenu by remember { mutableStateOf(false) }
+    var isReorderMode by remember { mutableStateOf(false) }
     var draggingProviderId by remember { mutableStateOf<String?>(null) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
-    val swapThresholdPx = remember(density) { with(density) { 70.dp.toPx() } }
+    val swapThresholdPx = remember(density) { with(density) { 56.dp.toPx() } }
 
     var permissionState by remember {
         mutableStateOf(PermissionManager.checkPermissions(context))
@@ -301,6 +308,7 @@ fun ModernStudioHomeScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
+            userScrollEnabled = draggingProviderId == null,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
@@ -772,10 +780,21 @@ fun ModernStudioHomeScreen(
                     fontWeight = FontWeight.Bold
                 )
 
-                TextButton(onClick = onNavigateToTestBench) {
-                    Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("流式沙盒", fontSize = 12.5.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { isReorderMode = !isReorderMode }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = if (isReorderMode) Icons.Default.Check else Icons.Default.SwapVert,
+                            contentDescription = "排序模式",
+                            tint = if (isReorderMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    TextButton(onClick = onNavigateToTestBench) {
+                        Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("流式沙盒", fontSize = 12.5.sp)
+                    }
                 }
             }
 
@@ -805,39 +824,6 @@ fun ModernStudioHomeScreen(
                     .zIndex(if (isItemDragging) 10f else 1f)
                     .offset { IntOffset(0, if (isItemDragging) dragOffsetY.roundToInt() else 0) }
                     .shadow(if (isItemDragging) 12.dp else 1.dp, RoundedCornerShape(16.dp))
-                    .pointerInput(provider.id) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                draggingProviderId = provider.id
-                                dragOffsetY = 0f
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                dragOffsetY += dragAmount.y
-                                val fromIdx = providers.indexOfFirst { it.id == provider.id }
-                                if (fromIdx != -1) {
-                                    if (dragOffsetY > swapThresholdPx && fromIdx < providers.size - 1) {
-                                        configDataStore.reorderProviders(fromIdx, fromIdx + 1)
-                                        dragOffsetY -= swapThresholdPx
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    } else if (dragOffsetY < -swapThresholdPx && fromIdx > 0) {
-                                        configDataStore.reorderProviders(fromIdx, fromIdx - 1)
-                                        dragOffsetY += swapThresholdPx
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                }
-                            },
-                            onDragEnd = {
-                                draggingProviderId = null
-                                dragOffsetY = 0f
-                            },
-                            onDragCancel = {
-                                draggingProviderId = null
-                                dragOffsetY = 0f
-                            }
-                        )
-                    }
                     .combinedClickable(
                         onClick = {
                             configDataStore.updateSettings(settings.copy(activeProviderId = provider.id))
@@ -845,6 +831,10 @@ fun ModernStudioHomeScreen(
                         },
                         onDoubleClick = {
                             onNavigateToEditProvider(provider.id)
+                        },
+                        onLongClick = {
+                            isReorderMode = !isReorderMode
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
                     ),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -854,16 +844,66 @@ fun ModernStudioHomeScreen(
                     color = if (isCurrentActive) brandColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                 )
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // 拖拽把手 (Dedicated Drag Handle)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .pointerInput(provider.id) {
+                                    detectDragGestures(
+                                        onDragStart = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            isReorderMode = true
+                                            draggingProviderId = provider.id
+                                            dragOffsetY = 0f
+                                        },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragOffsetY += dragAmount.y
+                                            val fromIdx = providers.indexOfFirst { it.id == provider.id }
+                                            if (fromIdx != -1) {
+                                                if (dragOffsetY > swapThresholdPx && fromIdx < providers.size - 1) {
+                                                    configDataStore.reorderProviders(fromIdx, fromIdx + 1)
+                                                    dragOffsetY -= swapThresholdPx
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                } else if (dragOffsetY < -swapThresholdPx && fromIdx > 0) {
+                                                    configDataStore.reorderProviders(fromIdx, fromIdx - 1)
+                                                    dragOffsetY += swapThresholdPx
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                }
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            draggingProviderId = null
+                                            dragOffsetY = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggingProviderId = null
+                                            dragOffsetY = 0f
+                                        }
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DragHandle,
+                                contentDescription = "按住拖拽排序",
+                                tint = if (isItemDragging) brandColor else MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(34.dp)
                                     .background(
                                         Brush.radialGradient(
                                             listOf(brandColor.copy(alpha = 0.25f), Color.Transparent)
@@ -874,13 +914,13 @@ fun ModernStudioHomeScreen(
                             ) {
                                 Text(
                                     text = provider.type.name.take(2),
-                                    fontSize = 12.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = brandColor
                                 )
                             }
 
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
 
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -913,22 +953,37 @@ fun ModernStudioHomeScreen(
                             }
                         }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            // 单卡片快速试听
-                            IconButton(
-                                onClick = { playSpeechWithProvider(provider, testText) }
-                            ) {
-                                if (isSynthesizing && currentTestingProviderId == provider.id) {
-                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                } else if (isPlaying && currentTestingProviderId == provider.id) {
-                                    Icon(Icons.Default.Stop, contentDescription = "停止", tint = MaterialTheme.colorScheme.error)
-                                } else {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = "试听", tint = brandColor)
+                        if (isReorderMode) {
+                            // 排序模式按键组
+                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { configDataStore.pinProviderToTop(provider.id) }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.PushPin, contentDescription = "置顶", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                }
+                                IconButton(onClick = { configDataStore.moveProviderUp(provider.id) }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移", modifier = Modifier.size(18.dp))
+                                }
+                                IconButton(onClick = { configDataStore.moveProviderDown(provider.id) }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移", modifier = Modifier.size(18.dp))
                                 }
                             }
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                // 单卡片快速试听
+                                IconButton(
+                                    onClick = { playSpeechWithProvider(provider, testText) }
+                                ) {
+                                    if (isSynthesizing && currentTestingProviderId == provider.id) {
+                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    } else if (isPlaying && currentTestingProviderId == provider.id) {
+                                        Icon(Icons.Default.Stop, contentDescription = "停止", tint = MaterialTheme.colorScheme.error)
+                                    } else {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = "试听", tint = brandColor)
+                                    }
+                                }
 
-                            IconButton(onClick = { onNavigateToEditProvider(provider.id) }) {
-                                Icon(Icons.Default.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.outline)
+                                IconButton(onClick = { onNavigateToEditProvider(provider.id) }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.outline)
+                                }
                             }
                         }
                     }

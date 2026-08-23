@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,15 +44,23 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,7 +100,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -98,6 +110,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aitts.engine.audio.AndroidAudioPlayer
+import kotlin.math.roundToInt
 import com.aitts.engine.audio.AudioEnhancer
 import com.aitts.engine.audio.AudioVisualizerManager
 import com.aitts.engine.data.ConfigDataStore
@@ -169,6 +182,11 @@ fun BentoConsoleHomeScreen(
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showHistoryDialog by remember { mutableStateOf(false) }
     var showStyleMenu by remember { mutableStateOf(false) }
+    var isReorderMode by remember { mutableStateOf(false) }
+    var draggingProviderId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val swapThresholdPx = remember(density) { with(density) { 56.dp.toPx() } }
 
     var permissionState by remember {
         mutableStateOf(PermissionManager.checkPermissions(context))
@@ -269,6 +287,7 @@ fun BentoConsoleHomeScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
+            userScrollEnabled = draggingProviderId == null,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 14.dp),
@@ -730,11 +749,26 @@ fun BentoConsoleHomeScreen(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        text = "极速音色矩阵 (${providers.size})",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "极速音色矩阵 (${providers.size})",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        IconButton(onClick = { isReorderMode = !isReorderMode }, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                imageVector = if (isReorderMode) Icons.Default.Check else Icons.Default.SwapVert,
+                                contentDescription = "排序模式",
+                                tint = if (isReorderMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -760,6 +794,10 @@ fun BentoConsoleHomeScreen(
                                     },
                                     onDoubleClick = {
                                         onNavigateToEditProvider(provider.id)
+                                    },
+                                    onLongClick = {
+                                        isReorderMode = !isReorderMode
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
                                 )
                             ) {
@@ -781,6 +819,169 @@ fun BentoConsoleHomeScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 🌟 声线列表与排序区域 (Voice Models & Draggable Reorder)
+        items(providers, key = { it.id }) { provider ->
+            val isCurrentActive = provider.id == settings.activeProviderId
+            val brandColor = remember(provider.type) { BrandTheme.getColorForType(provider.type) }
+            val isItemDragging = draggingProviderId == provider.id
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .zIndex(if (isItemDragging) 10f else 1f)
+                    .offset { IntOffset(0, if (isItemDragging) dragOffsetY.roundToInt() else 0) }
+                    .shadow(if (isItemDragging) 10.dp else 1.dp, RoundedCornerShape(14.dp)),
+                shape = RoundedCornerShape(14.dp),
+                color = if (isCurrentActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface,
+                border = BorderStroke(
+                    width = if (isCurrentActive) 1.5.dp else 1.dp,
+                    color = if (isCurrentActive) brandColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = {
+                                configDataStore.updateSettings(settings.copy(activeProviderId = provider.id))
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
+                            onDoubleClick = {
+                                onNavigateToEditProvider(provider.id)
+                            },
+                            onLongClick = {
+                                isReorderMode = !isReorderMode
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        )
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // 拖拽把手 (Dedicated Drag Handle)
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .pointerInput(provider.id) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        isReorderMode = true
+                                        draggingProviderId = provider.id
+                                        dragOffsetY = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetY += dragAmount.y
+                                        val fromIdx = providers.indexOfFirst { it.id == provider.id }
+                                        if (fromIdx != -1) {
+                                            if (dragOffsetY > swapThresholdPx && fromIdx < providers.size - 1) {
+                                                configDataStore.reorderProviders(fromIdx, fromIdx + 1)
+                                                dragOffsetY -= swapThresholdPx
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            } else if (dragOffsetY < -swapThresholdPx && fromIdx > 0) {
+                                                configDataStore.reorderProviders(fromIdx, fromIdx - 1)
+                                                dragOffsetY += swapThresholdPx
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            }
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        draggingProviderId = null
+                                        dragOffsetY = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggingProviderId = null
+                                        dragOffsetY = 0f
+                                    }
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DragHandle,
+                            contentDescription = "按住拖拽排序",
+                            tint = if (isItemDragging) brandColor else MaterialTheme.colorScheme.outlineVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(
+                                    Brush.radialGradient(listOf(brandColor.copy(alpha = 0.25f), Color.Transparent)),
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = provider.type.name.take(2),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = brandColor
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = provider.name,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                                if (isCurrentActive) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = brandColor.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = "生效中",
+                                            fontSize = 9.sp,
+                                            color = brandColor,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = "${provider.type.displayName} · ${provider.voiceId.ifBlank { "默认" }}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (isReorderMode) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { configDataStore.pinProviderToTop(provider.id) }, modifier = Modifier.size(26.dp)) {
+                                Icon(Icons.Default.PushPin, contentDescription = "置顶", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                            }
+                            IconButton(onClick = { configDataStore.moveProviderUp(provider.id) }, modifier = Modifier.size(26.dp)) {
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "上移", modifier = Modifier.size(16.dp))
+                            }
+                            IconButton(onClick = { configDataStore.moveProviderDown(provider.id) }, modifier = Modifier.size(26.dp)) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "下移", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    } else {
+                        IconButton(onClick = { onNavigateToEditProvider(provider.id) }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
                         }
                     }
                 }

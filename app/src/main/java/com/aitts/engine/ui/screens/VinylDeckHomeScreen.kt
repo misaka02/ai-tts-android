@@ -20,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -352,6 +353,7 @@ fun VinylDeckHomeScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
+            userScrollEnabled = draggingProviderId == null,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 14.dp),
@@ -848,29 +850,7 @@ fun VinylDeckHomeScreen(
                         .zIndex(if (isItemDragging) 10f else 1f)
                         .offset { IntOffset(0, if (isItemDragging) dragOffsetY.roundToInt() else 0) }
                         .shadow(if (isItemDragging) 12.dp else 1.dp, RoundedCornerShape(12.dp))
-                        .scale(if (isItemDragging) 1.025f else 1f)
-                        .pointerInput(provider.id) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    isReorderMode = true
-                                    draggingProviderId = provider.id
-                                    dragOffsetY = 0f
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    handleItemDrag(provider.id, dragAmount.y)
-                                },
-                                onDragEnd = {
-                                    draggingProviderId = null
-                                    dragOffsetY = 0f
-                                },
-                                onDragCancel = {
-                                    draggingProviderId = null
-                                    dragOffsetY = 0f
-                                }
-                            )
-                        },
+                        .scale(if (isItemDragging) 1.025f else 1f),
                     shape = RoundedCornerShape(12.dp),
                     color = if (isItemActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surface,
                     border = BorderStroke(
@@ -882,7 +862,6 @@ fun VinylDeckHomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .combinedClickable(
-                                enabled = !isReorderMode,
                                 onClick = {
                                     configDataStore.setActiveProviderId(provider.id)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -891,24 +870,62 @@ fun VinylDeckHomeScreen(
                                     onNavigateToEditProvider(provider.id)
                                 },
                                 onLongClick = {
+                                    isReorderMode = !isReorderMode
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    isReorderMode = true
                                 }
                             )
                             .padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // 拖拽把手 (Dedicated Drag Handle)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .pointerInput(provider.id) {
+                                    detectDragGestures(
+                                        onDragStart = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            isReorderMode = true
+                                            draggingProviderId = provider.id
+                                            dragOffsetY = 0f
+                                        },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            handleItemDrag(provider.id, dragAmount.y)
+                                        },
+                                        onDragEnd = {
+                                            draggingProviderId = null
+                                            dragOffsetY = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggingProviderId = null
+                                            dragOffsetY = 0f
+                                        }
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DragHandle,
+                                contentDescription = "按住拖拽排序",
+                                tint = if (isItemDragging) brandColor else MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
                         // 唱片封套微缩图
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(36.dp)
                                 .background(Color(0xFF1C1C1C), CircleShape)
                                 .border(1.dp, brandColor.copy(alpha = 0.5f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(16.dp)
+                                    .size(14.dp)
                                     .background(brandColor, CircleShape)
                             )
                         }
@@ -951,7 +968,7 @@ fun VinylDeckHomeScreen(
                         }
 
                         if (isReorderMode) {
-                            // 排序模式按键组
+                            // 排序模式实体按键组
                             IconButton(onClick = { configDataStore.pinProviderToTop(provider.id) }, modifier = Modifier.size(28.dp)) {
                                 Icon(Icons.Default.PushPin, contentDescription = "置顶", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                             }
