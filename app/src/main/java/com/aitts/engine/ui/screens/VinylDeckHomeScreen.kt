@@ -15,9 +15,11 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -106,6 +108,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -142,7 +145,7 @@ import kotlin.math.roundToInt
  * 2. 实时小说/语料字幕提词卷轴 (Teleprompter Quote Roll)；
  * 3. 唱片架声线阵列，兼具视听冲击力与实用性。
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun VinylDeckHomeScreen(
     configDataStore: ConfigDataStore,
@@ -871,7 +874,29 @@ fun VinylDeckHomeScreen(
                         .zIndex(if (isItemDragging) 10f else 1f)
                         .offset { IntOffset(0, if (isItemDragging) dragOffsetY.roundToInt() else 0) }
                         .shadow(if (isItemDragging) 12.dp else 1.dp, RoundedCornerShape(12.dp))
-                        .scale(if (isItemDragging) 1.025f else 1f),
+                        .scale(if (isItemDragging) 1.025f else 1f)
+                        .pointerInput(provider.id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    isReorderMode = true
+                                    draggingProviderId = provider.id
+                                    dragOffsetY = 0f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    dragOffsetY += dragAmount.y
+                                },
+                                onDragEnd = {
+                                    draggingProviderId = null
+                                    dragOffsetY = 0f
+                                },
+                                onDragCancel = {
+                                    draggingProviderId = null
+                                    dragOffsetY = 0f
+                                }
+                            )
+                        },
                     shape = RoundedCornerShape(12.dp),
                     color = if (isItemActive) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surface,
                     border = BorderStroke(
@@ -882,9 +907,20 @@ fun VinylDeckHomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(enabled = !isReorderMode) {
-                                configDataStore.setActiveProviderId(provider.id)
-                            }
+                            .combinedClickable(
+                                enabled = !isReorderMode,
+                                onClick = {
+                                    configDataStore.setActiveProviderId(provider.id)
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
+                                onDoubleClick = {
+                                    onNavigateToEditProvider(provider.id)
+                                },
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    isReorderMode = true
+                                }
+                            )
                             .padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

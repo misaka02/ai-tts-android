@@ -1,6 +1,9 @@
 package com.aitts.engine.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,20 +20,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -44,20 +50,24 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.InputChip
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -67,9 +77,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -82,9 +92,16 @@ import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.ui.components.SectionHeader
+import com.aitts.engine.ui.theme.BrandTheme
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/**
+ * 🎛️ 模型参数高级配置工作台 (v2.9.0 左右滑动手势 + 3大Tab分类架构)
+ * 1. 🔌 基础连接与鉴权 (Base URL / API Key / 厂商选择 / 标签)
+ * 2. 🎙️ 音色与声学参数 (主音色表 / 语速 / 音调 / 格式 / 采样率 / MiMo模式)
+ * 3. 🎭 角色与高级调度 (双角色分流 / 导演词 / 自定义模板 / 故障降级)
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ProviderConfigScreen(
     providerId: String,
@@ -95,6 +112,11 @@ fun ProviderConfigScreen(
     val scope = rememberCoroutineScope()
     val providers by configDataStore.providersFlow.collectAsState()
     val audioPlayer = remember { AndroidAudioPlayer(context) }
+    DisposableEffect(Unit) {
+        onDispose {
+            audioPlayer.stop()
+        }
+    }
 
     val initialConfig = providers.find { it.id == providerId }
         ?: PresetConfigs.createDefaultProviders().first()
@@ -121,9 +143,9 @@ fun ProviderConfigScreen(
     var isTypeMenuExpanded by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
     var isFetchingVoices by remember { mutableStateOf(false) }
-    var testMessage by remember { mutableStateOf<String?>(null) }
 
     var fallbackProviderId by remember { mutableStateOf(initialConfig.fallbackProviderId ?: "") }
+    var fallbackExpanded by remember { mutableStateOf(false) }
     var maleVoiceId by remember { mutableStateOf(initialConfig.maleVoiceId) }
     var femaleVoiceId by remember { mutableStateOf(initialConfig.femaleVoiceId) }
     var elderVoiceId by remember { mutableStateOf(initialConfig.elderVoiceId) }
@@ -136,6 +158,9 @@ fun ProviderConfigScreen(
     var showVoiceDialog by remember { mutableStateOf(false) }
     var voiceSearchQuery by remember { mutableStateOf("") }
     var previewingVoiceId by remember { mutableStateOf<String?>(null) }
+
+    val pagerState = rememberPagerState(pageCount = { 3 })
+    val brandColor = BrandTheme.getColorForType(selectedType)
 
     fun buildCurrentConfig(): TtsProviderConfig {
         return initialConfig.copy(
@@ -248,7 +273,7 @@ fun ProviderConfigScreen(
                 promptInstruction = "Please read the text aloud clearly and naturally with appropriate emotions."
             }
             ProviderType.CUSTOM_HTTP -> {
-                name = "自定义 HTTP 节点"
+                name = "自定义 GPT-SoVITS 节点"
                 baseUrl = "http://192.168.1.100:9880/tts"
                 modelName = "gpt-sovits-v2"
                 voiceId = "default"
@@ -256,87 +281,633 @@ fun ProviderConfigScreen(
                 audioFormat = "wav"
             }
         }
+        Toast.makeText(context, "已套用 ${type.displayName} 标准模板", Toast.LENGTH_SHORT).show()
     }
 
-    fun loadVoices(forDialogue: Boolean = false) {
-        isPickingDialogueVoice = forDialogue
+    fun fetchOnlineVoices() {
+        if (isFetchingVoices) return
         isFetchingVoices = true
         scope.launch {
-            val config = buildCurrentConfig()
-            val voices = TtsProviderManager.getInstance().getAvailableVoices(config)
-            availableVoices = voices
-            isFetchingVoices = false
-            showVoiceDialog = true
+            try {
+                val current = buildCurrentConfig()
+                val list = when (selectedType) {
+                    ProviderType.EDGE_TTS -> PresetConfigs.edgeVoices
+                    ProviderType.MIMO -> PresetConfigs.mimoVoices
+                    ProviderType.MINIMAX -> PresetConfigs.minimaxVoices
+                    ProviderType.GEMINI -> PresetConfigs.geminiVoices
+                    ProviderType.DOUBAO -> PresetConfigs.doubaoVoices
+                    ProviderType.SILICONFLOW -> PresetConfigs.siliconFlowVoices
+                    ProviderType.STEPFUN -> PresetConfigs.stepFunVoices
+                    ProviderType.FISH_AUDIO -> PresetConfigs.fishAudioVoices
+                    ProviderType.OPENAI -> PresetConfigs.openAiVoices
+                    else -> TtsProviderManager.getInstance().getAvailableVoices(current)
+                }
+                availableVoices = list
+                showVoiceDialog = true
+            } catch (e: Exception) {
+                Toast.makeText(context, "获取音色列表失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isFetchingVoices = false
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(name.ifBlank { "配置 AI 模型" }, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1)
+                        Text("${selectedType.displayName} · 左右滑动切换选项", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        val updated = buildCurrentConfig()
+                        configDataStore.updateProvider(updated)
+                        Toast.makeText(context, "配置已保存", Toast.LENGTH_SHORT).show()
+                        onNavigateBack()
+                    }) {
+                        Icon(Icons.Default.Check, contentDescription = "保存", tint = brandColor)
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                tonalElevation = 4.dp,
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            if (isTesting) {
+                                audioPlayer.stop()
+                                isTesting = false
+                            } else {
+                                isTesting = true
+                                scope.launch {
+                                    try {
+                                        val testConfig = buildCurrentConfig()
+                                        val res = TtsProviderManager.getInstance().synthesize("您好，正在为您试听 ${testConfig.name} 的语音合成效果。", testConfig)
+                                        if (res.isSuccess) {
+                                            audioPlayer.playAudio(res.getOrThrow())
+                                        } else {
+                                            Toast.makeText(context, "试听失败: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "试听异常: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    } finally {
+                                        isTesting = false
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("试听中...", fontSize = 12.sp)
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("试听当前参数", fontSize = 12.sp)
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            val updated = buildCurrentConfig()
+                            configDataStore.updateProvider(updated)
+                            Toast.makeText(context, "配置已成功保存！", Toast.LENGTH_SHORT).show()
+                            onNavigateBack()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = brandColor),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1.2f)
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("保存配置", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 14.dp)
+        ) {
+            val tabs = listOf(
+                "🔌 基础连接",
+                "🎙️ 音色声学",
+                "🎭 角色高级"
+            )
+
+            TabRow(
+                selectedTabIndex = pagerState.currentPage,
+                containerColor = Color.Transparent,
+                contentColor = brandColor,
+                divider = {}
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = pagerState.currentPage == index,
+                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                        text = {
+                            Text(
+                                text = title,
+                                fontSize = 12.5.sp,
+                                fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    when (page) {
+                        0 -> {
+                            // Tab 0: 🔌 基础连接与鉴权
+                            item(contentType = "model_type") {
+                                SectionHeader(title = "模型类型与官方预设")
+
+                                ExposedDropdownMenuBox(
+                                    expanded = isTypeMenuExpanded,
+                                    onExpandedChange = { isTypeMenuExpanded = it }
+                                ) {
+                                    OutlinedTextField(
+                                        value = selectedType.displayName,
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("AI 语音厂商 / 协议") },
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isTypeMenuExpanded) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor()
+                                    )
+
+                                    ExposedDropdownMenu(
+                                        expanded = isTypeMenuExpanded,
+                                        onDismissRequest = { isTypeMenuExpanded = false }
+                                    ) {
+                                        ProviderType.values().forEach { type ->
+                                            DropdownMenuItem(
+                                                text = { Text(type.displayName) },
+                                                onClick = {
+                                                    selectedType = type
+                                                    isTypeMenuExpanded = false
+                                                    applyOfficialDefaults(type)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedButton(
+                                    onClick = { applyOfficialDefaults(selectedType) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("一键填入 ${selectedType.displayName} 官方官方标准端点与默认配置", fontSize = 11.5.sp)
+                                }
+                            }
+
+                            item(contentType = "basic_info") {
+                                SectionHeader(title = "配置显示名称")
+
+                                OutlinedTextField(
+                                    value = name,
+                                    onValueChange = { name = it },
+                                    label = { Text("配置显示名称 (如: 小米茉莉 / 微软晓晓)") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            if (selectedType.requiresApiKey || selectedType == ProviderType.CUSTOM_HTTP) {
+                                item(contentType = "auth_info") {
+                                    SectionHeader(title = "接口鉴权与端点地址")
+
+                                    OutlinedTextField(
+                                        value = baseUrl,
+                                        onValueChange = { baseUrl = it },
+                                        label = { Text("API Base URL / 官方接口地址") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    OutlinedTextField(
+                                        value = apiKey,
+                                        onValueChange = { apiKey = it },
+                                        label = { Text("API Key / Access Token") },
+                                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                        trailingIcon = {
+                                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                                Icon(
+                                                    imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                    contentDescription = null
+                                                )
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+
+                            item(contentType = "tags_section") {
+                                SectionHeader(title = "分类标签 (Tags)")
+
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    tags.forEach { tag ->
+                                        InputChip(
+                                            selected = false,
+                                            onClick = { tags = tags - tag },
+                                            label = { Text(tag, fontSize = 11.sp) },
+                                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = "删除", modifier = Modifier.size(12.dp)) }
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedTextField(
+                                        value = newTagInput,
+                                        onValueChange = { newTagInput = it },
+                                        placeholder = { Text("添加标签 (如: 男声 / 播客 / 角色)...", fontSize = 12.sp) },
+                                        modifier = Modifier.weight(1f).height(48.dp),
+                                        singleLine = true
+                                    )
+                                    Button(
+                                        onClick = {
+                                            if (newTagInput.isNotBlank() && !tags.contains(newTagInput.trim())) {
+                                                tags = tags + newTagInput.trim()
+                                                newTagInput = ""
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("添加", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                        1 -> {
+                            // Tab 1: 🎙️ 音色与声学参数
+                            item(contentType = "model_voice") {
+                                SectionHeader(title = "模型代号与发音人")
+
+                                OutlinedTextField(
+                                    value = modelName,
+                                    onValueChange = { modelName = it },
+                                    label = { Text("模型名称 (Model Identifier)") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = voiceId,
+                                        onValueChange = { voiceId = it },
+                                        label = { Text("主音色 ID / Speaker") },
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    Button(
+                                        onClick = {
+                                            isPickingDialogueVoice = false
+                                            fetchOnlineVoices()
+                                        },
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.RecordVoiceOver, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("音色表", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+
+                            if (selectedType == ProviderType.MIMO) {
+                                item(contentType = "mimo_workshop") {
+                                    SectionHeader(title = "小米 MiMo 模式工作台")
+
+                                    var mimoMode by remember(modelName) {
+                                        mutableStateOf(
+                                            when {
+                                                modelName.contains("voicedesign") -> "voicedesign"
+                                                modelName.contains("voiceclone") -> "voiceclone"
+                                                else -> "standard"
+                                            }
+                                        )
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        FilterChip(
+                                            selected = mimoMode == "standard",
+                                            onClick = {
+                                                mimoMode = "standard"
+                                                modelName = "mimo-v2.5-tts"
+                                            },
+                                            label = { Text("🎙️ 标准合成", fontSize = 11.5.sp) }
+                                        )
+                                        FilterChip(
+                                            selected = mimoMode == "voicedesign",
+                                            onClick = {
+                                                mimoMode = "voicedesign"
+                                                modelName = "mimo-v2.5-tts-voicedesign"
+                                                if (promptInstruction.isBlank() || promptInstruction.contains("温柔知性")) {
+                                                    promptInstruction = "一位22岁的江南温婉女子，声音轻柔甜美、带有一点点水乡软糯感，语速舒缓治愈"
+                                                }
+                                            },
+                                            label = { Text("✨ 自然语言音色设计", fontSize = 11.5.sp) }
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (selectedType == ProviderType.GEMINI || selectedType == ProviderType.MIMO) {
+                                item(contentType = "prompt_instruction") {
+                                    SectionHeader(title = "AI 导演情感提示词 (Prompt Instruction)")
+
+                                    OutlinedTextField(
+                                        value = promptInstruction,
+                                        onValueChange = { promptInstruction = it },
+                                        label = { Text("语气指导 / 场景设定") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        minLines = 2,
+                                        maxLines = 4
+                                    )
+                                }
+                            }
+
+                            item(contentType = "acoustics_sliders") {
+                                SectionHeader(title = "声学微调滑杆 (语速 / 音调 / 音量)")
+
+                                Text(text = "默认语速: ${"%.2f".format(speed)}x", style = MaterialTheme.typography.bodyMedium)
+                                Slider(
+                                    value = speed,
+                                    onValueChange = { speed = (it * 10).toInt() / 10f },
+                                    valueRange = 0.5f..2.5f,
+                                    steps = 19
+                                )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(text = "基频音调 (Pitch): ${"%.2f".format(pitch)}x", style = MaterialTheme.typography.bodyMedium)
+                                Slider(
+                                    value = pitch,
+                                    onValueChange = { pitch = (it * 10).toInt() / 10f },
+                                    valueRange = 0.5f..2.0f,
+                                    steps = 14
+                                )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(text = "音量增益 (Volume): ${"%.2f".format(volume)}x", style = MaterialTheme.typography.bodyMedium)
+                                Slider(
+                                    value = volume,
+                                    onValueChange = { volume = (it * 10).toInt() / 10f },
+                                    valueRange = 0.5f..2.0f,
+                                    steps = 14
+                                )
+                            }
+
+                            item(contentType = "audio_format") {
+                                SectionHeader(title = "采样率与编码格式")
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = sampleRate,
+                                        onValueChange = { sampleRate = it },
+                                        label = { Text("采样率 (Hz)") },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    OutlinedTextField(
+                                        value = audioFormat,
+                                        onValueChange = { audioFormat = it },
+                                        label = { Text("音频格式 (mp3/wav/pcm16)") },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                        2 -> {
+                            // Tab 2: 🎭 角色与高级调度
+                            item(contentType = "dual_role") {
+                                SectionHeader(title = "小说双角色分流 (旁白 vs 对话)")
+
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("启用旁白与对白双音色分流", fontWeight = FontWeight.SemiBold)
+                                                Text(
+                                                    "正文旁白使用主音色，引述双引号对话自动切换至独立对话音色",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Switch(
+                                                checked = isDualRoleEnabled,
+                                                onCheckedChange = { isDualRoleEnabled = it }
+                                            )
+                                        }
+
+                                        if (isDualRoleEnabled) {
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                OutlinedTextField(
+                                                    value = dialogueVoiceId,
+                                                    onValueChange = { dialogueVoiceId = it },
+                                                    label = { Text("对话专属音色 ID") },
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Button(
+                                                    onClick = {
+                                                        isPickingDialogueVoice = true
+                                                        fetchOnlineVoices()
+                                                    },
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("选音色", fontSize = 12.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            item(contentType = "failover_target") {
+                                SectionHeader(title = "专属故障降级备用引擎")
+
+                                val fallbackProvider = allProviders.find { it.id == fallbackProviderId }
+
+                                ExposedDropdownMenuBox(
+                                    expanded = fallbackExpanded,
+                                    onExpandedChange = { fallbackExpanded = it }
+                                ) {
+                                    OutlinedTextField(
+                                        value = fallbackProvider?.name ?: "跟随全局默认备用引擎",
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("指定故障时的备用引擎") },
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fallbackExpanded) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor()
+                                    )
+
+                                    ExposedDropdownMenu(
+                                        expanded = fallbackExpanded,
+                                        onDismissRequest = { fallbackExpanded = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("跟随全局默认备用引擎") },
+                                            onClick = {
+                                                fallbackProviderId = ""
+                                                fallbackExpanded = false
+                                            }
+                                        )
+                                        allProviders.filter { it.id != providerId }.forEach { p ->
+                                            DropdownMenuItem(
+                                                text = { Text("${p.name} (${p.type.displayName})") },
+                                                onClick = {
+                                                    fallbackProviderId = p.id
+                                                    fallbackExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (selectedType == ProviderType.CUSTOM_HTTP) {
+                                item(contentType = "custom_templates") {
+                                    SectionHeader(title = "自定义 HTTP 模板与请求头")
+
+                                    OutlinedTextField(
+                                        value = customPayloadTemplate,
+                                        onValueChange = { customPayloadTemplate = it },
+                                        label = { Text("请求体 JSON 模板") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        minLines = 4
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    OutlinedTextField(
+                                        value = customHeadersJson,
+                                        onValueChange = { customHeadersJson = it },
+                                        label = { Text("自定义 Headers (JSON 格式)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        minLines = 2
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(36.dp))
+                    }
+                }
+            }
         }
     }
 
     if (showVoiceDialog) {
+        val filteredVoices = availableVoices.filter {
+            voiceSearchQuery.isBlank() ||
+                    it.name.contains(voiceSearchQuery, ignoreCase = true) ||
+                    it.id.contains(voiceSearchQuery, ignoreCase = true) ||
+                    it.description.contains(voiceSearchQuery, ignoreCase = true)
+        }
+
         AlertDialog(
             onDismissRequest = {
                 audioPlayer.stop()
                 previewingVoiceId = null
                 showVoiceDialog = false
             },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isPickingDialogueVoice) "选择对话专属角色音色" else "选择官方音色 / 旁白角色")
-                }
-            },
+            title = { Text(if (isPickingDialogueVoice) "选择对话专属音色" else "选择主发音人音色") },
             text = {
-                Column(modifier = Modifier.fillMaxWidth().height(420.dp)) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = voiceSearchQuery,
                         onValueChange = { voiceSearchQuery = it },
-                        placeholder = { Text("搜索音色名称 / ID / 风格...") },
+                        placeholder = { Text("搜索音色名称 / 性别 / 风格...") },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    var selectedVoiceFilter by remember { mutableStateOf("全部") }
-
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(300.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        listOf("全部", "中文", "女声", "男声", "英文").forEach { filter ->
-                            FilterChip(
-                                selected = selectedVoiceFilter == filter,
-                                onClick = { selectedVoiceFilter = filter },
-                                label = { Text(filter, fontSize = 11.sp) }
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    val filteredVoices = availableVoices.filter { voice ->
-                        val matchesSearch = voice.name.contains(voiceSearchQuery, ignoreCase = true) ||
-                                voice.id.contains(voiceSearchQuery, ignoreCase = true) ||
-                                voice.description.contains(voiceSearchQuery, ignoreCase = true)
-
-                        val matchesFilter = when (selectedVoiceFilter) {
-                            "中文" -> voice.locale.startsWith("zh", ignoreCase = true) || voice.name.contains("Chinese", ignoreCase = true)
-                            "英文" -> voice.locale.startsWith("en", ignoreCase = true)
-                            "女声" -> voice.gender.equals("Female", ignoreCase = true) || voice.name.contains("女")
-                            "男声" -> voice.gender.equals("Male", ignoreCase = true) || voice.name.contains("男")
-                            else -> true
-                        }
-
-                        matchesSearch && matchesFilter
-                    }
-
-                    if (filteredVoices.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("未找到匹配音色", color = MaterialTheme.colorScheme.outline)
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
+                        if (filteredVoices.isEmpty()) {
+                            item {
+                                Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    Text("未找到符合条件的音色", color = MaterialTheme.colorScheme.outline)
+                                }
+                            }
+                        } else {
                             items(filteredVoices) { voice ->
                                 val isCurrentSelected = if (isPickingDialogueVoice) dialogueVoiceId == voice.id else voiceId == voice.id
                                 Card(
@@ -362,7 +933,7 @@ fun ProviderConfigScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Row(
@@ -372,7 +943,7 @@ fun ProviderConfigScreen(
                                                 Text(
                                                     text = voice.name,
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 14.sp
+                                                    fontSize = 13.5.sp
                                                 )
                                                 Text(
                                                     text = "${voice.gender} · ${voice.locale}",
@@ -382,16 +953,9 @@ fun ProviderConfigScreen(
                                             }
                                             Text(
                                                 text = "ID: ${voice.id}",
-                                                fontSize = 11.sp,
+                                                fontSize = 10.5.sp,
                                                 color = MaterialTheme.colorScheme.outline
                                             )
-                                            if (voice.description.isNotBlank()) {
-                                                Text(
-                                                    text = voice.description,
-                                                    fontSize = 11.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
                                         }
 
                                         IconButton(
@@ -420,9 +984,9 @@ fun ProviderConfigScreen(
                                             }
                                         ) {
                                             if (previewingVoiceId == voice.id) {
-                                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                             } else {
-                                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "试听", tint = MaterialTheme.colorScheme.primary)
+                                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "试听", tint = brandColor)
                                             }
                                         }
                                     }
@@ -442,690 +1006,5 @@ fun ProviderConfigScreen(
                 }
             }
         )
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("编辑 AI 模型配置", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        val updated = buildCurrentConfig()
-                        configDataStore.updateProvider(updated)
-                        Toast.makeText(context, "配置已保存", Toast.LENGTH_SHORT).show()
-                        onNavigateBack()
-                    }) {
-                        Icon(Icons.Default.Check, contentDescription = "保存", tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item(contentType = "model_type") {
-                SectionHeader(title = "模型类型与预设")
-
-                ExposedDropdownMenuBox(
-                    expanded = isTypeMenuExpanded,
-                    onExpandedChange = { isTypeMenuExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = selectedType.displayName,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("AI 语音厂商 / 协议") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isTypeMenuExpanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = isTypeMenuExpanded,
-                        onDismissRequest = { isTypeMenuExpanded = false }
-                    ) {
-                        ProviderType.values().forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.displayName) },
-                                onClick = {
-                                    selectedType = type
-                                    isTypeMenuExpanded = false
-                                    applyOfficialDefaults(type)
-                                }
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedButton(
-                    onClick = { applyOfficialDefaults(selectedType) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("恢复 ${selectedType.displayName} 官方官方标准端点与默认配置")
-                }
-            }
-
-            item(contentType = "basic_info") {
-                SectionHeader(title = "基本信息")
-
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("配置显示名称") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            if (selectedType.requiresApiKey || selectedType == ProviderType.CUSTOM_HTTP) {
-                item(contentType = "auth_info") {
-                    SectionHeader(title = "接口鉴权与地址")
-
-                    OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        label = { Text("API Base URL / 官方接口地址") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        label = { Text("API Key / Access Token") },
-                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                                Icon(
-                                    imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            // 小米 MiMo 专属模式工作台 (标准 / 音色设计 / 声音克隆)
-            if (selectedType == ProviderType.MIMO) {
-                item(contentType = "mimo_workshop") {
-                    SectionHeader(title = "小米 MiMo 工作室模式 (Voice Studio)")
-
-                    var mimoMode by remember(modelName) {
-                        mutableStateOf(
-                            when {
-                                modelName.contains("voicedesign") -> "voicedesign"
-                                modelName.contains("voiceclone") -> "voiceclone"
-                                else -> "standard"
-                            }
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        FilterChip(
-                            selected = mimoMode == "standard",
-                            onClick = {
-                                mimoMode = "standard"
-                                modelName = "mimo-v2.5-tts"
-                            },
-                            label = { Text("🎙️ 标准合成", fontSize = 12.sp) }
-                        )
-                        FilterChip(
-                            selected = mimoMode == "voicedesign",
-                            onClick = {
-                                mimoMode = "voicedesign"
-                                modelName = "mimo-v2.5-tts-voicedesign"
-                                if (promptInstruction.isBlank() || promptInstruction.contains("温柔知性")) {
-                                    promptInstruction = "一位22岁的江南温婉女子，声音轻柔甜美、带有一点点水乡软糯感，语速舒缓治愈"
-                                }
-                            },
-                            label = { Text("🎨 音色设计", fontSize = 12.sp) }
-                        )
-                        FilterChip(
-                            selected = mimoMode == "voiceclone",
-                            onClick = {
-                                mimoMode = "voiceclone"
-                                modelName = "mimo-v2.5-tts-voiceclone"
-                            },
-                            label = { Text("🧬 声音克隆", fontSize = 12.sp) }
-                        )
-                    }
-
-                    if (mimoMode == "voicedesign") {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text("点击下方快捷模版快速填入音色设计提示词：", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            AssistChip(
-                                onClick = {
-                                    promptInstruction = "一位22岁的江南温婉女子，声音轻柔甜美、带有一点点水乡软糯感，语速舒缓治愈"
-                                },
-                                label = { Text("🌸 江南温婉女声", fontSize = 11.sp) }
-                            )
-                            AssistChip(
-                                onClick = {
-                                    promptInstruction = "一位40岁声音浑厚深沉的刑侦悬疑纪录片旁白，富有磁性与压迫感，语气沉着严肃"
-                                },
-                                label = { Text("🎙️ 悬疑磁性男声", fontSize = 11.sp) }
-                            )
-                            AssistChip(
-                                onClick = {
-                                    promptInstruction = "充满朝气的16岁热血少年音，清亮清脆，语调欢快昂扬"
-                                },
-                                label = { Text("🔥 热血动漫少年", fontSize = 11.sp) }
-                            )
-                            AssistChip(
-                                onClick = {
-                                    promptInstruction = "端庄成熟的标准新闻电台女主播腔调，咬字清晰，从容自然"
-                                },
-                                label = { Text("📻 知性电台主播", fontSize = 11.sp) }
-                            )
-                        }
-                    } else if (mimoMode == "voiceclone") {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "💡 在小米开放平台 (platform.xiaomimimo.com) 完成声音克隆后，将获得的克隆音色 ID 直接填入下方的「音色标识 (Voice ID)」即可！",
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            item(contentType = "voice_library") {
-                SectionHeader(title = "模型与官方音色库")
-
-                OutlinedTextField(
-                    value = modelName,
-                    onValueChange = { modelName = it },
-                    label = { Text("模型名称 (Model ID)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = voiceId,
-                        onValueChange = { voiceId = it },
-                        label = { Text("主音色 / 旁白音色 (Voice ID)") },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Button(
-                        onClick = { loadVoices(forDialogue = false) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        if (isFetchingVoices && !isPickingDialogueVoice) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("获取音色", fontSize = 12.sp)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("智能小说多角色双音色", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Text(
-                                    "引号“...”内的对话使用专属角色音色，引号外叙述使用主旁白音色",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                            Switch(
-                                checked = isDualRoleEnabled,
-                                onCheckedChange = { isDualRoleEnabled = it }
-                            )
-                        }
-
-                        if (isDualRoleEnabled) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedTextField(
-                                    value = dialogueVoiceId,
-                                    onValueChange = { dialogueVoiceId = it },
-                                    label = { Text("对话专属音色 (Dialogue ID)") },
-                                    modifier = Modifier.weight(1f)
-                                )
-
-                                Button(
-                                    onClick = { loadVoices(forDialogue = true) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                                ) {
-                                    if (isFetchingVoices && isPickingDialogueVoice) {
-                                        CircularProgressIndicator(
-                                            color = MaterialTheme.colorScheme.onSecondary,
-                                            modifier = Modifier.size(16.dp),
-                                            strokeWidth = 2.dp
-                                        )
-                                    } else {
-                                        Text("选择对话音色", fontSize = 12.sp)
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedTextField(
-                                    value = maleVoiceId,
-                                    onValueChange = { maleVoiceId = it },
-                                    label = { Text("男主音色 (可选)") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                OutlinedTextField(
-                                    value = femaleVoiceId,
-                                    onValueChange = { femaleVoiceId = it },
-                                    label = { Text("女主音色 (可选)") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    audioPlayer.stop()
-                                    isTesting = true
-                                    testMessage = "正在合成有声剧场双角色试听..."
-                                    scope.launch {
-                                        try {
-                                            val narratorCfg = buildCurrentConfig()
-                                            val dialogueCfg = narratorCfg.copy(voiceId = dialogueVoiceId.ifBlank { voiceId })
-                                            val narratorRes = TtsProviderManager.getInstance().synthesize("白衣男子微微一笑：", narratorCfg)
-                                            val dialogueRes = TtsProviderManager.getInstance().synthesize("“不错，但切莫骄傲。”", dialogueCfg)
-                                            if (narratorRes.isSuccess && dialogueRes.isSuccess) {
-                                                val nBytes = narratorRes.getOrNull() ?: ByteArray(0)
-                                                val dBytes = dialogueRes.getOrNull() ?: ByteArray(0)
-                                                testMessage = "正在播放双音色剧场效果..."
-                                                audioPlayer.playAudioBytes(nBytes, onCompletion = {
-                                                    scope.launch {
-                                                        audioPlayer.playAudioBytes(dBytes, onCompletion = {
-                                                            isTesting = false
-                                                            testMessage = "剧场双音色试听完毕"
-                                                        }, onError = {
-                                                            isTesting = false
-                                                            testMessage = "对话音色播放失败: $it"
-                                                        })
-                                                    }
-                                                }, onError = {
-                                                    isTesting = false
-                                                    testMessage = "旁白音色播放失败: $it"
-                                                })
-                                            } else {
-                                                isTesting = false
-                                                testMessage = "合成失败: 旁白(${narratorRes.exceptionOrNull()?.message}) / 对话(${dialogueRes.exceptionOrNull()?.message})"
-                                            }
-                                        } catch (e: Exception) {
-                                            isTesting = false
-                                            testMessage = "试听异常: ${e.message}"
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("🎭 试听小说剧场效果（旁白+对话双音色）", fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 角色标签与专属备用降级专区
-            item(contentType = "tags_and_fallback") {
-                SectionHeader(title = "角色标签与专属备用引擎 (Tags & Fallback)")
-
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("自定义分类标签：", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            tags.forEach { tag ->
-                                InputChip(
-                                    selected = true,
-                                    onClick = { tags = tags.filter { it != tag } },
-                                    label = { Text(tag, fontSize = 11.sp) },
-                                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = "删除", modifier = Modifier.size(14.dp)) }
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = newTagInput,
-                                onValueChange = { newTagInput = it },
-                                label = { Text("新建标签") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true
-                            )
-                            Button(
-                                onClick = {
-                                    if (newTagInput.isNotBlank() && !tags.contains(newTagInput.trim())) {
-                                        tags = tags + newTagInput.trim()
-                                        newTagInput = ""
-                                    }
-                                }
-                            ) {
-                                Text("添加")
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("快捷预设标签：", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            listOf("玄幻男主", "治愈女主", "悬疑解说", "冷酷反派", "热血少年", "搞笑幽默", "知性主播").forEach { presetTag ->
-                                AssistChip(
-                                    onClick = {
-                                        if (!tags.contains(presetTag)) {
-                                            tags = tags + presetTag
-                                        }
-                                    },
-                                    label = { Text(presetTag, fontSize = 11.sp) }
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("专属备用降级引擎 (Fallback)：", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Text("当此引擎遇到 API 429 限流、503 超载或网络中断时，将自动秒级切换至备用引擎", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        var isFallbackMenuExpanded by remember { mutableStateOf(false) }
-                        val fallbackName = allProviders.find { it.id == fallbackProviderId }?.name ?: "跟随全局默认备用"
-
-                        ExposedDropdownMenuBox(
-                            expanded = isFallbackMenuExpanded,
-                            onExpandedChange = { isFallbackMenuExpanded = it }
-                        ) {
-                            OutlinedTextField(
-                                value = fallbackName,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("故障转移备用引擎") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isFallbackMenuExpanded) },
-                                modifier = Modifier.fillMaxWidth().menuAnchor()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = isFallbackMenuExpanded,
-                                onDismissRequest = { isFallbackMenuExpanded = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("跟随全局默认备用") },
-                                    onClick = {
-                                        fallbackProviderId = ""
-                                        isFallbackMenuExpanded = false
-                                    }
-                                )
-                                allProviders.filter { it.id != initialConfig.id }.forEach { p ->
-                                    DropdownMenuItem(
-                                        text = { Text("${p.name} (${p.type.displayName})") },
-                                        onClick = {
-                                            fallbackProviderId = p.id
-                                            isFallbackMenuExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 大模型导演模式 / 提示词控制专区
-            if (selectedType == ProviderType.MIMO || selectedType == ProviderType.GEMINI || selectedType == ProviderType.SILICONFLOW || selectedType == ProviderType.OPENAI || selectedType == ProviderType.CUSTOM_HTTP) {
-                item(contentType = "director_mode") {
-                    SectionHeader(title = "大模型导演模式 / 提示词控制 (Director Mode)")
-
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("提示词指令控制语气、情感与语速", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "MiMo 等大模型通过自然语言指导朗读。滑动条的语速音调将自动与下方提示词融合，向大模型下发高质量导演指令。",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            OutlinedTextField(
-                                value = promptInstruction,
-                                onValueChange = { promptInstruction = it },
-                                label = { Text("导演提示词 (例如: 用温柔知性的语气朗读，情感丰富)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                minLines = 2,
-                                maxLines = 4
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text("快捷情绪风格模版：", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                AssistChip(
-                                    onClick = { promptInstruction = "用温柔知性的语气朗读，情感细腻，娓娓道来" },
-                                    label = { Text("温柔知性", fontSize = 11.sp) }
-                                )
-                                AssistChip(
-                                    onClick = { promptInstruction = "用沉稳严肃、富有压迫感和神秘感的语气朗读" },
-                                    label = { Text("悬疑沉稳", fontSize = 11.sp) }
-                                )
-                                AssistChip(
-                                    onClick = { promptInstruction = "用高亢激昂、热烈且充满力量感的战斗对白语气朗读" },
-                                    label = { Text("战斗热血", fontSize = 11.sp) }
-                                )
-                                AssistChip(
-                                    onClick = { promptInstruction = "用轻快明亮、活泼灵动、富有少女感的语气朗读" },
-                                    label = { Text("活泼少女", fontSize = 11.sp) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            item(contentType = "audio_tuning") {
-                SectionHeader(title = "音频与发音参数")
-
-                Text(
-                    text = "语速倍率: ${String.format("%.2f", speed)}x",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Slider(
-                    value = speed,
-                    onValueChange = { speed = it },
-                    valueRange = 0.5f..2.0f
-                )
-
-                Text(
-                    text = "音调微调: ${String.format("%.2f", pitch)}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Slider(
-                    value = pitch,
-                    onValueChange = { pitch = it },
-                    valueRange = 0.5f..1.5f
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = sampleRate,
-                        onValueChange = { sampleRate = it },
-                        label = { Text("采样率 (Hz)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    OutlinedTextField(
-                        value = audioFormat,
-                        onValueChange = { audioFormat = it },
-                        label = { Text("音频格式") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            if (selectedType == ProviderType.CUSTOM_HTTP) {
-                item {
-                    SectionHeader(title = "自定义模板引擎参数")
-
-                    OutlinedTextField(
-                        value = customHeadersJson,
-                        onValueChange = { customHeadersJson = it },
-                        label = { Text("自定义 Headers (JSON)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 4
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = customPayloadTemplate,
-                        onValueChange = { customPayloadTemplate = it },
-                        label = { Text("自定义 Request Body 模板 (\${text}, \${voice}, \${speed})") },
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 6
-                    )
-                }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Button(
-                    onClick = {
-                        isTesting = true
-                        testMessage = null
-                        scope.launch {
-                            val config = buildCurrentConfig()
-                            val result = TtsProviderManager.getInstance().synthesize("测试当前大模型配置与导演模式语音合成效果", config)
-                            isTesting = false
-                            if (result.isSuccess) {
-                                val bytes = result.getOrThrow()
-                                testMessage = "✅ 连接并合成成功！音频大小: ${bytes.size} 字节 (正在播放试听)"
-                                audioPlayer.playAudio(bytes)
-                            } else {
-                                testMessage = "❌ 合成失败: ${result.exceptionOrNull()?.message}"
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (isTesting) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("正在测试连接与合成...")
-                    } else {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("测试此模型配置并试听")
-                    }
-                }
-
-                if (testMessage != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = testMessage ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (testMessage?.startsWith("✅") == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(80.dp))
-            }
-        }
     }
 }

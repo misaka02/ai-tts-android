@@ -1,8 +1,10 @@
 package com.aitts.engine.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -211,6 +213,7 @@ fun SystemTtsGuideCard(onOpenSettings: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ProviderCard(
     modifier: Modifier = Modifier,
@@ -246,7 +249,21 @@ fun ProviderCard(
             .zIndex(if (isDragging) 10f else 1f)
             .offset { IntOffset(0, if (isDragging) dragOffsetY.roundToInt() else 0) }
             .shadow(if (isDragging) 12.dp else 1.dp, CardCornerShape)
-            .scale(if (isDragging) 1.025f else 1f),
+            .scale(if (isDragging) 1.025f else 1f)
+            .pointerInput(provider.id) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onDragStart()
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount.y)
+                    },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragCancel() }
+                )
+            },
         shape = CardCornerShape,
         color = if (isDragging) {
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
@@ -266,7 +283,15 @@ fun ProviderCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(enabled = !isReorderMode) { onSelect() },
+                .combinedClickable(
+                    enabled = !isReorderMode,
+                    onClick = { onSelect() },
+                    onDoubleClick = { onEdit() },
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onDragStart()
+                    }
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 左侧品牌专属色条

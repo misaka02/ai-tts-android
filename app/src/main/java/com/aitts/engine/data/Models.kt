@@ -548,10 +548,64 @@ object PresetConfigs {
         VoiceModel("zh-CN-YunyangNeural", "云扬 (男声·专业播音)", "Male", "zh-CN", "新闻播音腔，字正腔圆"),
         VoiceModel("zh-CN-liaoning-XiaobeiNeural", "东北小北 (女声·幽默方言)", "Female", "zh-CN-liaoning", "东北风情，生动幽默"),
         VoiceModel("zh-CN-shaanxi-XiaoniNeural", "陕西小妮 (女声·陕西方言)", "Female", "zh-CN-shaanxi", "西北方言特色"),
-        VoiceModel("zh-TW-HsiaoChenNeural", "曉臻 (台灣女聲·溫柔親切)", "Female", "zh-TW", "台灣國語女聲"),
+        VoiceModel("zh-TW-HsiaoChenNeural", "曉臻 (台灣女聲·溫柔親切)", "Female", "zh-TW", "台灣國語女声"),
         VoiceModel("zh-HK-HiuMaanNeural", "曉曼 (粵語女聲·標準清晰)", "Female", "zh-HK", "廣東話 / 粵語朗讀"),
         VoiceModel("en-US-JennyNeural", "Jenny (English Female)", "Female", "en-US", "Standard US English Female"),
         VoiceModel("en-US-GuyNeural", "Guy (English Male)", "Male", "en-US", "Standard US English Male"),
         VoiceModel("ja-JP-NanamiNeural", "七海 (日本語女声)", "Female", "ja-JP", "日本語朗読・アニメ風")
+    )
+
+    val mimoVoices = listOf(
+        VoiceModel("茉莉", "茉莉 (女声·知性温婉)", "Female", "zh-CN", "小米 MiMo 默认招牌音色，细腻自然"),
+        VoiceModel("小爱", "小爱 (女声·活泼甜美)", "Female", "zh-CN", "经典小爱同学音色"),
+        VoiceModel("青峰", "青峰 (男声·温润青年)", "Male", "zh-CN", "沉稳儒雅青年男声"),
+        VoiceModel("明澈", "明澈 (男声·阳光明快)", "Male", "zh-CN", "明亮阳光少年音")
+    )
+
+    val minimaxVoices = listOf(
+        VoiceModel("male-qn-qingse", "青涩青年 (男声·情感真挚)", "Male", "zh-CN", "MiniMax 经典小说男主角音色"),
+        VoiceModel("female-shaonv", "活力少女 (女声·清脆悦耳)", "Female", "zh-CN", "MiniMax 少女音色"),
+        VoiceModel("female-yujie", "知性御姐 (女声·端庄优雅)", "Female", "zh-CN", "适合职场与悬疑小说"),
+        VoiceModel("presenter_male", "专业播报 (男声·浑厚稳重)", "Male", "zh-CN", "新闻纪录片播报")
+    )
+
+    val geminiVoices = listOf(
+        VoiceModel("Puck", "Puck (Natural Playful)", "Neutral", "en-US", "Google Gemini 原生拟真音色"),
+        VoiceModel("Charon", "Charon (Deep & Resonant)", "Male", "en-US", "低沉有磁性"),
+        VoiceModel("Kore", "Kore (Warm & Soothing)", "Female", "en-US", "温暖治愈女声"),
+        VoiceModel("Fenrir", "Fenrir (Energetic Narrative)", "Male", "en-US", "充满叙事张力"),
+        VoiceModel("Aoede", "Aoede (Melodic Expressive)", "Female", "en-US", "表现力丰富自然")
+    )
+
+    val doubaoVoices = listOf(
+        VoiceModel("zh_female_shuangkuaisisi_moon_bigtts", "爽快思思 (女声·招牌女主播)", "Female", "zh-CN", "火山引擎高表现力大模型音色"),
+        VoiceModel("zh_male_cancan_moon_bigtts", "灿灿主播 (男声·沉稳有磁性)", "Male", "zh-CN", "火山引擎热门男声主播"),
+        VoiceModel("zh_female_tianmeixiaoyuan_moon_bigtts", "甜美小源 (女声·青春活泼)", "Female", "zh-CN", "校园风轻松甜美"),
+        VoiceModel("zh_male_chunhou_moon_bigtts", "醇厚大叔 (男声·故事感长者)", "Male", "zh-CN", "历史与传记小说专用")
+    )
+
+    val siliconFlowVoices = listOf(
+        VoiceModel("FunAudioLLM/CosyVoice2-0.5B:alex", "Alex (CosyVoice2 青年男声)", "Male", "zh-CN", "极速低延迟拟真男声"),
+        VoiceModel("FunAudioLLM/CosyVoice2-0.5B:anna", "Anna (CosyVoice2 温柔女声)", "Female", "zh-CN", "极速低延迟知性女声"),
+        VoiceModel("FunAudioLLM/CosyVoice2-0.5B:bella", "Bella (CosyVoice2 甜美主播)", "Female", "zh-CN", "生动有感染力")
+    )
+
+    val stepFunVoices = listOf(
+        VoiceModel("cixingnansheng", "磁性男声 (Step-Audio 2.5)", "Male", "zh-CN", "阶跃星辰多模态大模型音色"),
+        VoiceModel("wenrounvsheng", "温柔女声 (Step-Audio 2.5)", "Female", "zh-CN", "舒缓伴读女声")
+    )
+
+    val fishAudioVoices = listOf(
+        VoiceModel("7f92f8afb8ec43bf81429cc1c9199cb1", "Fish Audio 精选女声", "Female", "zh-CN", "鱼音官方推荐小说音色"),
+        VoiceModel("54a5840656684bfc882cb4244ff1e39a", "Fish Audio 沉浸男声", "Male", "zh-CN", "鱼音官方推荐沉浸男声")
+    )
+
+    val openAiVoices = listOf(
+        VoiceModel("alloy", "Alloy (OpenAI Balanced)", "Neutral", "en-US", "均衡通用音色"),
+        VoiceModel("echo", "Echo (OpenAI Resonant Male)", "Male", "en-US", "磁性男声"),
+        VoiceModel("fable", "Fable (OpenAI British Narrative)", "Neutral", "en-GB", "英音叙事"),
+        VoiceModel("onyx", "Onyx (OpenAI Deep Male)", "Male", "en-US", "低沉男声"),
+        VoiceModel("nova", "Nova (OpenAI Energetic Female)", "Female", "en-US", "活力女声"),
+        VoiceModel("shimmer", "Shimmer (OpenAI Clear Female)", "Female", "en-US", "清亮女声")
     )
 }

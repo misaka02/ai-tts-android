@@ -14,8 +14,10 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -118,7 +120,7 @@ import java.io.File
  * 4. 模块化声线矩阵卡片，支持单卡片前置测速与一键设为主音色；
  * 5. 与经典列表视图支持双向一键实时无缝切换。
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ModernStudioHomeScreen(
     configDataStore: ConfigDataStore,
@@ -813,10 +815,15 @@ fun ModernStudioHomeScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
-                        configDataStore.updateSettings(settings.copy(activeProviderId = provider.id))
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    },
+                    .combinedClickable(
+                        onClick = {
+                            configDataStore.updateSettings(settings.copy(activeProviderId = provider.id))
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        },
+                        onDoubleClick = {
+                            onNavigateToEditProvider(provider.id)
+                        }
+                    ),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(

@@ -14,9 +14,11 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -120,7 +122,7 @@ import java.io.File
  * 3. 几何 Bento 模块化卡片布局（声球浮岛、物理声谱、灵感瀑布、模型声线 Dock）；
  * 4. 三套 UI 风格自由切换并支持 100% 完整核心功能。
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun BentoConsoleHomeScreen(
     configDataStore: ConfigDataStore,
@@ -777,10 +779,15 @@ fun BentoConsoleHomeScreen(
                                     width = if (isSelected) 1.5.dp else 1.dp,
                                     color = if (isSelected) brandColor else Color.Transparent
                                 ),
-                                modifier = Modifier.clickable {
-                                    configDataStore.updateSettings(settings.copy(activeProviderId = provider.id))
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
+                                modifier = Modifier.combinedClickable(
+                                    onClick = {
+                                        configDataStore.updateSettings(settings.copy(activeProviderId = provider.id))
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    },
+                                    onDoubleClick = {
+                                        onNavigateToEditProvider(provider.id)
+                                    }
+                                )
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
@@ -807,7 +814,106 @@ fun BentoConsoleHomeScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(72.dp))
+        }
+    }
+
+    // 🌟 底部人机工学悬浮主控坞 (Floating Master Thumb Dock - 单手拇指轻松触达)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .shadow(12.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        border = BorderStroke(1.dp, activeBrandColor.copy(alpha = 0.4f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f)
+                    .combinedClickable(
+                        onClick = {
+                            activeProvider?.let { playSpeechWithProvider(it, testText) }
+                        },
+                        onDoubleClick = {
+                            activeProvider?.let { onNavigateToEditProvider(it.id) }
+                        }
+                    )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(activeBrandColor.copy(alpha = 0.2f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = null,
+                        tint = activeBrandColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = activeProvider?.name ?: "未激活引擎",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "双击进设置 · 点击立即试听",
+                        fontSize = 9.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(
+                    onClick = {
+                        val item = QuoteService.getRandomLocalQuote()
+                        testText = item.text
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Casino, contentDescription = "随机语料", modifier = Modifier.size(16.dp))
+                }
+
+                Button(
+                    onClick = {
+                        if (isPlaying || isSynthesizing) {
+                            stopPlayback()
+                        } else {
+                            activeProvider?.let { playSpeechWithProvider(it, testText) }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = activeBrandColor),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    if (isSynthesizing) {
+                        CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp, color = Color.White)
+                    } else if (isPlaying) {
+                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("停止", fontSize = 11.5.sp)
+                    } else {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("试听", fontSize = 11.5.sp)
+                    }
+                }
+            }
         }
     }
 
