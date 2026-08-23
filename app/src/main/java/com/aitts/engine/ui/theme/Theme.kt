@@ -18,16 +18,16 @@ fun buildColorScheme(palette: AppPaletteTheme, isDark: Boolean): ColorScheme {
 
     return if (isDark) {
         val (bg, surface, card, border) = when (palette) {
-            AppPaletteTheme.OCEAN_AZURE -> Quad(Color(0xFF090E17), Color(0xFF101726), Color(0xFF182338), Color(0xFF22314E))
-            AppPaletteTheme.EMERALD_JADE -> Quad(Color(0xFF08120D), Color(0xFF0E1F17), Color(0xFF152D22), Color(0xFF1E4031))
-            AppPaletteTheme.TITANIUM_SLATE -> Quad(Color(0xFF0D121D), Color(0xFF161E2E), Color(0xFF212B3E), Color(0xFF2E3D56))
-            AppPaletteTheme.SUNSET_AMBER -> Quad(Color(0xFF130E07), Color(0xFF1F170D), Color(0xFF2E2214), Color(0xFF3F301D))
-            AppPaletteTheme.MORANDI_GRAPHITE -> Quad(Color(0xFF101317), Color(0xFF1A1F26), Color(0xFF252D37), Color(0xFF343F4D))
-            AppPaletteTheme.NEON_CYBERPUNK -> Quad(Color(0xFF150A18), Color(0xFF200F25), Color(0xFF2D1534), Color(0xFF451F4F))
-            AppPaletteTheme.AURORA_MINT -> Quad(Color(0xFF071412), Color(0xFF0C201D), Color(0xFF132F2A), Color(0xFF1C423B))
-            AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFF17090D), Color(0xFF240E14), Color(0xFF33141D), Color(0xFF4B1D2A))
-            AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFF0A0A16), Color(0xFF111124), Color(0xFF191933), Color(0xFF26264C))
-            AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFF170A06), Color(0xFF241009), Color(0xFF33170D), Color(0xFF4A2213))
+            AppPaletteTheme.OCEAN_AZURE -> Quad(Color(0xFF070B12), Color(0xFF101726), Color(0xFF182338), Color(0xFF2B3D5C))
+            AppPaletteTheme.EMERALD_JADE -> Quad(Color(0xFF050E09), Color(0xFF0C1D15), Color(0xFF142B20), Color(0xFF244837))
+            AppPaletteTheme.TITANIUM_SLATE -> Quad(Color(0xFF090D15), Color(0xFF141B28), Color(0xFF1F293B), Color(0xFF33435C))
+            AppPaletteTheme.SUNSET_AMBER -> Quad(Color(0xFF0F0A04), Color(0xFF1A1308), Color(0xFF291E10), Color(0xFF45341E))
+            AppPaletteTheme.MORANDI_GRAPHITE -> Quad(Color(0xFF0C0E12), Color(0xFF161B22), Color(0xFF222832), Color(0xFF37414F))
+            AppPaletteTheme.NEON_CYBERPUNK -> Quad(Color(0xFF100512), Color(0xFF1C0A20), Color(0xFF2B1032), Color(0xFF4C1D57))
+            AppPaletteTheme.AURORA_MINT -> Quad(Color(0xFF040F0D), Color(0xFF0A1B18), Color(0xFF112925), Color(0xFF1F453F))
+            AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFF110508), Color(0xFF1E0B10), Color(0xFF2E121A), Color(0xFF4E202C))
+            AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFF070712), Color(0xFF0F0F20), Color(0xFF181830), Color(0xFF2C2C52))
+            AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFF110603), Color(0xFF1F0C06), Color(0xFF2E140B), Color(0xFF4C2415))
         }
 
         darkColorScheme(
@@ -41,22 +41,22 @@ fun buildColorScheme(palette: AppPaletteTheme, isDark: Boolean): ColorScheme {
             surface = surface,
             onSurface = Color(0xFFF8FAFC),
             surfaceVariant = card,
-            onSurfaceVariant = Color(0xFF94A3B8),
+            onSurfaceVariant = Color(0xFFA0AEC0),
             outline = border,
-            outlineVariant = border.copy(alpha = 0.6f)
+            outlineVariant = border.copy(alpha = 0.7f)
         )
     } else {
         val (bg, surface, card, border) = when (palette) {
-            AppPaletteTheme.OCEAN_AZURE -> Quad(Color(0xFFF0F4F8), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFE2E8F0))
-            AppPaletteTheme.EMERALD_JADE -> Quad(Color(0xFFF0F7F4), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFE2EBE5))
-            AppPaletteTheme.TITANIUM_SLATE -> Quad(Color(0xFFF8FAFC), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFE2E8F0))
-            AppPaletteTheme.SUNSET_AMBER -> Quad(Color(0xFFFDF8F3), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFEDE3D8))
-            AppPaletteTheme.MORANDI_GRAPHITE -> Quad(Color(0xFFECEFF1), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFDCE1E4))
+            AppPaletteTheme.OCEAN_AZURE -> Quad(Color(0xFFF1F5F9), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFCBD5E1))
+            AppPaletteTheme.EMERALD_JADE -> Quad(Color(0xFFF0FDF4), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFBBF7D0))
+            AppPaletteTheme.TITANIUM_SLATE -> Quad(Color(0xFFF8FAFC), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFCBD5E1))
+            AppPaletteTheme.SUNSET_AMBER -> Quad(Color(0xFFFFFBEB), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFFDE68A))
+            AppPaletteTheme.MORANDI_GRAPHITE -> Quad(Color(0xFFF3F4F6), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFD1D5DB))
             AppPaletteTheme.NEON_CYBERPUNK -> Quad(Color(0xFFFDF4FF), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFF5D0FE))
-            AppPaletteTheme.AURORA_MINT -> Quad(Color(0xFFF0FDFA), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFCCFBF1))
-            AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFFFFF1F2), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFFFE4E6))
-            AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFFF5F5FF), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFE0E0FE))
-            AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFFFFF7ED), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFFFEDD5))
+            AppPaletteTheme.AURORA_MINT -> Quad(Color(0xFFF0FDFA), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFF99F6E4))
+            AppPaletteTheme.CHERRY_BLOSSOM -> Quad(Color(0xFFFFF1F2), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFFECDD3))
+            AppPaletteTheme.OBSIDIAN_NIGHT -> Quad(Color(0xFFF5F5FF), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFC7D2FE))
+            AppPaletteTheme.CORAL_CRIMSON -> Quad(Color(0xFFFFF7ED), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFFED7AA))
         }
 
         lightColorScheme(
@@ -70,9 +70,9 @@ fun buildColorScheme(palette: AppPaletteTheme, isDark: Boolean): ColorScheme {
             surface = surface,
             onSurface = Color(0xFF0F172A),
             surfaceVariant = card,
-            onSurfaceVariant = Color(0xFF64748B),
+            onSurfaceVariant = Color(0xFF475569),
             outline = border,
-            outlineVariant = border.copy(alpha = 0.7f)
+            outlineVariant = border.copy(alpha = 0.6f)
         )
     }
 }

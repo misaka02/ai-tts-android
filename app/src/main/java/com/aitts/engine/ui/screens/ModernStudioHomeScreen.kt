@@ -330,7 +330,7 @@ fun ModernStudioHomeScreen(
                             fontWeight = FontWeight.Black
                         )
                         Text(
-                            text = "v2.1.0 专业调音台工作台",
+                            text = "v${com.aitts.engine.BuildConfig.VERSION_NAME} 专业调音台工作台",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

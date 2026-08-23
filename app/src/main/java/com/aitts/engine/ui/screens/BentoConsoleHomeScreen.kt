@@ -298,7 +298,7 @@ fun BentoConsoleHomeScreen(
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                     ) {
                         Text(
-                            text = "v2.2.0",
+                            text = "v${com.aitts.engine.BuildConfig.VERSION_NAME}",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
