@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aitts.engine.audio.AndroidAudioPlayer
 import com.aitts.engine.audio.AudioEnhancer
+import com.aitts.engine.audio.AudioVisualizerManager
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
@@ -137,6 +138,10 @@ fun ModernStudioHomeScreen(
         }
     }
 
+    val visualizerManager = remember { AudioVisualizerManager.getInstance() }
+    val spectrumBands by visualizerManager.spectrumFlow.collectAsState()
+    val rmsEnergy by visualizerManager.rmsEnergyFlow.collectAsState()
+
     val settings by configDataStore.settingsFlow.collectAsState()
     val providers by configDataStore.providersFlow.collectAsState()
     val historyItems by configDataStore.historyFlow.collectAsState()
@@ -176,18 +181,6 @@ fun ModernStudioHomeScreen(
     val activeBrandColor = remember(activeProvider?.type) {
         activeProvider?.let { BrandTheme.getColorForType(it.type) }
     } ?: MaterialTheme.colorScheme.primary
-
-    // 波形示波器动态相位
-    val infiniteTransition = rememberInfiniteTransition(label = "studio_wave")
-    val wavePhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "studio_wave_phase"
-    )
 
     fun stopPlayback() {
         audioPlayer.stop()
@@ -485,6 +478,27 @@ fun ModernStudioHomeScreen(
                             }
                         }
 
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val peakDb = if (isPlaying && rmsEnergy > 0.001f) {
+                                "%.1f dB".format(20 * kotlin.math.log10(rmsEnergy.toDouble()))
+                            } else {
+                                "-inf dB"
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            ) {
+                                Text(
+                                    text = "峰值: $peakDb",
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    color = activeBrandColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
                         DropdownMenu(
                             expanded = showQuickProviderMenu,
                             onDismissRequest = { showQuickProviderMenu = false }
@@ -502,40 +516,38 @@ fun ModernStudioHomeScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    // 动态微频谱可视化器 (Dynamic Mini Spectrum Visualizer)
+                    // 真实物理 32-Band STFT 频域示波器 (Real Physical Spectrum)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(44.dp)
                             .background(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                RoundedCornerShape(12.dp)
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                RoundedCornerShape(10.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp)) {
-                            val barCount = 36
-                            val barSpacing = 2.dp.toPx()
-                            val totalSpacing = barSpacing * (barCount - 1)
-                            val barWidth = (size.width - totalSpacing) / barCount
-                            val maxHeight = size.height * 0.85f
+                        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 5.dp)) {
+                            val count = spectrumBands.size
+                            val spacing = 2.dp.toPx()
+                            val totalSpacing = spacing * (count - 1)
+                            val barWidth = (size.width - totalSpacing) / count
+                            val maxHeight = size.height * 0.9f
 
-                            for (i in 0 until barCount) {
-                                val x = i * (barWidth + barSpacing)
-                                val factor = if (isPlaying || isSynthesizing) {
-                                    val seed = kotlin.math.sin((i * 0.32f + wavePhase * 6.28f).toDouble()).toFloat()
-                                    (seed * 0.45f + 0.55f).coerceIn(0.15f, 1.0f)
-                                } else {
-                                    0.1f
-                                }
-                                val h = maxHeight * factor
+                            for (i in 0 until count) {
+                                val x = i * (barWidth + spacing)
+                                val energy = spectrumBands[i].coerceIn(0.02f, 1.0f)
+                                val h = (maxHeight * energy).coerceAtLeast(2.5.dp.toPx())
                                 val y = (size.height - h) / 2f
 
                                 drawRoundRect(
                                     brush = Brush.verticalGradient(
-                                        listOf(activeBrandColor, activeBrandColor.copy(alpha = 0.4f))
+                                        listOf(
+                                            activeBrandColor,
+                                            activeBrandColor.copy(alpha = 0.35f)
+                                        )
                                     ),
                                     topLeft = Offset(x, y),
                                     size = Size(barWidth, h),

@@ -24,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -87,10 +90,13 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
     var importJsonText by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("全部") }
+    var showPreviewer by remember { mutableStateOf(false) }
 
     val processedOutput = remember(testInput, rules) {
         TextPreprocessor.process(testInput, rules)
     }
+
+    val enabledCount = rules.count { it.enabled }
 
     val filteredRules = rules.filter { rule ->
         val matchesSearch = rule.pattern.contains(searchQuery, ignoreCase = true) ||
@@ -99,8 +105,9 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
 
         val matchesCat = when (selectedCategory) {
             "多音字纠错" -> rule.description.contains("多音字") || !rule.isRegex
-            "排版与水印" -> rule.description.contains("排版") || rule.description.contains("水印") || rule.description.contains("省略号")
+            "排版与标点" -> rule.description.contains("排版") || rule.description.contains("水印") || rule.description.contains("省略号") || rule.description.contains("符号")
             "已启用" -> rule.enabled
+            "已停用" -> !rule.enabled
             else -> true
         }
 
@@ -131,113 +138,124 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 SectionHeader(
-                    title = "文本正则与发音纠正",
-                    subtitle = "多音字纠音、排版符号过滤、兼容「阅读」App 替换规则无缝导入"
+                    title = "发音清洗与正则规则",
+                    subtitle = "多音字纠音、排版符号清洗、兼容「开源阅读」规则导入"
                 )
 
-                // 实时规则测试对比卡片
+                // 规则测试预览折叠卡片
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(14.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("规则实时预览器", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        OutlinedTextField(
-                            value = testInput,
-                            onValueChange = { testInput = it },
-                            label = { Text("输入测试文本") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "清洗替换后: $processedOutput",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("清洗实时预览", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                            TextButton(onClick = { showPreviewer = !showPreviewer }) {
+                                Text(if (showPreviewer) "收起" else "展开测试", fontSize = 11.5.sp)
+                            }
+                        }
+
+                        if (showPreviewer) {
+                            OutlinedTextField(
+                                value = testInput,
+                                onValueChange = { testInput = it },
+                                placeholder = { Text("输入测试段落...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 1,
+                                maxLines = 3,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "替换后: $processedOutput",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                // 快捷工具栏
+                // 快捷工具与批量管理栏
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    OutlinedButton(
+                    AssistChip(
                         onClick = {
-                            showImportDialog = true
+                            configDataStore.saveRules(rules.map { it.copy(enabled = true) })
+                            Toast.makeText(context, "已全部启用 (${rules.size} 条)", Toast.LENGTH_SHORT).show()
                         },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text("导入规则", fontSize = 11.5.sp)
-                    }
+                        label = { Text("一键全开", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                    )
 
-                    OutlinedButton(
+                    AssistChip(
+                        onClick = {
+                            configDataStore.saveRules(rules.map { it.copy(enabled = false) })
+                            Toast.makeText(context, "已全部禁用", Toast.LENGTH_SHORT).show()
+                        },
+                        label = { Text("一键全关", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                    )
+
+                    AssistChip(
                         onClick = { showCuratedDialog = true },
-                        modifier = Modifier.weight(1.1f)
-                    ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text("精选规则包", fontSize = 11.sp)
-                    }
+                        label = { Text("精选规则包", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                    )
 
-                    OutlinedButton(
-                        onClick = {
-                            try {
-                                val json = configDataStore.exportRulesJson()
-                                val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                if (!downloadDir.exists()) downloadDir.mkdirs()
-                                val file = File(downloadDir, "AI_TTS_Rules_${System.currentTimeMillis()}.json")
-                                file.writeBytes(json.toByteArray(Charsets.UTF_8))
-                                Toast.makeText(context, "规则已成功导出至 Downloads/${file.name}", Toast.LENGTH_LONG).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text("导出文件", fontSize = 11.sp)
-                    }
+                    AssistChip(
+                        onClick = { showImportDialog = true },
+                        label = { Text("导入", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // 搜索框
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("搜索替换词 / 拼音 / 规则说明...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    placeholder = { Text("搜索替换规则 / 读音 / 说明...", fontSize = 12.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp)
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 // 分类 Filter Chips
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    listOf("全部", "多音字纠错", "排版与水印", "已启用").forEach { cat ->
+                    listOf(
+                        "全部" to "全部 (${rules.size})",
+                        "已启用" to "已启用 (${enabledCount})",
+                        "已停用" to "已停用 (${rules.size - enabledCount})",
+                        "多音字纠错" to "多音字纠错",
+                        "排版与标点" to "排版与标点"
+                    ).forEach { (catKey, catLabel) ->
                         FilterChip(
-                            selected = selectedCategory == cat,
-                            onClick = { selectedCategory = cat },
-                            label = { Text(cat, fontSize = 11.sp) }
+                            selected = selectedCategory == catKey,
+                            onClick = { selectedCategory = catKey },
+                            label = { Text(catLabel, fontSize = 11.sp) }
                         )
                     }
                 }
@@ -249,14 +267,14 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("规则清单 (${filteredRules.size}/${rules.size})", fontWeight = FontWeight.Bold)
+                    Text("规则列表 (当前展示 ${filteredRules.size} 条)", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                     TextButton(onClick = {
                         configDataStore.saveRules(PresetConfigs.defaultRules)
                         Toast.makeText(context, "已重置为默认预设", Toast.LENGTH_SHORT).show()
                     }) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("恢复预设")
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("恢复预设", fontSize = 11.sp)
                     }
                 }
             }
@@ -264,7 +282,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
             if (filteredRules.isEmpty()) {
                 item(contentType = "empty_placeholder") {
                     Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                        Text("未找到符合条件的替换规则", color = MaterialTheme.colorScheme.outline)
+                        Text("未找到符合条件的替换规则", color = MaterialTheme.colorScheme.outline, fontSize = 12.sp)
                     }
                 }
             } else {
@@ -272,25 +290,33 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            0.5.dp,
+                            if (rule.enabled) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                        )
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                            modifier = Modifier
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Switch(
                                 checked = rule.enabled,
                                 onCheckedChange = { enabled ->
                                     configDataStore.updateRule(rule.copy(enabled = enabled))
-                                }
+                                },
+                                modifier = Modifier.size(36.dp)
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = "${rule.pattern} ➔ ${rule.replacement.ifBlank { "（删除）" }}",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
@@ -310,37 +336,30 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
                                     Text(
                                         text = rule.description,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 11.sp,
+                                        maxLines = 1
                                     )
                                 }
                             }
 
-                            IconButton(onClick = {
-                                val token = configDataStore.exportRuleToken(rule)
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("AI_TTS_Rule_Token", token))
-                                Toast.makeText(context, "已复制规则分享口令到剪贴板", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Icon(Icons.Default.Share, contentDescription = "分享口令", tint = MaterialTheme.colorScheme.primary)
-                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        editingRule = rule
+                                        showDialog = true
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                                }
 
-                            IconButton(onClick = {
-                                val cloned = rule.copy(id = "rule_${UUID.randomUUID().toString().take(8)}")
-                                configDataStore.updateRule(cloned)
-                                Toast.makeText(context, "已复制规则", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "复制", tint = MaterialTheme.colorScheme.outline)
-                            }
-
-                            IconButton(onClick = {
-                                editingRule = rule
-                                showDialog = true
-                            }) {
-                                Icon(Icons.Default.Edit, contentDescription = "编辑", tint = MaterialTheme.colorScheme.primary)
-                            }
-
-                            IconButton(onClick = { configDataStore.deleteRule(rule.id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
+                                IconButton(
+                                    onClick = { configDataStore.deleteRule(rule.id) },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp))
+                                }
                             }
                         }
                     }
@@ -348,7 +367,7 @@ fun RulesScreen(configDataStore: ConfigDataStore) {
             }
 
             item {
-                Spacer(modifier = Modifier.height(80.dp))
+                Spacer(modifier = Modifier.height(70.dp))
             }
         }
     }

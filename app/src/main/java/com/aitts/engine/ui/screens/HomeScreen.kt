@@ -384,7 +384,25 @@ fun HomeScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { showSleepTimerDialog = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Bedtime,
+                            contentDescription = "听书睡眠倒计时",
+                            tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    IconButton(onClick = { showHistoryDialog = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "朗读历史与统计",
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
                     AssistChip(
                         onClick = { configDataStore.updateSettings(settings.copy(appUiStyle = "BENTO")) },
                         label = { Text("🚀 Bento", fontSize = 11.sp) }
@@ -697,81 +715,47 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "音色引擎列表 (${providers.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "长按任意卡片即可拖拽排序，支持一键置顶与复制",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = "音色模型 (${filteredProviders.size}/${providers.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     AssistChip(
-                        onClick = {
-                            configDataStore.updateSettings(settings.copy(appUiStyle = "STUDIO"))
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            Toast.makeText(context, "已切换为 Next-Gen Studio 调音台工作台", Toast.LENGTH_SHORT).show()
-                        },
-                        label = { Text("Studio 模式", fontSize = 11.sp) },
+                        onClick = { probeAllLatencies() },
+                        label = { Text(if (isProbingSpeed) "测速中" else "测速", fontSize = 11.sp) },
                         leadingIcon = {
-                            Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            if (isProbingSpeed) {
+                                CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                            } else {
+                                Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(13.dp))
+                            }
                         }
                     )
-
-                    IconButton(
-                        onClick = { showSleepTimerDialog = true }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Bedtime,
-                            contentDescription = "听书睡眠倒计时",
-                            tint = if (isSleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { showHistoryDialog = true }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = "朗读历史与统计",
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { isReorderMode = !isReorderMode }
-                    ) {
-                        Icon(
-                            imageVector = if (isReorderMode) Icons.Default.Check else Icons.Default.SwapVert,
-                            contentDescription = "切换排序模式",
-                            tint = if (isReorderMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { probeAllLatencies() }
-                    ) {
-                        if (isProbingSpeed) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(Icons.Default.Speed, contentDescription = "一键测速", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
 
                     if (latencyMap.isNotEmpty()) {
                         IconButton(
                             onClick = {
                                 configDataStore.sortProvidersByLatency(latencyMap)
-                                Toast.makeText(context, "已按响应延迟由快到慢排序", Toast.LENGTH_SHORT).show()
-                            }
+                                Toast.makeText(context, "已按延迟由快到慢排序", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "按速度排序", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "按速度排序", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                         }
+                    }
+
+                    IconButton(
+                        onClick = { isReorderMode = !isReorderMode },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isReorderMode) Icons.Default.Check else Icons.Default.SwapVert,
+                            contentDescription = "排序",
+                            tint = if (isReorderMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
 
                     IconButton(
@@ -785,9 +769,10 @@ fun HomeScreen(
                                 }
                             }
                             showImportTokenDialog = true
-                        }
+                        },
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = "导入分享口令", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Download, contentDescription = "导入", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                     }
 
                     IconButton(
@@ -803,9 +788,10 @@ fun HomeScreen(
                             )
                             configDataStore.updateProvider(newConfig)
                             onNavigateToEditProvider(newId)
-                        }
+                        },
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "新建引擎", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Add, contentDescription = "新建", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                     }
                 }
             }

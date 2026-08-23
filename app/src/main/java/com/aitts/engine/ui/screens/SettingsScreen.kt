@@ -149,7 +149,7 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
             Spacer(modifier = Modifier.height(8.dp))
             SectionHeader(
                 title = "外观主题与设计色系",
-                subtitle = "内置 5 套高品质专业色系，彻底告别单调色彩"
+                subtitle = "内置 10+ 套高品质设计色系与 A屏纯黑极夜模式"
             )
 
             Card(
