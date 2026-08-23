@@ -397,31 +397,33 @@ fun HomeScreen(
             }
         }
 
-        item(contentType = "permission") {
-            Spacer(modifier = Modifier.height(4.dp))
-            PermissionCard(
-                permissionState = permissionState,
-                onRequestAll = {
-                    activity?.let {
-                        PermissionManager.requestBasicPermissions(it)
-                        PermissionManager.requestAllFilesAccess(it)
-                        PermissionManager.requestIgnoreBatteryOptimizations(it)
-                        permissionState = PermissionManager.checkPermissions(context)
+        if (!permissionState.isAllGranted) {
+            item(contentType = "permission") {
+                Spacer(modifier = Modifier.height(4.dp))
+                PermissionCard(
+                    permissionState = permissionState,
+                    onRequestAll = {
+                        activity?.let {
+                            PermissionManager.requestBasicPermissions(it)
+                            PermissionManager.requestAllFilesAccess(it)
+                            PermissionManager.requestIgnoreBatteryOptimizations(it)
+                            permissionState = PermissionManager.checkPermissions(context)
+                        }
+                    },
+                    onRequestIgnoreBattery = {
+                        activity?.let {
+                            PermissionManager.requestIgnoreBatteryOptimizations(it)
+                            permissionState = PermissionManager.checkPermissions(context)
+                        }
+                    },
+                    onRequestAllFiles = {
+                        activity?.let {
+                            PermissionManager.requestAllFilesAccess(it)
+                            permissionState = PermissionManager.checkPermissions(context)
+                        }
                     }
-                },
-                onRequestIgnoreBattery = {
-                    activity?.let {
-                        PermissionManager.requestIgnoreBatteryOptimizations(it)
-                        permissionState = PermissionManager.checkPermissions(context)
-                    }
-                },
-                onRequestAllFiles = {
-                    activity?.let {
-                        PermissionManager.requestAllFilesAccess(it)
-                        permissionState = PermissionManager.checkPermissions(context)
-                    }
-                }
-            )
+                )
+            }
         }
 
         item(contentType = "guide") {

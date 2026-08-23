@@ -177,11 +177,7 @@ object AudioDecoder {
                     if (!isExtractorEOS) {
                         val inIndex = codec.dequeueInputBuffer(timeoutUs)
                         if (inIndex >= 0) {
-                            val inBuffer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                codec.getInputBuffer(inIndex)
-                            } else {
-                                codec.inputBuffers[inIndex]
-                            }
+                            val inBuffer = codec.getInputBuffer(inIndex)
                             inBuffer?.clear()
                             val sampleSize = if (inBuffer != null) extractor.readSampleData(inBuffer, 0) else -1
                             if (sampleSize < 0) {
@@ -196,11 +192,7 @@ object AudioDecoder {
 
                     val outIndex = codec.dequeueOutputBuffer(bufferInfo, timeoutUs)
                     if (outIndex >= 0) {
-                        val outBuffer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            codec.getOutputBuffer(outIndex)
-                        } else {
-                            codec.outputBuffers[outIndex]
-                        }
+                        val outBuffer = codec.getOutputBuffer(outIndex)
 
                         if (outBuffer != null && bufferInfo.size > 0) {
                             outBuffer.position(bufferInfo.offset)

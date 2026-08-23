@@ -363,72 +363,104 @@ fun BentoConsoleHomeScreen(
             }
         }
 
-        item(contentType = "permission") {
-            PermissionCard(
-                permissionState = permissionState,
-                onRequestAll = {
-                    activity?.let {
-                        PermissionManager.requestBasicPermissions(it)
-                        PermissionManager.requestAllFilesAccess(it)
-                        PermissionManager.requestIgnoreBatteryOptimizations(it)
-                        permissionState = PermissionManager.checkPermissions(context)
+        if (!permissionState.isAllGranted) {
+            item(contentType = "permission") {
+                PermissionCard(
+                    permissionState = permissionState,
+                    onRequestAll = {
+                        activity?.let {
+                            PermissionManager.requestBasicPermissions(it)
+                            PermissionManager.requestAllFilesAccess(it)
+                            PermissionManager.requestIgnoreBatteryOptimizations(it)
+                            permissionState = PermissionManager.checkPermissions(context)
+                        }
+                    },
+                    onRequestIgnoreBattery = {
+                        activity?.let {
+                            PermissionManager.requestIgnoreBatteryOptimizations(it)
+                            permissionState = PermissionManager.checkPermissions(context)
+                        }
+                    },
+                    onRequestAllFiles = {
+                        activity?.let {
+                            PermissionManager.requestAllFilesAccess(it)
+                            permissionState = PermissionManager.checkPermissions(context)
+                        }
                     }
-                },
-                onRequestIgnoreBattery = {
-                    activity?.let {
-                        PermissionManager.requestIgnoreBatteryOptimizations(it)
-                        permissionState = PermissionManager.checkPermissions(context)
-                    }
-                },
-                onRequestAllFiles = {
-                    activity?.let {
-                        PermissionManager.requestAllFilesAccess(it)
-                        permissionState = PermissionManager.checkPermissions(context)
-                    }
-                }
-            )
+                )
+            }
         }
 
-        item(contentType = "guide") {
-            SystemTtsGuideCard(
-                onOpenSettings = {
-                    activity?.let { PermissionManager.openSystemTtsSettings(it) }
-                }
-            )
-        }
-
-        // 🌟 BENTO HERO: 3D 触控全息声灵球 (Holographic Voice Orb)
-        item(contentType = "bento_voice_orb") {
+        // 🌟 BENTO HERO: 3D 触控全息声灵球 + 32-Band 物理示波器一体化控制台 (Integrated Master Voice Deck)
+        item(contentType = "bento_master_deck") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(26.dp),
-                border = BorderStroke(1.5.dp, activeBrandColor.copy(alpha = 0.5f))
+                shape = RoundedCornerShape(22.dp),
+                border = BorderStroke(1.5.dp, activeBrandColor.copy(alpha = 0.45f))
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
+                        .padding(14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = activeProvider?.name ?: "未配置发音引擎",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "${activeProvider?.type?.displayName} · 音色: ${activeProvider?.voiceId?.ifBlank { "默认" }}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    // 顶部引擎信息与参数快捷按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = activeProvider?.name ?: "未配置发音引擎",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = "${activeProvider?.type?.displayName} · 音色: ${activeProvider?.voiceId?.ifBlank { "默认" }}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val peakDb = if (isPlaying && rmsEnergy > 0.001f) {
+                                "%.1f dB".format(20 * kotlin.math.log10(rmsEnergy.toDouble()))
+                            } else {
+                                "-inf dB"
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            ) {
+                                Text(
+                                    text = peakDb,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    color = activeBrandColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { activeProvider?.let { onNavigateToEditProvider(it.id) } },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.Tune, contentDescription = "配置", tint = activeBrandColor, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // 触控声灵球核心 (Tap Orb to Play/Pause)
                     Box(
                         modifier = Modifier
-                            .size(130.dp)
+                            .size(96.dp)
                             .scale(orbScale)
                             .clip(CircleShape)
                             .background(
@@ -442,7 +474,7 @@ fun BentoConsoleHomeScreen(
                                 )
                             )
                             .border(
-                                width = if (isPlaying) 3.dp else 1.5.dp,
+                                width = if (isPlaying) 2.5.dp else 1.5.dp,
                                 brush = Brush.sweepGradient(
                                     listOf(activeBrandColor, MaterialTheme.colorScheme.tertiary, activeBrandColor)
                                 ),
@@ -461,92 +493,49 @@ fun BentoConsoleHomeScreen(
                         if (isSynthesizing) {
                             CircularProgressIndicator(
                                 color = Color.White,
-                                modifier = Modifier.size(36.dp),
-                                strokeWidth = 3.dp
+                                modifier = Modifier.size(28.dp),
+                                strokeWidth = 2.5.dp
                             )
                         } else if (isPlaying) {
                             Icon(
                                 imageVector = Icons.Default.Stop,
                                 contentDescription = "停止",
                                 tint = Color.White,
-                                modifier = Modifier.size(44.dp)
+                                modifier = Modifier.size(36.dp)
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = "试听",
                                 tint = Color.White,
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(38.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
                         text = if (isSynthesizing) "大模型音频生成中..." else if (isPlaying) "正在播放实时物理声学音频 (轻触声球停止)" else "轻触全息声球试听",
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
                         color = if (isPlaying) activeBrandColor else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal
                     )
-                }
-            }
-        }
 
-        // 🌟 BENTO TILE 1: 真实物理 32-Band FFT 频域示波器 (Real Physical Spectrum)
-        item(contentType = "bento_spectrum") {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = activeBrandColor, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("32-Band 真实物理音频频域示波器", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        }
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                        val peakDb = if (isPlaying && rmsEnergy > 0.001f) {
-                            "%.1f dB".format(20 * kotlin.math.log10(rmsEnergy.toDouble()))
-                        } else {
-                            "-inf dB"
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        ) {
-                            Text(
-                                text = "峰值: $peakDb",
-                                fontSize = 10.5.sp,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                color = activeBrandColor,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // 真实物理频谱渲染画布
+                    // 真实物理 32-Band 频谱渲染画布 (集成在 Hero 卡片底部)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp)
+                            .height(38.dp)
                             .background(
                                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                RoundedCornerShape(12.dp)
+                                RoundedCornerShape(10.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 4.dp)) {
                             val count = spectrumBands.size
                             val spacing = 2.dp.toPx()
                             val totalSpacing = spacing * (count - 1)
@@ -556,7 +545,7 @@ fun BentoConsoleHomeScreen(
                             for (i in 0 until count) {
                                 val x = i * (barWidth + spacing)
                                 val energy = spectrumBands[i].coerceIn(0.02f, 1.0f)
-                                val h = (maxHeight * energy).coerceAtLeast(3.dp.toPx())
+                                val h = (maxHeight * energy).coerceAtLeast(2.5.dp.toPx())
                                 val y = (size.height - h) / 2f
 
                                 drawRoundRect(
@@ -577,91 +566,24 @@ fun BentoConsoleHomeScreen(
             }
         }
 
-        // 🌟 BENTO TILE 2: 实时声学参数微调浮岛 (Tactile Acoustic Controls)
-        item(contentType = "bento_acoustic_controls") {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Tune, contentDescription = null, tint = activeBrandColor, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("发音参数与声学微调", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        }
-
-                        TextButton(
-                            onClick = { activeProvider?.let { onNavigateToEditProvider(it.id) } }
-                        ) {
-                            Text("高级配置", fontSize = 12.sp)
-                        }
-                    }
-
-                    activeProvider?.let { provider ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("主音色语速: ${"%.2f".format(provider.speed)}x", fontSize = 12.5.sp)
-                            Text("24000Hz · 16-bit Mono", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-
-                        Slider(
-                            value = provider.speed,
-                            onValueChange = { newSpeed ->
-                                val updated = provider.copy(speed = (newSpeed * 10).toInt() / 10f)
-                                configDataStore.updateProvider(updated)
-                            },
-                            valueRange = 0.5f..2.5f,
-                            steps = 19,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    if (lastSynthesizedBytes != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedButton(
-                            onClick = {
-                                exportAndShareAudio(lastSynthesizedBytes!!, lastSynthesizedProviderName)
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("导出并分享当前音频 (WAV)", fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-        }
-
-        // 🌟 BENTO TILE 3: 灵感语料与一言实时卡片 (Hitokoto & Prompt Stream)
+        // 🌟 BENTO TILE 1: 灵感语料与紧凑试听卡片 (Corpus & Quick Prompt)
         item(contentType = "bento_corpus") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(18.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("灵感语料与金句", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("灵感试听语料", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -699,7 +621,7 @@ fun BentoConsoleHomeScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     OutlinedTextField(
                         value = testText,
@@ -718,59 +640,140 @@ fun BentoConsoleHomeScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        maxLines = 4,
-                        shape = RoundedCornerShape(12.dp)
+                        minLines = 1,
+                        maxLines = 2,
+                        shape = RoundedCornerShape(10.dp)
                     )
 
                     if (quoteSourceHint != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "💡 $quoteSourceHint",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1
                         )
                     }
                 }
             }
         }
 
-        // 🌟 BENTO TILE 4: 极速声线矩阵 Dock (Voice Matrix Dock)
+        // 🌟 BENTO TILE 2: 2列紧凑分栏 (语速微调 + 引擎快速切换)
+        item(contentType = "bento_dual_deck") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // 左卡片：语速调节
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("发音语速", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                            Text(
+                                text = "${"%.2f".format(activeProvider?.speed ?: 1.0f)}x",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = activeBrandColor
+                            )
+                        }
+
+                        activeProvider?.let { provider ->
+                            Slider(
+                                value = provider.speed,
+                                onValueChange = { newSpeed ->
+                                    val updated = provider.copy(speed = (newSpeed * 10).toInt() / 10f)
+                                    configDataStore.updateProvider(updated)
+                                },
+                                valueRange = 0.5f..2.5f,
+                                steps = 19,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        if (lastSynthesizedBytes != null) {
+                            OutlinedButton(
+                                onClick = { exportAndShareAudio(lastSynthesizedBytes!!, lastSynthesizedProviderName) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("导出WAV", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+
+                // 右卡片：流式沙盒与快速切换
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("测试与沙盒", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                        Text(
+                            text = "24000Hz 16-bit Mono",
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Button(
+                            onClick = onNavigateToTestBench,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.GraphicEq, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("流式沙盒", fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 🌟 BENTO TILE 3: 极速声线矩阵 Dock (Voice Matrix Dock)
         item(contentType = "bento_dock") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(18.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "极速声线矩阵 (${providers.size})",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        TextButton(onClick = onNavigateToTestBench) {
-                            Text("流式沙盒", fontSize = 12.sp)
-                        }
-                    }
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "极速音色矩阵 (${providers.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
 
                     Spacer(modifier = Modifier.height(6.dp))
 
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         providers.forEach { provider ->
                             val isSelected = provider.id == settings.activeProviderId
                             val brandColor = remember(provider.type) { BrandTheme.getColorForType(provider.type) }
 
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 color = if (isSelected) brandColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                 border = BorderStroke(
                                     width = if (isSelected) 1.5.dp else 1.dp,
@@ -782,18 +785,18 @@ fun BentoConsoleHomeScreen(
                                 }
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(8.dp)
+                                            .size(7.dp)
                                             .background(brandColor, CircleShape)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(5.dp))
                                     Text(
                                         text = provider.name,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSelected) brandColor else MaterialTheme.colorScheme.onSurface
                                     )
