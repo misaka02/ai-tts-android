@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +49,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -120,6 +123,7 @@ fun PulseDeckScreen(
     var showImportTokenDialog by remember { mutableStateOf(false) }
     var importTokenInput by remember { mutableStateOf("") }
 
+    var selectedDeckTab by remember { mutableStateOf(0) }
     val density = LocalDensity.current
     val itemHeightPx = with(density) { 92.dp.toPx() }
     var draggedProviderId by remember { mutableStateOf<String?>(null) }
@@ -176,7 +180,7 @@ fun PulseDeckScreen(
                             color = PulseTokens.TextPrimary
                         )
                         Text(
-                            text = "共 ${providers.size} 个大模型语音引擎 · 长按自由排序",
+                            text = "共 ${providers.size} 个大模型语音引擎 · 单手极简掌控",
                             fontSize = 11.sp,
                             color = PulseTokens.CyanElectric,
                             modifier = Modifier.padding(top = 2.dp)
@@ -211,7 +215,38 @@ fun PulseDeckScreen(
                 }
             }
 
-            itemsIndexed(localProviders, key = { _, item -> item.id }) { index, provider ->
+            item {
+                val deckTabs = listOf("全部模型 (${providers.size})", "⭐ 主力引擎", "☁️ 云端大模型", "⚡ 离线/直连")
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(deckTabs) { idx, title ->
+                        val isSelected = selectedDeckTab == idx
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedDeckTab = idx },
+                            label = { Text(title, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PulseTokens.CyanElectric,
+                                selectedLabelColor = Color.Black,
+                                containerColor = PulseTokens.SurfaceElevated,
+                                labelColor = PulseTokens.TextSecondary
+                            ),
+                            border = if (isSelected) null else PulseTokens.BorderSubtle
+                        )
+                    }
+                }
+            }
+
+            val displayedProviders = when (selectedDeckTab) {
+                1 -> localProviders.filter { it.id == settings.activeProviderId }
+                2 -> localProviders.filter { it.type.requiresApiKey }
+                3 -> localProviders.filter { !it.type.requiresApiKey }
+                else -> localProviders
+            }
+
+            itemsIndexed(displayedProviders, key = { _, item -> item.id }) { index, provider ->
                 val isSelected = provider.id == settings.activeProviderId
                 val isBeingDragged = draggedProviderId == provider.id
                 val latency = latencyMap[provider.id]
@@ -424,6 +459,47 @@ fun PulseDeckScreen(
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = "删除", tint = PulseTokens.MagentaLaser, modifier = Modifier.size(16.dp))
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .pointerInput(provider.id) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = {
+                                                    draggedProviderId = provider.id
+                                                    dragDeltaY = 0f
+                                                },
+                                                onDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragDeltaY += dragAmount.y
+                                                    val currentIndex = localProviders.indexOfFirst { it.id == provider.id }
+                                                    if (currentIndex != -1) {
+                                                        val offsetSteps = (dragDeltaY / itemHeightPx).toInt()
+                                                        val targetIndex = (currentIndex + offsetSteps).coerceIn(0, localProviders.size - 1)
+                                                        if (targetIndex != currentIndex) {
+                                                            val mutable = localProviders.toMutableList()
+                                                            val item = mutable.removeAt(currentIndex)
+                                                            mutable.add(targetIndex, item)
+                                                            localProviders = mutable
+                                                            dragDeltaY -= (targetIndex - currentIndex) * itemHeightPx
+                                                        }
+                                                    }
+                                                },
+                                                onDragEnd = {
+                                                    draggedProviderId = null
+                                                    dragDeltaY = 0f
+                                                    configDataStore.saveProviders(localProviders)
+                                                },
+                                                onDragCancel = {
+                                                    draggedProviderId = null
+                                                    dragDeltaY = 0f
+                                                }
+                                            )
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.DragHandle, contentDescription = "拖动排序", tint = if (isBeingDragged) PulseTokens.CyanElectric else PulseTokens.TextTertiary, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }

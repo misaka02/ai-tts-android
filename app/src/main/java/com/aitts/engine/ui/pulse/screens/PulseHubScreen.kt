@@ -174,6 +174,9 @@ fun PulseHubScreen(
                 val effectivePitch = (provider.pitch * settings.globalPitch).coerceIn(0.2f, 2.0f)
                 val testConfig = provider.copy(speed = effectiveSpeed, pitch = effectivePitch)
 
+                configDataStore.log("🚀 发起语音合成: 模型=【${provider.name}】(${provider.type.displayName}), 音色=${provider.voiceId.ifBlank { "默认" }}, 文本=“${testText.take(28)}...”")
+                configDataStore.log("🌐 正在连接服务端端点: ${provider.baseUrl.ifBlank { "官方直接协议" }}")
+
                 val startTime = System.currentTimeMillis()
                 val result = TtsProviderManager.getInstance().synthesize(testText, testConfig)
                 val costMs = System.currentTimeMillis() - startTime
@@ -185,26 +188,37 @@ fun PulseHubScreen(
                         isSynthesizing = false
                         isPlaying = true
 
+                        configDataStore.log("✅ 收到音频数据: ${audioData.size} 字节, 首包耗时=${costMs}ms, 采样率=${provider.sampleRate}Hz")
+                        configDataStore.log("🔊 内存音频直出播放开始, 启动 32 频段 STFT 示波分析")
+
                         audioPlayer.playAudioBytes(
                             audioData,
                             onCompletion = {
                                 isPlaying = false
+                                configDataStore.log("⏹️ 朗读播放完成")
+                            },
+                            onError = { err ->
+                                isPlaying = false
+                                configDataStore.log("⚠️ 播放器异常: $err")
                             }
                         )
                     } else {
                         isSynthesizing = false
                         isPlaying = false
+                        configDataStore.log("⚠️ 合成音频流为空 (0 字节)")
                         Toast.makeText(context, "合成音频流为空", Toast.LENGTH_SHORT).show()
                     }
                 } else {
                     isSynthesizing = false
                     isPlaying = false
                     val err = result.exceptionOrNull()?.message ?: "未知异常"
+                    configDataStore.log("❌ 合成失败: $err")
                     Toast.makeText(context, "合成失败: $err", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 isSynthesizing = false
                 isPlaying = false
+                configDataStore.log("💥 调用异常: ${e.message}")
                 Toast.makeText(context, "调用异常: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
@@ -715,6 +729,53 @@ fun PulseHubScreen(
                                         modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(Icons.Default.Settings, contentDescription = "配置", tint = PulseTokens.SonicBlue, modifier = Modifier.size(15.dp))
+                                    }
+
+                                    // 长按平滑自由拖拽手柄
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .pointerInput(provider.id) {
+                                                detectDragGesturesAfterLongPress(
+                                                    onDragStart = {
+                                                        sheetDraggedProviderId = provider.id
+                                                        sheetDragDeltaY = 0f
+                                                    },
+                                                    onDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        sheetDragDeltaY += dragAmount.y
+                                                        val currentIndex = hubLocalList.indexOfFirst { it.id == provider.id }
+                                                        if (currentIndex != -1) {
+                                                            val offsetSteps = (sheetDragDeltaY / sheetItemHeightPx).toInt()
+                                                            val targetIndex = (currentIndex + offsetSteps).coerceIn(0, hubLocalList.size - 1)
+                                                            if (targetIndex != currentIndex) {
+                                                                val mutable = hubLocalList.toMutableList()
+                                                                val item = mutable.removeAt(currentIndex)
+                                                                mutable.add(targetIndex, item)
+                                                                hubLocalList = mutable
+                                                                sheetDragDeltaY -= (targetIndex - currentIndex) * sheetItemHeightPx
+                                                            }
+                                                        }
+                                                    },
+                                                    onDragEnd = {
+                                                        sheetDraggedProviderId = null
+                                                        sheetDragDeltaY = 0f
+                                                        configDataStore.saveProviders(hubLocalList)
+                                                    },
+                                                    onDragCancel = {
+                                                        sheetDraggedProviderId = null
+                                                        sheetDragDeltaY = 0f
+                                                    }
+                                                )
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.DragHandle,
+                                            contentDescription = "按住拖动排序",
+                                            tint = if (isBeingDragged) PulseTokens.CyanElectric else PulseTokens.TextSecondary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                     }
                                 }
                             }

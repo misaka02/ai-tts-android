@@ -25,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
@@ -36,7 +35,11 @@ import kotlin.math.sin
 
 /**
  * ⚡ 声学流体灵动核心球 (Pulse Acoustic Core)
- * 采用柔和极光流体光晕、双环呼吸波纹与平滑有机正弦曲线，告别任何生硬尖锐线条。
+ * 深度还原极简声学流体美学：
+ * 1. 外层抗锯齿同心渐变圆环 (Concentric Gradient Halo)；
+ * 2. 64 根精细声学频谱刻度线 (Radial Spectrum Ticks)，完全由 32 频段 FFT 频谱能量直接驱动跳跃；
+ * 3. 内层漫射星云量子呼吸光球 (Inner Diffuse Nebula Core)，发音时辉光完全随音频真实 RMS 音量脉动；
+ * 4. 彻底消除多边形直线锯齿与自转干扰，呈现极致纯净温润的声学质感。
  */
 @Composable
 fun PulseAcousticCore(
@@ -49,52 +52,38 @@ fun PulseAcousticCore(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_core_anim")
 
-    val idleRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
+    // 静谧环境呼吸 (仅在空闲时微幅生效，发音时让位给真实声学物理)
+    val idleBreathing by infiniteTransition.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
         animationSpec = infiniteRepeatable(
-            animation = tween(16000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-
-    val wavePhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2 * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "wavePhase"
-    )
-
-    val breathingScale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2800, easing = FastOutSlowInEasing),
+            animation = tween(3200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "breathing"
+        label = "idleBreathing"
     )
 
-    val synthesizingPulse by infiniteTransition.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 1.12f,
+    val synthPulse by infiniteTransition.animateFloat(
+        initialValue = 0.92f,
+        targetValue = 1.08f,
         animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
+            animation = tween(900, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "synthPulse"
     )
 
-    val energyAnim = remember { Animatable(0f) }
-    LaunchedEffect(rmsEnergy) {
-        energyAnim.animateTo(
-            targetValue = rmsEnergy.coerceIn(0f, 1f),
-            animationSpec = tween(90)
-        )
+    // 平滑 RMS 能量插值 (低通阻尼滤波，消除抽搐与生硬抖动)
+    val smoothedRms = remember { Animatable(0f) }
+    LaunchedEffect(rmsEnergy, isPlaying) {
+        if (isPlaying) {
+            smoothedRms.animateTo(
+                targetValue = rmsEnergy.coerceIn(0f, 1f),
+                animationSpec = tween(60, easing = LinearEasing)
+            )
+        } else {
+            smoothedRms.animateTo(0f, animationSpec = tween(180))
+        }
     }
 
     Box(
@@ -110,107 +99,135 @@ fun PulseAcousticCore(
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(size.width / 2, size.height / 2)
-            val baseRadius = (size.minDimension / 2) * 0.65f
+            val baseRadius = (size.minDimension / 2) * 0.62f
 
             val effectiveScale = when {
-                isPlaying -> 1f + (energyAnim.value * 0.22f)
-                isSynthesizing -> synthesizingPulse
-                else -> breathingScale
+                isPlaying -> 1f + (smoothedRms.value * 0.20f)
+                isSynthesizing -> synthPulse
+                else -> idleBreathing
             }
 
-            // 1. 最外层极光柔雾光晕 (Ambient Aurora Glow)
+            // 1. 最外层环境漫射光晕 (Ambient Aurora Glow)
+            val outerGlowAlpha = when {
+                isPlaying -> 0.25f + (smoothedRms.value * 0.25f)
+                isSynthesizing -> 0.22f
+                else -> 0.12f
+            }
             val outerGlowColor = when {
-                isPlaying -> PulseTokens.CyanElectric.copy(alpha = 0.35f)
-                isSynthesizing -> PulseTokens.AmberWarm.copy(alpha = 0.30f)
-                else -> PulseTokens.SonicBlue.copy(alpha = 0.18f)
+                isPlaying -> PulseTokens.CyanElectric
+                isSynthesizing -> PulseTokens.AmberWarm
+                else -> PulseTokens.SonicBlue
             }
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(outerGlowColor, Color.Transparent),
-                    center = center,
-                    radius = baseRadius * 1.5f * effectiveScale
-                ),
-                radius = baseRadius * 1.5f * effectiveScale,
-                center = center
-            )
-
-            // 2. 外层极光流体涟漪波浪 (Smooth Liquid Wave Outer Halo)
-            val wavePoints = 48
-            val waveAngleStep = (2 * PI / wavePoints).toFloat()
-            val wavePath = Path()
-            val waveRadius = baseRadius * 1.18f * effectiveScale
-
-            for (i in 0 until wavePoints) {
-                val angle = (i * waveAngleStep) + Math.toRadians(idleRotation.toDouble()).toFloat()
-                val bandVal = spectrumBands.getOrNull(i % spectrumBands.size.coerceAtLeast(1)) ?: 0.05f
-                val dynamicMod = if (isPlaying) {
-                    sin(angle * 4 + wavePhase) * (8.dp.toPx() + bandVal * 12.dp.toPx())
-                } else if (isSynthesizing) {
-                    sin(angle * 3 + wavePhase) * 6.dp.toPx()
-                } else {
-                    sin(angle * 3 + wavePhase) * 3.dp.toPx()
-                }
-                val r = waveRadius + dynamicMod
-                val x = center.x + (r * cos(angle))
-                val y = center.y + (r * sin(angle))
-                if (i == 0) {
-                    wavePath.moveTo(x, y)
-                } else {
-                    wavePath.lineTo(x, y)
-                }
-            }
-            wavePath.close()
-
-            val waveColor = when {
-                isPlaying -> PulseTokens.CyanElectric.copy(alpha = 0.7f)
-                isSynthesizing -> PulseTokens.AmberWarm.copy(alpha = 0.6f)
-                else -> PulseTokens.SonicBlue.copy(alpha = 0.4f)
-            }
-            drawPath(
-                path = wavePath,
-                color = waveColor,
-                style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
-            )
-
-            // 3. 中层平滑能量流环 (Concentric Energy Ring)
-            drawCircle(
-                brush = Brush.sweepGradient(
                     colors = listOf(
-                        PulseTokens.CyanElectric.copy(alpha = 0.8f),
-                        PulseTokens.MagentaLaser.copy(alpha = 0.6f),
-                        PulseTokens.SonicBlue.copy(alpha = 0.7f),
-                        PulseTokens.CyanElectric.copy(alpha = 0.8f)
-                    ),
-                    center = center
-                ),
-                radius = baseRadius * 0.96f * effectiveScale,
-                center = center,
-                style = Stroke(width = 2.dp.toPx())
-            )
-
-            // 4. 内层全息量子实体光球 (Inner Quantum Luminous Core)
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        when {
-                            isPlaying -> PulseTokens.CyanElectric.copy(alpha = 0.75f)
-                            isSynthesizing -> PulseTokens.AmberWarm.copy(alpha = 0.70f)
-                            else -> PulseTokens.SonicBlue.copy(alpha = 0.55f)
-                        },
-                        PulseTokens.SurfaceDark.copy(alpha = 0.85f),
+                        outerGlowColor.copy(alpha = outerGlowAlpha),
                         Color.Transparent
                     ),
                     center = center,
-                    radius = baseRadius * 0.82f * effectiveScale
+                    radius = baseRadius * 1.55f * effectiveScale
                 ),
-                radius = baseRadius * 0.82f * effectiveScale,
+                radius = baseRadius * 1.55f * effectiveScale,
                 center = center
             )
 
-            // 5. 核心柔和呼吸亮点 (Center Micro Core Highlight)
+            // 2. 64 根精细声学频谱放射刻度线 (Radial Acoustic Spectrum Ticks)
+            val tickCount = 64
+            val angleStep = (2 * PI / tickCount).toFloat()
+            val ringRadius = baseRadius * 1.05f * effectiveScale
+            val defaultTickLen = 2.5.dp.toPx()
+            val maxDynamicTickLen = 16.dp.toPx()
+
+            for (i in 0 until tickCount) {
+                val angle = (i * angleStep) - (PI / 2).toFloat() // 从 12 点钟方向起算
+                
+                // 将 32 频段频谱对称映射到左右两侧 (0~31 对应左半圆，31~0 对应右半圆)
+                val bandIdx = if (i < 32) i else (63 - i)
+                val bandMagnitude = if (isPlaying && spectrumBands.isNotEmpty()) {
+                    spectrumBands.getOrElse(bandIdx) { 0.05f }.coerceIn(0.02f, 1f)
+                } else if (isSynthesizing) {
+                    0.20f
+                } else {
+                    0.03f
+                }
+
+                val tickLen = if (isPlaying) {
+                    defaultTickLen + (bandMagnitude * maxDynamicTickLen)
+                } else if (isSynthesizing) {
+                    defaultTickLen + (bandMagnitude * 4.dp.toPx())
+                } else {
+                    defaultTickLen
+                }
+
+                val startX = center.x + (ringRadius * cos(angle))
+                val startY = center.y + (ringRadius * sin(angle))
+                val endX = center.x + ((ringRadius + tickLen) * cos(angle))
+                val endY = center.y + ((ringRadius + tickLen) * sin(angle))
+
+                val tickAlpha = when {
+                    isPlaying -> 0.35f + (bandMagnitude * 0.65f)
+                    isSynthesizing -> 0.40f
+                    else -> 0.20f
+                }
+                val tickColor = when {
+                    isPlaying -> if (bandIdx > 16) PulseTokens.MagentaLaser else PulseTokens.CyanElectric
+                    isSynthesizing -> PulseTokens.AmberWarm
+                    else -> PulseTokens.SonicBlue
+                }
+
+                drawLine(
+                    color = tickColor.copy(alpha = tickAlpha.coerceIn(0f, 1f)),
+                    start = Offset(startX, startY),
+                    end = Offset(endX, endY),
+                    strokeWidth = 1.6.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            }
+
+            // 3. 中层抗锯齿同心圆能量环 (Concentric Gradient Ring)
+            val ringBrush = Brush.sweepGradient(
+                colors = listOf(
+                    PulseTokens.CyanElectric.copy(alpha = 0.85f),
+                    PulseTokens.MagentaLaser.copy(alpha = 0.75f),
+                    PulseTokens.SonicBlue.copy(alpha = 0.80f),
+                    PulseTokens.CyanElectric.copy(alpha = 0.85f)
+                ),
+                center = center
+            )
             drawCircle(
-                color = if (isPlaying) Color.White.copy(alpha = 0.9f) else PulseTokens.CyanElectric.copy(alpha = 0.7f),
-                radius = 5.dp.toPx() * (if (isPlaying) 1f + energyAnim.value * 0.5f else breathingScale),
+                brush = ringBrush,
+                radius = ringRadius,
+                center = center,
+                style = Stroke(width = 1.8.dp.toPx())
+            )
+
+            // 4. 内层漫射星云量子光球 (Inner Diffuse Nebula Core)
+            val coreAlpha = when {
+                isPlaying -> 0.40f + (smoothedRms.value * 0.45f)
+                isSynthesizing -> 0.45f
+                else -> 0.30f
+            }
+            val coreRadius = ringRadius * 0.88f * (if (isPlaying) 1f + smoothedRms.value * 0.15f else 1f)
+            
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        (if (isPlaying) PulseTokens.CyanElectric else PulseTokens.SonicBlue).copy(alpha = coreAlpha),
+                        PulseTokens.SurfaceDark.copy(alpha = 0.70f),
+                        Color.Transparent
+                    ),
+                    center = center,
+                    radius = coreRadius
+                ),
+                radius = coreRadius,
+                center = center
+            )
+
+            // 5. 核心柔和光点 (Center Highlight Focus)
+            val centerBeadAlpha = if (isPlaying) 0.85f + (smoothedRms.value * 0.15f) else 0.60f
+            drawCircle(
+                color = if (isPlaying) Color.White.copy(alpha = centerBeadAlpha) else PulseTokens.CyanElectric.copy(alpha = centerBeadAlpha),
+                radius = (4.dp.toPx() + (smoothedRms.value * 3.dp.toPx())).coerceAtLeast(3.dp.toPx()),
                 center = center
             )
         }
