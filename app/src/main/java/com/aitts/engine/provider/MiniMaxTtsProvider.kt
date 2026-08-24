@@ -52,6 +52,13 @@ class MiniMaxTtsProvider(
         )
     }
 
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
+        "speech-02-turbo",
+        "speech-02",
+        "speech-01-turbo",
+        "speech-01-hd"
+    )
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig

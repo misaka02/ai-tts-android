@@ -55,6 +55,11 @@ class TtsProviderManager {
         return provider.getAvailableVoices(config)
     }
 
+    suspend fun getAvailableModels(config: TtsProviderConfig): List<String> {
+        val provider = getProvider(config.type)
+        return provider.getAvailableModels(config)
+    }
+
     companion object {
         @Volatile
         private var instance: TtsProviderManager? = null

@@ -75,6 +75,12 @@ class MimoTtsProvider(
         officialVoices
     }
 
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
+        "mimo-v2.5-tts",
+        "mimo-v2-tts",
+        "mimo-v1-tts"
+    )
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig

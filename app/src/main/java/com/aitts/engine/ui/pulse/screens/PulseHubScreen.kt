@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -674,61 +675,14 @@ fun PulseHubScreen(
                                 }
 
                                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .pointerInput(provider.id) {
-                                                detectDragGesturesAfterLongPress(
-                                                    onDragStart = {
-                                                        sheetDraggedProviderId = provider.id
-                                                        sheetDragDeltaY = 0f
-                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    },
-                                                    onDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        sheetDragDeltaY += dragAmount.y
-                                                        val threshold = sheetItemHeightPx * 0.65f
-                                                        val list: List<TtsProviderConfig> = currentHubListState
-                                                        val cur = list.indexOfFirst { it.id == provider.id }
-                                                        if (cur != -1) {
-                                                            if (sheetDragDeltaY > threshold && cur < list.size - 1) {
-                                                                val targetIdx = cur + 1
-                                                                val mutable = list.toMutableList()
-                                                                val item = mutable.removeAt(cur)
-                                                                mutable.add(targetIdx, item)
-                                                                hubLocalList = mutable
-                                                                sheetDragDeltaY -= sheetItemHeightPx
-                                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                            } else if (sheetDragDeltaY < -threshold && cur > 0) {
-                                                                val targetIdx = cur - 1
-                                                                val mutable = list.toMutableList()
-                                                                val item = mutable.removeAt(cur)
-                                                                mutable.add(targetIdx, item)
-                                                                hubLocalList = mutable
-                                                                sheetDragDeltaY += sheetItemHeightPx
-                                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                            }
-                                                        }
-                                                    },
-                                                    onDragEnd = {
-                                                        configDataStore.saveProviders(currentHubListState)
-                                                        sheetDraggedProviderId = null
-                                                        sheetDragDeltaY = 0f
-                                                    },
-                                                    onDragCancel = {
-                                                        sheetDraggedProviderId = null
-                                                        sheetDragDeltaY = 0f
-                                                    }
-                                                )
-                                            },
-                                        contentAlignment = Alignment.Center
+                                    IconButton(
+                                        onClick = {
+                                            configDataStore.pinProviderToTop(provider.id)
+                                            Toast.makeText(context, "已将 ${provider.name} 置顶", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.size(28.dp)
                                     ) {
-                                        Icon(
-                                            Icons.Default.DragHandle,
-                                            contentDescription = "长按拖动",
-                                            tint = if (isBeingDragged) PulseTokens.CyanElectric else PulseTokens.TextTertiary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        Icon(Icons.Default.VerticalAlignTop, contentDescription = "置顶", tint = PulseTokens.CyanElectric, modifier = Modifier.size(15.dp))
                                     }
 
                                     IconButton(
@@ -740,7 +694,7 @@ fun PulseHubScreen(
                                         enabled = index > 0,
                                         modifier = Modifier.size(28.dp)
                                     ) {
-                                        Icon(Icons.Default.ArrowUpward, contentDescription = "上移", tint = if (index > 0) PulseTokens.TextTertiary else Color.DarkGray, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.Default.ArrowUpward, contentDescription = "上移", tint = if (index > 0) PulseTokens.TextSecondary else Color.DarkGray, modifier = Modifier.size(15.dp))
                                     }
                                     IconButton(
                                         onClick = {
@@ -751,7 +705,7 @@ fun PulseHubScreen(
                                         enabled = index < hubLocalList.size - 1,
                                         modifier = Modifier.size(28.dp)
                                     ) {
-                                        Icon(Icons.Default.ArrowDownward, contentDescription = "下移", tint = if (index < hubLocalList.size - 1) PulseTokens.TextTertiary else Color.DarkGray, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.Default.ArrowDownward, contentDescription = "下移", tint = if (index < hubLocalList.size - 1) PulseTokens.TextSecondary else Color.DarkGray, modifier = Modifier.size(15.dp))
                                     }
                                     IconButton(
                                         onClick = {
@@ -760,7 +714,7 @@ fun PulseHubScreen(
                                         },
                                         modifier = Modifier.size(28.dp)
                                     ) {
-                                        Icon(Icons.Default.Settings, contentDescription = "配置", tint = PulseTokens.CyanElectric, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.Default.Settings, contentDescription = "配置", tint = PulseTokens.SonicBlue, modifier = Modifier.size(15.dp))
                                     }
                                 }
                             }

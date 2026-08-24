@@ -88,6 +88,35 @@ class SiliconFlowTtsProvider(
         staticVoices
     }
 
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = withContext(Dispatchers.IO) {
+        val staticModels = listOf(
+            "FunAudioLLM/CosyVoice2-0.5B",
+            "FunAudioLLM/CosyVoice-300M",
+            "2Noise/ChatTTS",
+            "IndexTeam/IndexTTS-2"
+        )
+        if (config.apiKey.isBlank()) return@withContext staticModels
+        try {
+            val req = Request.Builder()
+                .url("https://api.siliconflow.cn/v1/models?sub_type=audio")
+                .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
+                .build()
+            val resp = client.newCall(req).execute()
+            if (resp.isSuccessful) {
+                val body = resp.body?.string() ?: ""
+                val root = json.decodeFromString<JsonObject>(body)
+                val data = root["data"]?.jsonArray
+                if (data != null && data.isNotEmpty()) {
+                    val list = data.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.content }
+                    if (list.isNotEmpty()) return@withContext list
+                }
+            }
+        } catch (e: Exception) {
+            // fallback
+        }
+        staticModels
+    }
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig

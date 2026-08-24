@@ -10,6 +10,7 @@ import android.provider.Settings as AndroidSettings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,8 +37,12 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Tune
+import com.aitts.engine.ui.pulse.components.ActionHubItem
+import com.aitts.engine.ui.pulse.components.UniversalActionHub
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -100,6 +105,7 @@ fun PulseStudioSettingsScreen(
     var selectedCategory by remember { mutableIntStateOf(0) }
     var importDialogText by remember { mutableStateOf("") }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
 
     val exportFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -399,7 +405,77 @@ fun PulseStudioSettingsScreen(
                 item {
                     PulseCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            Text("🎨 外观主题与触觉反馈", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
+                            Text("🎨 界面主题与设计风格", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
+
+                            Text("全局布局交互主题", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = PulseTokens.TextPrimary)
+                            val styleOptions = listOf(
+                                "BENTO" to "🚀 Bento 网格",
+                                "STUDIO" to "🎛️ DAW 调音台",
+                                "VINYL" to "📻 黑胶唱片",
+                                "PULSE" to "⚡ 极光中枢"
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                styleOptions.forEach { (styleKey, styleLabel) ->
+                                    val isSelected = settings.appUiStyle == styleKey
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            configDataStore.updateSettings(settings.copy(appUiStyle = styleKey))
+                                            Toast.makeText(context, "已切换为：$styleLabel", Toast.LENGTH_SHORT).show()
+                                        },
+                                        label = { Text(styleLabel, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = PulseTokens.CyanElectric.copy(alpha = 0.25f),
+                                            selectedLabelColor = PulseTokens.CyanElectric,
+                                            containerColor = PulseTokens.SurfaceElevated,
+                                            labelColor = PulseTokens.TextSecondary
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = isSelected,
+                                            borderColor = if (isSelected) PulseTokens.CyanElectric else PulseTokens.BorderSubtle.brush.let { Color.Transparent },
+                                            selectedBorderColor = PulseTokens.CyanElectric
+                                        )
+                                    )
+                                }
+                            }
+
+                            Text("设计色系方案", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = PulseTokens.TextPrimary)
+                            val paletteOptions = listOf(
+                                "OCEAN_AZURE" to "🌊 极光蔚蓝",
+                                "EMERALD_JADE" to "🍃 翡翠碧玉",
+                                "TITANIUM_SLATE" to "🪐 钛金石板",
+                                "SUNSET_AMBER" to "🌅 暮光琥珀",
+                                "NEON_CYBER" to "⚡ 赛博霓虹",
+                                "SAKURA_PINK" to "🌸 樱花落雪",
+                                "AMETHYST_PURPLE" to "🔮 幻晶紫曜",
+                                "MORANDI_GRAPHITE" to "🌑 莫兰迪黑"
+                            )
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                items(paletteOptions.size) { idx ->
+                                    val (palKey, palLabel) = paletteOptions[idx]
+                                    val isSelected = settings.appThemePalette == palKey
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            configDataStore.updateSettings(settings.copy(appThemePalette = palKey))
+                                        },
+                                        label = { Text(palLabel, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = PulseTokens.SonicBlue.copy(alpha = 0.3f),
+                                            selectedLabelColor = PulseTokens.CyanElectric,
+                                            containerColor = PulseTokens.SurfaceElevated,
+                                            labelColor = PulseTokens.TextSecondary
+                                        )
+                                    )
+                                }
+                            }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -518,6 +594,93 @@ fun PulseStudioSettingsScreen(
                     }
                 }
             }
+        }
+
+        // 右下角大拇指悬浮收纳岛 (设置中心上下文动作组)
+        UniversalActionHub(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 80.dp),
+            items = listOf(
+                ActionHubItem(
+                    label = "切换主题风格",
+                    icon = Icons.Default.Palette,
+                    color = PulseTokens.CyanElectric,
+                    onClick = { showThemeDialog = true }
+                ),
+                ActionHubItem(
+                    label = "导出完整配置",
+                    icon = Icons.Default.FileDownload,
+                    color = PulseTokens.SonicBlue,
+                    onClick = { exportFileLauncher.launch("ai-tts-backup-${System.currentTimeMillis()}.json") }
+                ),
+                ActionHubItem(
+                    label = "恢复文本配置",
+                    icon = Icons.Default.FileUpload,
+                    color = PulseTokens.AmberWarm,
+                    onClick = { showImportDialog = true }
+                ),
+                ActionHubItem(
+                    label = "清理音频缓存 ($cacheSizeText)",
+                    icon = Icons.Default.CleaningServices,
+                    color = PulseTokens.MagentaLaser,
+                    onClick = {
+                        audioCacheManager.clearAll()
+                        cacheSizeText = getCacheSizeString()
+                        Toast.makeText(context, "已清空本地音频缓存", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            ),
+            icon = Icons.Default.Tune
+        )
+
+        if (showThemeDialog) {
+            val styleOptions = listOf(
+                "BENTO" to "🚀 Bento 网格面板",
+                "STUDIO" to "🎛️ DAW 调音台",
+                "VINYL" to "📻 黑胶唱机",
+                "PULSE" to "⚡ 极光中枢"
+            )
+            AlertDialog(
+                onDismissRequest = { showThemeDialog = false },
+                title = { Text("选择界面布局主题") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        styleOptions.forEach { (styleKey, styleLabel) ->
+                            val isSelected = settings.appUiStyle == styleKey
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) PulseTokens.CyanElectric.copy(alpha = 0.2f) else PulseTokens.SurfaceElevated,
+                                border = if (isSelected) BorderStroke(1.2.dp, PulseTokens.CyanElectric) else PulseTokens.BorderSubtle,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        configDataStore.updateSettings(settings.copy(appUiStyle = styleKey))
+                                        showThemeDialog = false
+                                        Toast.makeText(context, "已切换为：$styleLabel", Toast.LENGTH_SHORT).show()
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = styleLabel,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) PulseTokens.CyanElectric else PulseTokens.TextPrimary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showThemeDialog = false }) {
+                        Text("关闭")
+                    }
+                }
+            )
         }
 
         if (showImportDialog) {

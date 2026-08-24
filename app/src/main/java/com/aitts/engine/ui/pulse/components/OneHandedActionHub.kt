@@ -11,7 +11,6 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,11 +49,103 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aitts.engine.ui.pulse.theme.PulseTokens
 
+data class ActionHubItem(
+    val label: String,
+    val icon: ImageVector,
+    val color: Color = PulseTokens.CyanElectric,
+    val isLoading: Boolean = false,
+    val onClick: () -> Unit
+)
+
 /**
- * ⚡ 右下角大拇指单手快捷收纳岛 (One-Handed Thumb Action Hub)
- * 1. 默认形态：常驻低干扰呼吸光圈；
- * 2. 展开形态：向上纵列弹出 [更换句子 🎲]、[切换模型 ⇆]、[模型参数 ⚙️]、[试听 ▶]；
- * 3. 独立大拇指黄金三角区，极大提升单手掌控体验。
+ * ⚡ 全界面通用大拇指单手悬浮收纳岛 (Universal One-Handed Action Hub)
+ * 支持在任何主界面或子界面注入自定义高频快捷操作组
+ */
+@Composable
+fun UniversalActionHub(
+    modifier: Modifier = Modifier,
+    items: List<ActionHubItem>,
+    isHighlighted: Boolean = false,
+    icon: ImageVector = Icons.Default.Tune
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    val hubAlpha by animateFloatAsState(
+        targetValue = if (isExpanded) 1.0f else 0.88f,
+        animationSpec = tween(200),
+        label = "hubAlpha"
+    )
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.BottomEnd
+    ) {
+        // 展开的动作列表
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = fadeIn(tween(180)) + scaleIn(spring(dampingRatio = 0.75f, stiffness = 450f)),
+            exit = fadeOut(tween(120)) + scaleOut(tween(120))
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(bottom = 54.dp, end = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                items.forEach { item ->
+                    ThumbActionButton(
+                        icon = item.icon,
+                        label = item.label,
+                        color = item.color,
+                        isLoading = item.isLoading,
+                        onClick = {
+                            item.onClick()
+                            isExpanded = false
+                        }
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+        }
+
+        // 常驻悬浮触发按钮
+        Surface(
+            modifier = Modifier
+                .alpha(hubAlpha)
+                .size(if (isExpanded) 48.dp else 44.dp)
+                .clip(CircleShape)
+                .clickable { isExpanded = !isExpanded },
+            shape = CircleShape,
+            color = if (isExpanded) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceDark.copy(alpha = 0.92f),
+            border = BorderStroke(
+                1.2.dp,
+                if (isExpanded) PulseTokens.CyanElectric else if (isHighlighted) PulseTokens.CyanElectric.copy(alpha = 0.8f) else PulseTokens.CyanElectric.copy(alpha = 0.45f)
+            ),
+            shadowElevation = if (isExpanded) 10.dp else 4.dp
+        ) {
+            Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                if (isExpanded) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "收起",
+                        tint = PulseTokens.CyanElectric,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = "单手快捷",
+                        tint = if (isHighlighted) PulseTokens.CyanElectric else Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 主中枢专用单手收纳岛
  */
 @Composable
 fun OneHandedActionHub(
@@ -67,113 +158,39 @@ fun OneHandedActionHub(
     onOpenModelSelector: () -> Unit = {},
     onOpenModelConfig: () -> Unit = {}
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-
-    val hubAlpha by animateFloatAsState(
-        targetValue = if (isExpanded) 1.0f else 0.85f,
-        animationSpec = tween(220),
-        label = "hubAlpha"
+    val items = listOf(
+        ActionHubItem(
+            label = "更换句子",
+            icon = Icons.Default.Casino,
+            color = PulseTokens.SonicBlue,
+            onClick = onChangeText
+        ),
+        ActionHubItem(
+            label = if (activeModelName.isNotBlank()) "切换模型 ($activeModelName)" else "切换模型",
+            icon = Icons.Default.SwapHoriz,
+            color = PulseTokens.CyanElectric,
+            onClick = onOpenModelSelector
+        ),
+        ActionHubItem(
+            label = "模型参数",
+            icon = Icons.Default.Settings,
+            color = PulseTokens.AmberWarm,
+            onClick = onOpenModelConfig
+        ),
+        ActionHubItem(
+            label = if (isPlaying) "停止" else if (isSynthesizing) "合成中..." else "试听",
+            icon = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+            color = if (isPlaying) PulseTokens.MagentaLaser else PulseTokens.CyanElectric,
+            isLoading = isSynthesizing,
+            onClick = onTogglePlay
+        )
     )
 
-    Box(
+    UniversalActionHub(
         modifier = modifier,
-        contentAlignment = Alignment.BottomEnd
-    ) {
-        // 展开后的动作卡片组
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = fadeIn(tween(180)) + scaleIn(spring(dampingRatio = 0.7f, stiffness = 400f)),
-            exit = fadeOut(tween(140)) + scaleOut(tween(140))
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(bottom = 56.dp, end = 2.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.End
-            ) {
-                // 1. 更换试听句子
-                ThumbActionButton(
-                    icon = Icons.Default.Casino,
-                    label = "更换句子",
-                    color = PulseTokens.SonicBlue,
-                    onClick = {
-                        onChangeText()
-                        isExpanded = false
-                    }
-                )
-
-                // 2. 切换当前模型
-                ThumbActionButton(
-                    icon = Icons.Default.SwapHoriz,
-                    label = if (activeModelName.isNotBlank()) "切换模型 ($activeModelName)" else "切换模型",
-                    color = PulseTokens.CyanElectric,
-                    onClick = {
-                        onOpenModelSelector()
-                        isExpanded = false
-                    }
-                )
-
-                // 3. 模型设置
-                ThumbActionButton(
-                    icon = Icons.Default.Settings,
-                    label = "模型参数",
-                    color = PulseTokens.AmberWarm,
-                    onClick = {
-                        onOpenModelConfig()
-                        isExpanded = false
-                    }
-                )
-
-                // 4. 播放 / 停止
-                ThumbActionButton(
-                    icon = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
-                    label = if (isPlaying) "停止" else if (isSynthesizing) "合成中..." else "试听",
-                    color = if (isPlaying) PulseTokens.MagentaLaser else PulseTokens.CyanElectric,
-                    isLoading = isSynthesizing,
-                    onClick = {
-                        onTogglePlay()
-                        isExpanded = false
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-        }
-
-        // 常驻收纳悬浮触发按钮
-        Surface(
-            modifier = Modifier
-                .alpha(hubAlpha)
-                .size(if (isExpanded) 48.dp else 44.dp)
-                .clip(CircleShape)
-                .clickable { isExpanded = !isExpanded },
-            shape = CircleShape,
-            color = if (isExpanded) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceDark.copy(alpha = 0.9f),
-            border = BorderStroke(
-                1.dp,
-                if (isExpanded) PulseTokens.CyanElectric.copy(alpha = 0.8f) else PulseTokens.CyanElectric.copy(alpha = 0.4f)
-            ),
-            shadowElevation = if (isExpanded) 8.dp else 3.dp
-        ) {
-            Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                if (isExpanded) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "收起",
-                        tint = PulseTokens.CyanElectric,
-                        modifier = Modifier.size(20.dp)
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Tune,
-                        contentDescription = "单手快捷区",
-                        tint = if (isPlaying) PulseTokens.CyanElectric else Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-    }
+        items = items,
+        isHighlighted = isPlaying || isSynthesizing
+    )
 }
 
 @Composable
@@ -187,7 +204,7 @@ private fun ThumbActionButton(
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = PulseTokens.SurfaceDark.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.45f)),
         modifier = Modifier.clickable { onClick() }
     ) {
         Row(

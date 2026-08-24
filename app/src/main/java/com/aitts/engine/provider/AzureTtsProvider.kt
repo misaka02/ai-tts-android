@@ -25,6 +25,11 @@ class AzureTtsProvider(
         return PresetConfigs.edgeVoices
     }
 
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
+        "azure-neural",
+        "azure-hd"
+    )
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig

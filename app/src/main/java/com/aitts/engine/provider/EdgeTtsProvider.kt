@@ -94,6 +94,11 @@ class EdgeTtsProvider(
         staticVoices
     }
 
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
+        "edge-neural",
+        "edge-v1"
+    )
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig

@@ -14,6 +14,13 @@ interface TtsProvider {
     suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel>
 
     /**
+     * 获取支持的模型 ID 列表
+     */
+    suspend fun getAvailableModels(config: TtsProviderConfig): List<String> {
+        return if (config.modelName.isNotBlank()) listOf(config.modelName) else emptyList()
+    }
+
+    /**
      * 执行同步/块级语音合成
      * @param text 待合成的文本短句
      * @param config 当前提供商配置

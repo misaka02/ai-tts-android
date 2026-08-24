@@ -84,6 +84,13 @@ class FishAudioTtsProvider(
         staticVoices
     }
 
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
+        "speech-1.5",
+        "speech-1.4",
+        "speech-1.2",
+        "fish-audio-v1"
+    )
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig

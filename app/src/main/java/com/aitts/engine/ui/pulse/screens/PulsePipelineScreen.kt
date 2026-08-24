@@ -29,7 +29,13 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Tune
+import com.aitts.engine.data.PresetConfigs
+import com.aitts.engine.ui.pulse.components.ActionHubItem
+import com.aitts.engine.ui.pulse.components.UniversalActionHub
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -276,26 +282,55 @@ fun PulsePipelineScreen(
             }
         }
 
-        // 新增规则 FAB
-        FloatingActionButton(
-            onClick = {
-                currentEditingRule = null
-                rulePattern = ""
-                ruleReplacement = ""
-                ruleDescription = ""
-                isRegex = true
-                isCaseSensitive = false
-                showEditDialog = true
-            },
-            containerColor = PulseTokens.CyanElectric,
-            contentColor = Color.Black,
-            shape = CircleShape,
+        // 右下角大拇指悬浮收纳岛 (规则流水线专属动作组)
+        UniversalActionHub(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 76.dp, end = 16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "新增规则", modifier = Modifier.size(24.dp))
-        }
+                .padding(end = 16.dp, bottom = 80.dp),
+            items = listOf(
+                ActionHubItem(
+                    label = "新建替换规则",
+                    icon = Icons.Default.Add,
+                    color = PulseTokens.CyanElectric,
+                    onClick = {
+                        currentEditingRule = null
+                        rulePattern = ""
+                        ruleReplacement = ""
+                        ruleDescription = ""
+                        isRegex = true
+                        isCaseSensitive = false
+                        showEditDialog = true
+                    }
+                ),
+                ActionHubItem(
+                    label = "测试当前流水线",
+                    icon = Icons.Default.Science,
+                    color = PulseTokens.SonicBlue,
+                    onClick = { runTest() }
+                ),
+                ActionHubItem(
+                    label = "复制全部规则 JSON",
+                    icon = Icons.Default.ContentCopy,
+                    color = PulseTokens.AmberWarm,
+                    onClick = {
+                        val json = configDataStore.exportAllConfigJson(desensitize = false)
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("ai_tts_rules", json))
+                        Toast.makeText(context, "已复制全部规则到剪贴板", Toast.LENGTH_SHORT).show()
+                    }
+                ),
+                ActionHubItem(
+                    label = "恢复出厂内置规则",
+                    icon = Icons.Default.RestartAlt,
+                    color = PulseTokens.MagentaLaser,
+                    onClick = {
+                        configDataStore.saveRules(PresetConfigs.defaultRules)
+                        Toast.makeText(context, "已恢复官方默认内置发音规则", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            ),
+            icon = Icons.Default.Tune
+        )
 
         if (showEditDialog) {
             AlertDialog(

@@ -31,8 +31,11 @@ import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import com.aitts.engine.ui.pulse.components.ActionHubItem
+import com.aitts.engine.ui.pulse.components.UniversalActionHub
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -128,16 +131,21 @@ fun PulseProviderConfigScreen(
     var isPasswordVisible by remember { mutableStateOf(false) }
     var isTestingAudio by remember { mutableStateOf(false) }
 
-    val audioPlayer = remember { AndroidAudioPlayer(context) }
-    DisposableEffect(Unit) {
-        onDispose { audioPlayer.stop() }
-    }
-
     var isFetchingVoices by remember { mutableStateOf(false) }
     var showVoiceDialog by remember { mutableStateOf(false) }
     var isSelectingDialogueVoice by remember { mutableStateOf(false) }
     var voiceSearchQuery by remember { mutableStateOf("") }
     var fetchedVoicesList by remember { mutableStateOf<List<VoiceModel>>(emptyList()) }
+
+    var isFetchingModels by remember { mutableStateOf(false) }
+    var showModelDialog by remember { mutableStateOf(false) }
+    var modelSearchQuery by remember { mutableStateOf("") }
+    var fetchedModelsList by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    val audioPlayer = remember { AndroidAudioPlayer(context) }
+    DisposableEffect(Unit) {
+        onDispose { audioPlayer.stop() }
+    }
 
     fun buildCurrentConfig(): TtsProviderConfig {
         return initialConfig.copy(
@@ -168,15 +176,15 @@ fun PulseProviderConfigScreen(
                 audioFormat = "mp3"
             }
             ProviderType.MINIMAX -> {
-                baseUrl = "https://api.minimax.chat/v1/t2a_v2"
+                baseUrl = "https://api.minimaxi.com/v1/t2a_v2"
                 modelName = "speech-02-turbo"
-                voiceId = "male-qn-qingse"
-                sampleRate = "32000"
+                voiceId = "female-shaonv"
+                sampleRate = "24000"
                 audioFormat = "mp3"
             }
             ProviderType.DOUBAO -> {
                 baseUrl = "https://openspeech.bytedance.com/api/v1/tts"
-                modelName = "volcano_tts"
+                modelName = "volcano_bigtts"
                 voiceId = "zh_female_shuangkuaisisi_moon_bigtts"
                 sampleRate = "24000"
                 audioFormat = "mp3"
@@ -196,7 +204,7 @@ fun PulseProviderConfigScreen(
                 audioFormat = "mp3"
             }
             ProviderType.GEMINI -> {
-                baseUrl = "https://generativelanguage.googleapis.com/v1beta"
+                baseUrl = "https://generativelanguage.googleapis.com/v1beta/models"
                 modelName = "gemini-2.5-flash-preview-tts"
                 voiceId = "Puck"
                 sampleRate = "24000"
@@ -240,18 +248,7 @@ fun PulseProviderConfigScreen(
         scope.launch {
             try {
                 val current = buildCurrentConfig()
-                val list = when (selectedType) {
-                    ProviderType.EDGE_TTS -> PresetConfigs.edgeVoices
-                    ProviderType.MIMO -> PresetConfigs.mimoVoices
-                    ProviderType.MINIMAX -> PresetConfigs.minimaxVoices
-                    ProviderType.GEMINI -> PresetConfigs.geminiVoices
-                    ProviderType.DOUBAO -> PresetConfigs.doubaoVoices
-                    ProviderType.SILICONFLOW -> PresetConfigs.siliconFlowVoices
-                    ProviderType.STEPFUN -> PresetConfigs.stepFunVoices
-                    ProviderType.FISH_AUDIO -> PresetConfigs.fishAudioVoices
-                    ProviderType.OPENAI -> PresetConfigs.openAiVoices
-                    else -> TtsProviderManager.getInstance().getAvailableVoices(current)
-                }
+                val list = TtsProviderManager.getInstance().getAvailableVoices(current)
                 fetchedVoicesList = list
                 showVoiceDialog = true
                 Toast.makeText(context, "已获取到 ${list.size} 款音色", Toast.LENGTH_SHORT).show()
@@ -259,6 +256,24 @@ fun PulseProviderConfigScreen(
                 Toast.makeText(context, "获取音色失败: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
                 isFetchingVoices = false
+            }
+        }
+    }
+
+    fun fetchOnlineModels() {
+        if (isFetchingModels) return
+        isFetchingModels = true
+        scope.launch {
+            try {
+                val current = buildCurrentConfig()
+                val list = TtsProviderManager.getInstance().getAvailableModels(current)
+                fetchedModelsList = list
+                showModelDialog = true
+                Toast.makeText(context, "已获取到 ${list.size} 个可用模型", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "获取模型失败: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                isFetchingModels = false
             }
         }
     }
@@ -409,13 +424,34 @@ fun PulseProviderConfigScreen(
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Text("🎙️ 音色与发音倍速", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.TextPrimary)
 
-                            OutlinedTextField(
-                                value = modelName,
-                                onValueChange = { modelName = it },
-                                label = { Text("模型 ID (Model Name)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PulseTokens.CyanElectric)
-                            )
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedTextField(
+                                    value = modelName,
+                                    onValueChange = { modelName = it },
+                                    label = { Text("模型 ID (Model Name)") },
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PulseTokens.CyanElectric)
+                                )
+
+                                OutlinedButton(
+                                    onClick = { fetchOnlineModels() },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = PulseTokens.SurfaceElevated,
+                                        contentColor = PulseTokens.CyanElectric
+                                    ),
+                                    border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.5f)),
+                                    modifier = Modifier.height(52.dp)
+                                ) {
+                                    if (isFetchingModels) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = PulseTokens.CyanElectric, strokeWidth = 2.dp)
+                                    } else {
+                                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("模型", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 OutlinedTextField(
@@ -548,51 +584,97 @@ fun PulseProviderConfigScreen(
             }
         }
 
-        // 右下角大拇指悬浮操作岛 [ 🎙️ 试听 | 💾 保存 ]
-        Surface(
+        // 右下角大拇指悬浮操作岛 (模型配置专属动作组)
+        UniversalActionHub(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 76.dp, end = 16.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = PulseTokens.SurfaceDark.copy(alpha = 0.95f),
-            border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.6f)),
-            shadowElevation = 8.dp
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = { testAudioPlayback() },
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isTestingAudio) PulseTokens.MagentaLaser else PulseTokens.SurfaceElevated,
-                        contentColor = if (isTestingAudio) Color.White else PulseTokens.CyanElectric
-                    ),
-                    modifier = Modifier.height(40.dp)
-                ) {
-                    Icon(if (isTestingAudio) Icons.Default.Stop else Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isTestingAudio) "停止" else "试听", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Button(
+                .padding(end = 16.dp, bottom = 24.dp),
+            items = listOf(
+                ActionHubItem(
+                    label = if (isTestingAudio) "停止试听" else "试听当前发音",
+                    icon = if (isTestingAudio) Icons.Default.Stop else Icons.Default.PlayArrow,
+                    color = if (isTestingAudio) PulseTokens.MagentaLaser else PulseTokens.CyanElectric,
+                    isLoading = isTestingAudio,
+                    onClick = { testAudioPlayback() }
+                ),
+                ActionHubItem(
+                    label = "保存模型配置",
+                    icon = Icons.Default.Check,
+                    color = PulseTokens.CyanElectric,
                     onClick = {
                         val updated = buildCurrentConfig()
                         configDataStore.updateProvider(updated)
                         Toast.makeText(context, "已保存模型: ${updated.name}", Toast.LENGTH_SHORT).show()
                         onNavigateBack()
-                    },
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PulseTokens.CyanElectric, contentColor = Color.Black),
-                    modifier = Modifier.height(40.dp)
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("保存", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                ),
+                ActionHubItem(
+                    label = "在线拉取官方音色",
+                    icon = Icons.Default.RecordVoiceOver,
+                    color = PulseTokens.SonicBlue,
+                    isLoading = isFetchingVoices,
+                    onClick = { isSelectingDialogueVoice = false; fetchOnlineVoices() }
+                ),
+                ActionHubItem(
+                    label = "套用官方最优预设",
+                    icon = Icons.Default.AutoFixHigh,
+                    color = PulseTokens.AmberWarm,
+                    onClick = { applyOfficialDefaults(selectedType) }
+                )
+            ),
+            isHighlighted = isTestingAudio,
+            icon = Icons.Default.Tune
+        )
+
+        // 模型选择弹窗
+        if (showModelDialog) {
+            AlertDialog(
+                onDismissRequest = { showModelDialog = false },
+                title = { Text("选择可用模型 ID", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = modelSearchQuery,
+                            onValueChange = { modelSearchQuery = it },
+                            placeholder = { Text("搜索模型 ID...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            singleLine = true
+                        )
+
+                        val filteredModels = fetchedModelsList.filter {
+                            it.contains(modelSearchQuery, ignoreCase = true)
+                        }
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().height(240.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(filteredModels) { modelId ->
+                                PulseCard(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            modelName = modelId
+                                            showModelDialog = false
+                                        },
+                                    backgroundColor = PulseTokens.SurfaceElevated,
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(modelId, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showModelDialog = false }) { Text("关闭") }
                 }
-            }
+            )
         }
 
         // 音色选择弹窗

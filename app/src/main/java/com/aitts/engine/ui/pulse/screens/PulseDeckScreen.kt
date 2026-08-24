@@ -35,12 +35,14 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Tune
+import com.aitts.engine.ui.pulse.components.ActionHubItem
+import com.aitts.engine.ui.pulse.components.UniversalActionHub
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -430,18 +432,47 @@ fun PulseDeckScreen(
             }
         }
 
-        // 右下角新增模型 FAB
-        FloatingActionButton(
-            onClick = { showAddPresetDialog = true },
-            containerColor = PulseTokens.CyanElectric,
-            contentColor = Color.Black,
-            shape = CircleShape,
+        // 右下角大拇指悬浮收纳岛 (模型矩阵专属动作组)
+        UniversalActionHub(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 76.dp, end = 16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "新增模型", modifier = Modifier.size(24.dp))
-        }
+                .padding(end = 16.dp, bottom = 80.dp),
+            items = listOf(
+                ActionHubItem(
+                    label = "新增模型预设",
+                    icon = Icons.Default.Add,
+                    color = PulseTokens.CyanElectric,
+                    onClick = { showAddPresetDialog = true }
+                ),
+                ActionHubItem(
+                    label = "全矩阵并发测速",
+                    icon = Icons.Default.Speed,
+                    color = PulseTokens.SonicBlue,
+                    onClick = { testAllLatencies() }
+                ),
+                ActionHubItem(
+                    label = "导入单模型口令",
+                    icon = Icons.Default.ContentPaste,
+                    color = PulseTokens.AmberWarm,
+                    onClick = { showImportTokenDialog = true }
+                ),
+                ActionHubItem(
+                    label = "复制当前主力口令",
+                    icon = Icons.Default.ContentCopy,
+                    color = PulseTokens.MagentaLaser,
+                    onClick = {
+                        val active = localProviders.find { it.id == settings.activeProviderId } ?: localProviders.firstOrNull()
+                        if (active != null) {
+                            val token = configDataStore.exportProviderToken(active)
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("ai_tts_provider", token))
+                            Toast.makeText(context, "已复制【${active.name}】口令到剪贴板", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+            ),
+            icon = Icons.Default.Tune
+        )
 
         if (showAddPresetDialog) {
             AlertDialog(

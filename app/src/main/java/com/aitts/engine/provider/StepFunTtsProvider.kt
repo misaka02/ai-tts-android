@@ -32,6 +32,11 @@ class StepFunTtsProvider(
         )
     }
 
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
+        "step-audio-2.5-tts",
+        "step-audio-tts-3k"
+    )
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig

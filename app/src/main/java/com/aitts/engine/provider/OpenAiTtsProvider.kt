@@ -4,7 +4,12 @@ import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -21,6 +26,7 @@ class OpenAiTtsProvider(
 ) : TtsProvider {
 
     private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
+    private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> {
         return listOf(
@@ -34,6 +40,39 @@ class OpenAiTtsProvider(
             VoiceModel("sage", "Sage (女声·沉着温婉·GPT-4o)", "Female", "all", "GPT-4o 沉着温和女声"),
             VoiceModel("ash", "Ash (男声·清朗自然·GPT-4o)", "Male", "all", "GPT-4o 清朗少年音")
         )
+    }
+
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = withContext(Dispatchers.IO) {
+        val staticModels = listOf("tts-1", "tts-1-hd", "gpt-4o-audio-preview")
+        if (config.apiKey.isBlank()) return@withContext staticModels
+        try {
+            var url = config.baseUrl.trim()
+            if (url.isBlank()) {
+                url = "https://api.openai.com/v1/models"
+            } else if (url.contains("/audio/speech")) {
+                url = url.replace("/audio/speech", "/models")
+            } else if (!url.endsWith("/models")) {
+                url = if (url.endsWith("/")) "${url}models" else "$url/models"
+            }
+            val req = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
+                .build()
+            val resp = client.newCall(req).execute()
+            if (resp.isSuccessful) {
+                val body = resp.body?.string() ?: ""
+                val root = json.decodeFromString<JsonObject>(body)
+                val data = root["data"]?.jsonArray
+                if (data != null && data.isNotEmpty()) {
+                    val list = data.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.content }
+                        .filter { it.contains("tts", ignoreCase = true) || it.contains("audio", ignoreCase = true) }
+                    if (list.isNotEmpty()) return@withContext list
+                }
+            }
+        } catch (e: Exception) {
+            // fallback
+        }
+        staticModels
     }
 
     override suspend fun synthesize(

@@ -95,6 +95,11 @@ class GeminiTtsProvider(
         staticVoices
     }
 
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
+        "gemini-2.5-flash-preview-tts",
+        "gemini-2.0-flash-exp"
+    )
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig

@@ -49,6 +49,11 @@ class DoubaoTtsProvider(
         )
     }
 
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
+        "volcano_tts",
+        "volcano_bigtts"
+    )
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig
