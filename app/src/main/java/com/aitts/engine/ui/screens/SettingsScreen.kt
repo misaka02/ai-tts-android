@@ -525,7 +525,8 @@ private fun ThemeSettingsCard(settings: com.aitts.engine.data.GlobalSettings, co
                 listOf(
                     "BENTO" to "网格面板",
                     "STUDIO" to "调音台",
-                    "VINYL" to "黑胶唱机"
+                    "VINYL" to "黑胶唱机",
+                    "PULSE" to "⚡ 极光中枢"
                 ).forEach { (style, label) ->
                     FilterChip(
                         selected = settings.appUiStyle == style || (style == "VINYL" && settings.appUiStyle == "CLASSIC"),

@@ -126,6 +126,12 @@ fun HomeScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         // 🌟 1. 活跃主题工作台
         when (settings.appUiStyle) {
+            "PULSE" -> {
+                com.aitts.engine.ui.pulse.PulseAppShell(
+                    configDataStore = configDataStore,
+                    onNavigateToTestBench = onNavigateToTestBench
+                )
+            }
             "BENTO" -> {
                 BentoConsoleHomeScreen(
                     configDataStore = configDataStore,
@@ -164,8 +170,8 @@ fun HomeScreen(
             }
         }
 
-        // 🌟 2. 全局常驻自由拖拽悬浮主控坞 (Universal Global Floating Master Dock)
-        if (settings.isFloatingDockEnabled) {
+        // 🌟 2. 全局常驻自由拖拽悬浮主控坞 (Universal Global Floating Master Dock) - 仅在非 PULSE 主题下启用
+        if (settings.isFloatingDockEnabled && settings.appUiStyle != "PULSE") {
             FloatingMasterDock(
                 activeProvider = activeProvider,
                 currentUiStyle = settings.appUiStyle,

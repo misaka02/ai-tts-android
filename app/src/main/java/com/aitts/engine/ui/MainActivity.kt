@@ -87,6 +87,7 @@ fun MainAppNavHost(configDataStore: ConfigDataStore) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val settings by configDataStore.settingsFlow.collectAsState()
 
     val bottomNavItems = listOf(
         Screen.Home,
@@ -96,9 +97,11 @@ fun MainAppNavHost(configDataStore: ConfigDataStore) {
         Screen.Settings
     )
 
+    val isPulseMode = settings.appUiStyle == "PULSE"
+
     Scaffold(
         bottomBar = {
-            if (bottomNavItems.any { it.route == currentRoute }) {
+            if (!isPulseMode && bottomNavItems.any { it.route == currentRoute }) {
                 val primaryColor = MaterialTheme.colorScheme.primary
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.background,
