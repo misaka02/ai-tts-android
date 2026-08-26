@@ -19,10 +19,11 @@ import java.nio.ByteOrder
 
 /**
  * 真实端侧 Sherpa-ONNX 离线神经网络语音合成引擎 (100% On-Device Neural Offline TTS)
- * 1. 采用官方 pre-built C++ JNI 静态链接运行时，直接驱动本地 .onnx 模型权重；
+ * 1. 采用官方 C++ JNI 运行时，直接驱动本地 .onnx 模型权重；
  * 2. 100% 本地计算，零依赖系统自带 TTS，断网无缝可用；
  * 3. 原生支持多发音人 (Speaker ID) 切换与高精度语速控制；
- * 4. 纯净 PCM/WAV 输出，杜绝任何杂音与破音。
+ * 4. 纯净 PCM/WAV 输出，杜绝任何杂音与破音；
+ * 5. 全局统一使用 OfflineModelManager.getModelDir() 存储路径，杜绝路径不一致报错。
  */
 class OfflineTtsProvider(private val context: Context) : TtsProvider {
 
@@ -31,6 +32,25 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
     @Volatile
     private var loadedModelId: String? = null
     private val lock = Any()
+
+    companion object {
+        @Volatile
+        private var isLibraryLoaded = false
+
+        /**
+         * 检测手机本地是否已具备 Sherpa-ONNX C++ 原生运行库环境
+         */
+        fun isEngineInstalled(context: Context): Boolean {
+            if (isLibraryLoaded) return true
+            return try {
+                System.loadLibrary("sherpa-onnx-jni")
+                isLibraryLoaded = true
+                true
+            } catch (e: Throwable) {
+                false
+            }
+        }
+    }
 
     override suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> = withContext(Dispatchers.IO) {
         val catalog = OfflineModelManager.getCatalog()
@@ -64,9 +84,10 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
                 return currentTts!!
             }
 
-            val modelDir = File(context.filesDir, "models/offline/$modelId")
-            if (!modelDir.exists()) {
-                throw IOException("模型目录不存在: ${modelDir.absolutePath}")
+            // 全局统一从 OfflineModelManager 获取模型存储目录，杜绝路径不匹配
+            val modelDir = OfflineModelManager.getModelDir(context, modelId)
+            if (!modelDir.exists() || !modelDir.isDirectory) {
+                throw IOException("模型目录不存在: ${modelDir.absolutePath}。请先在离线模型管理界面点击下载安装。")
             }
 
             val allFiles = modelDir.walkTopDown().toList()
@@ -115,13 +136,20 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
         val modelId = config.modelName.ifBlank { "vits-icefall-zh-aishell3" }
         val pack = catalog.find { it.id == modelId }
 
-        // 1. 检查所选离线模型包是否已在本地安装
+        // 1. 检查离线模型文件是否已下载就绪 (使用统一路径检测)
         val isDownloaded = OfflineModelManager.isModelDownloaded(context, modelId)
         if (!isDownloaded) {
             val packName = pack?.name ?: modelId
             val size = pack?.sizeMb ?: 48
             return@withContext Result.failure(
                 IOException("离线模型【$packName】尚未下载安装 (${size}MB)。请在模型配置界面点击「一键下载」安装后即可离线使用。")
+            )
+        }
+
+        // 2. 检查手机本地是否已安装端侧 C++ 推理环境组件
+        if (!isEngineInstalled(context)) {
+            return@withContext Result.failure(
+                IOException("端侧离线神经推理环境未安装。安装包本体保持 2MB 极简小巧，请在离线模型配置界面点击「安装离线推理环境」组件后即可离线使用。")
             )
         }
 

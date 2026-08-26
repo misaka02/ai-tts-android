@@ -924,6 +924,64 @@ fun PulseProviderConfigScreen(
                                     }
                                 }
 
+                                // 0. 离线神经推理环境 (Sherpa-ONNX Runtime) 状态与手动安装
+                                val isRuntimeInstalled = remember { com.aitts.engine.provider.OfflineTtsProvider.isEngineInstalled(context) }
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = PulseTokens.SurfaceDark,
+                                    border = BorderStroke(1.dp, if (isRuntimeInstalled) PulseTokens.AcidGreen.copy(alpha = 0.6f) else PulseTokens.AmberWarm.copy(alpha = 0.7f))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Text(
+                                                    if (isRuntimeInstalled) "✅ 离线推理环境已就绪" else "⚠️ 离线推理环境未安装",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isRuntimeInstalled) PulseTokens.AcidGreen else PulseTokens.AmberWarm
+                                                )
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = PulseTokens.SurfaceElevated,
+                                                    border = PulseTokens.BorderSubtle
+                                                ) {
+                                                    Text("主程序保持 2.1MB 极简", fontSize = 9.5.sp, color = PulseTokens.TextTertiary, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                                }
+                                            }
+                                        }
+                                        Text(
+                                            if (isRuntimeInstalled)
+                                                "已就绪 Sherpa-ONNX 原生神经网络加速引擎，支持完全脱网离线运行。"
+                                            else
+                                                "主安装包已剔除近 100MB 二进制库以保证小巧纯净。如需脱网离线朗读，可手动安装拓展组件 (~8MB)。",
+                                            fontSize = 11.sp,
+                                            color = PulseTokens.TextSecondary
+                                        )
+                                        if (!isRuntimeInstalled) {
+                                            Button(
+                                                onClick = {
+                                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/k2-fsa/sherpa-onnx/releases"))
+                                                    context.startActivity(intent)
+                                                },
+                                                modifier = Modifier.fillMaxWidth().height(36.dp),
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = PulseTokens.AmberWarm.copy(alpha = 0.2f),
+                                                    contentColor = PulseTokens.AmberWarm
+                                                ),
+                                                border = BorderStroke(1.dp, PulseTokens.AmberWarm.copy(alpha = 0.5f))
+                                            ) {
+                                                Text("📥 手动安装离线推理引擎拓展组件 (~8MB)", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+
                                 // 1. 模型本地存储目录展示与复制
                                 val storageDir = com.aitts.engine.offline.OfflineModelManager.getModelsStorageDirectory(context).absolutePath
                                 Surface(

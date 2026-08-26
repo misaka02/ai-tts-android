@@ -80,6 +80,6 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.26.1")
     implementation("org.tukaani:xz:1.9")
 
-    // Native Sherpa-ONNX Engine Runtime (AAR in libs/)
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
+    // Lightweight Sherpa-ONNX Java API interfaces (no bundled native .so, keeps base APK ~2MB)
+    implementation(files("libs/sherpa-onnx-classes.jar"))
 }
