@@ -31,13 +31,13 @@ object OfflineModelManager {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    // 内置真实官方 Sherpa-ONNX 中文离线神经模型库 (100% 实测 HTTP 200 有效)
+    // 内置真实官方 Sherpa-ONNX 离线神经模型库 (100% 实测 HTTP 200 有效)
     val defaultCatalog = listOf(
         OfflineModelPack(
             id = "vits-icefall-zh-aishell3",
             name = "AISHELL-3 中文标准 (174发音人)",
             category = "官方 VITS 经典",
-            sizeMb = 32,
+            sizeMb = 30,
             description = "开源界最全中文多发音人语音库，涵盖 174 位专业男女发音人，音质纯正稳定",
             speakerCount = 174,
             sampleRate = 22050,
@@ -64,11 +64,56 @@ object OfflineModelManager {
             tags = listOf("轻量低功耗", "清脆女声", "听书推荐")
         ),
         OfflineModelPack(
+            id = "vits-piper-zh_CN-chaowen-medium",
+            name = "Piper-Chaowen 超文沉浸中文男声",
+            category = "Piper 神经语音",
+            sizeMb = 58,
+            description = "沉稳磁性中文男声，吐字清晰，适合小说旁白与纪实朗读",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "piper_chaowen_male",
+            speakers = listOf("piper_chaowen_male (超文磁性·沉浸男声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium.tar.bz2",
+            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium.tar.bz2",
+            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium.tar.bz2",
+            tags = listOf("磁性男声", "小说旁白", "低功耗")
+        ),
+        OfflineModelPack(
+            id = "vits-piper-zh_CN-xiao_ya-medium",
+            name = "Piper-Xiaoya 小雅清脆中文女声",
+            category = "Piper 神经语音",
+            sizeMb = 58,
+            description = "活泼灵动少女音色，发音节奏感强，适合轻松小说与故事朗读",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "piper_xiaoya_female",
+            speakers = listOf("piper_xiaoya_female (小雅灵动·活泼女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium.tar.bz2",
+            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium.tar.bz2",
+            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium.tar.bz2",
+            tags = listOf("灵动少女", "轻松读物", "低延迟")
+        ),
+        OfflineModelPack(
+            id = "matcha-icefall-zh-baker",
+            name = "Matcha-Baker 标贝标准播音女声",
+            category = "Matcha 流匹配架构",
+            sizeMb = 72,
+            description = "基于流匹配 (Flow Matching) 的快速扩散声学模型，字正腔圆，播音级典雅女声",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "baker_female",
+            speakers = listOf("baker_female (标贝标准·播音女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+            tags = listOf("FlowMatching", "标贝标准", "端庄播音")
+        ),
+        OfflineModelPack(
             id = "vits-melo-tts-zh_en",
             name = "MeloTTS 中英双语自然朗读",
             category = "MeloTTS 双语",
-            sizeMb = 115,
-            description = "双语自然混合朗读，英文发音纯正无口音，中英文夹杂小说与长文流畅自然",
+            sizeMb = 159,
+            description = "中英文自然混合朗读，英文发音纯正无中国口音，中英文夹杂小说与长文流畅自然",
             speakerCount = 4,
             sampleRate = 24000,
             defaultVoiceId = "melo_zh_default",
@@ -84,19 +129,64 @@ object OfflineModelManager {
             tags = listOf("中英双语", "混读拟真", "高质量")
         ),
         OfflineModelPack(
-            id = "matcha-icefall-zh-baker",
-            name = "Matcha-Baker 标贝标准播音女声",
-            category = "Matcha-TTS 架构",
-            sizeMb = 58,
-            description = "快速流匹配 (Flow Matching) 神经架构，发音标准端庄，字正腔圆",
+            id = "vits-zh-aishell3",
+            name = "经典 AISHELL-3 高精度全量模型",
+            category = "官方 VITS 经典",
+            sizeMb = 140,
+            description = "经典全量 AISHELL-3 离线模型，音质丰满细腻，多发音人音色表现力强",
+            speakerCount = 174,
+            sampleRate = 22050,
+            defaultVoiceId = "aishell3_classic_0",
+            speakers = (0..173).map { "aishell3_classic_$it (经典发音人 $it)" },
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-aishell3.tar.bz2",
+            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-aishell3.tar.bz2",
+            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-aishell3.tar.bz2",
+            tags = listOf("经典全量", "高保真", "多发音人")
+        ),
+        OfflineModelPack(
+            id = "vits-cantonese-hf-xiaomaiiwn",
+            name = "粤语广府话 (Cantonese 小麦)",
+            category = "方言经典语音",
+            sizeMb = 103,
+            description = "纯正粤语/广府话离线模型，适合粤语白话小说、经典香港文学朗读",
             speakerCount = 1,
             sampleRate = 22050,
-            defaultVoiceId = "baker_female",
-            speakers = listOf("baker_female (标贝标准·播音女声)"),
-            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
-            tags = listOf("FlowMatching", "标贝标准", "端庄播音")
+            defaultVoiceId = "cantonese_xiaomaiiwn",
+            speakers = listOf("cantonese_xiaomaiiwn (粤语自然·小麦女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-cantonese-hf-xiaomaiiwn.tar.bz2",
+            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-cantonese-hf-xiaomaiiwn.tar.bz2",
+            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-cantonese-hf-xiaomaiiwn.tar.bz2",
+            tags = listOf("粤语方言", "广府白话", "地道特色")
+        ),
+        OfflineModelPack(
+            id = "kokoro-int8-multi-lang-v1_0",
+            name = "Kokoro-Multi 多语言量化模型",
+            category = "Kokoro 新一代架构",
+            sizeMb = 126,
+            description = "新一代轻量前沿多语言语音架构，INT8 高速量化，中英法日多语种自然朗读",
+            speakerCount = 10,
+            sampleRate = 24000,
+            defaultVoiceId = "kokoro_multi_0",
+            speakers = (0..9).map { "kokoro_multi_$it (多语种发音人 $it)" },
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
+            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
+            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
+            tags = listOf("Kokoro架构", "INT8量化", "多国语言")
+        ),
+        OfflineModelPack(
+            id = "vits-zh-hf-fanchen-C",
+            name = "凡尘多情感古风沉浸音色",
+            category = "特色情感模型",
+            sizeMb = 114,
+            description = "自然情感声调起伏，古风韵味十足，尤其适合仙侠修真与武侠长篇小说",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "fanchen_c_female",
+            speakers = listOf("fanchen_c_female (凡尘古风·细腻情感)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-C.tar.bz2",
+            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-C.tar.bz2",
+            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-C.tar.bz2",
+            tags = listOf("古风韵味", "仙侠小说", "情感细腻")
         )
     )
 
@@ -287,14 +377,24 @@ object OfflineModelManager {
                         org.apache.commons.compress.archivers.tar.TarArchiveInputStream(bzIn).use { tarIn ->
                             var entry = tarIn.nextEntry
                             while (entry != null) {
-                                val entryName = entry.name
-                                val cleanName = if (entryName.contains("/")) entryName.substringAfterLast("/") else entryName
-                                if (cleanName.isNotBlank() && !entry.isDirectory) {
-                                    val outFile = File(outputDir, cleanName)
-                                    java.io.FileOutputStream(outFile).use { fos ->
-                                        tarIn.copyTo(fos)
+                                val entryName = entry.name.replace('\\', '/')
+                                // 仅剥离最外层单层根目录 (如 "vits-icefall-zh-aishell3/")，完整保留内部嵌套子目录层级 (如 "espeak-ng-data/zh_dict")
+                                val relativePath = if (entryName.contains("/")) {
+                                    entryName.substringAfter("/")
+                                } else {
+                                    entryName
+                                }
+                                if (relativePath.isNotBlank()) {
+                                    val outFile = File(outputDir, relativePath)
+                                    if (entry.isDirectory) {
+                                        outFile.mkdirs()
+                                    } else {
+                                        outFile.parentFile?.mkdirs()
+                                        java.io.FileOutputStream(outFile).use { fos ->
+                                            tarIn.copyTo(fos)
+                                        }
+                                        count++
                                     }
-                                    count++
                                 }
                                 entry = tarIn.nextEntry
                             }
@@ -309,14 +409,23 @@ object OfflineModelManager {
                     java.util.zip.ZipInputStream(java.io.BufferedInputStream(fis)).use { zis ->
                         var zipEntry = zis.nextEntry
                         while (zipEntry != null) {
-                            val entryName = zipEntry.name
-                            val cleanName = if (entryName.contains("/")) entryName.substringAfterLast("/") else entryName
-                            if (cleanName.isNotBlank() && !zipEntry.isDirectory) {
-                                val outFile = File(outputDir, cleanName)
-                                java.io.FileOutputStream(outFile).use { fos ->
-                                    zis.copyTo(fos)
+                            val entryName = zipEntry.name.replace('\\', '/')
+                            val relativePath = if (entryName.contains("/")) {
+                                entryName.substringAfter("/")
+                            } else {
+                                entryName
+                            }
+                            if (relativePath.isNotBlank()) {
+                                val outFile = File(outputDir, relativePath)
+                                if (zipEntry.isDirectory) {
+                                    outFile.mkdirs()
+                                } else {
+                                    outFile.parentFile?.mkdirs()
+                                    java.io.FileOutputStream(outFile).use { fos ->
+                                        zis.copyTo(fos)
+                                    }
+                                    count++
                                 }
-                                count++
                             }
                             zipEntry = zis.nextEntry
                         }

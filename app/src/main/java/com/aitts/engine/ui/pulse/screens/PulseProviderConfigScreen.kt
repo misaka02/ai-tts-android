@@ -355,7 +355,9 @@ fun PulseProviderConfigScreen(
                 if (res.isSuccess) {
                     val bytes = res.getOrNull() ?: ByteArray(0)
                     if (bytes.isNotEmpty()) {
-                        audioPlayer.playAudioBytes(audioBytes = bytes, speed = cfg.speed, onCompletion = { isTestingAudio = false })
+                        // 仅流式传输时由播放器执行时间缩放；非流式音频已在合成期原生注入语速，播放器以 1.0x 原声保真直出，杜绝二次减速/加速
+                        val playbackSpeed = if (cfg.isStreamingEnabled) cfg.speed else 1.0f
+                        audioPlayer.playAudioBytes(audioBytes = bytes, speed = playbackSpeed, onCompletion = { isTestingAudio = false })
                     } else {
                         isTestingAudio = false
                         Toast.makeText(context, "合成音频为空", Toast.LENGTH_SHORT).show()
@@ -364,9 +366,9 @@ fun PulseProviderConfigScreen(
                     isTestingAudio = false
                     Toast.makeText(context, "试听失败: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                 }
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
                 isTestingAudio = false
-                Toast.makeText(context, "调用异常: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "调用异常: ${t.message ?: t.javaClass.simpleName}", Toast.LENGTH_LONG).show()
             }
         }
     }

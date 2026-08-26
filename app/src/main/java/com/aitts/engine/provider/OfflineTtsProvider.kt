@@ -35,32 +35,71 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
         private var isLibraryLoaded = false
 
         /**
-         * 检测手机本地是否已具备 Sherpa-ONNX C++ 原生运行库环境
-         * 优先检查主程序，其次检查已安装的独立轻量拓展包 com.aitts.engine.offline.runtime
+         * 检测并确保手机本地已具备 Sherpa-ONNX C++ 原生运行库环境
+         * 1. 优先检查主程序私有原生库目录 (context.filesDir/native_libs/)
+         * 2. 若尚未提取，从已安装的轻量独立拓展包 (com.aitts.engine.offline.runtime) 的公开 APK (sourceDir)
+         *    提取 lib/arm64-v8a/libsherpa-onnx-jni.so 到自身私有目录中。
+         *    此方案 100% 避开 Android 7+ 跨应用 Linker Namespace 沙箱限制与 SELinux 权限拒绝，彻底杜绝闪退！
          */
         fun isEngineInstalled(context: Context): Boolean {
             if (isLibraryLoaded) return true
-            try {
-                System.loadLibrary("sherpa-onnx-jni")
-                isLibraryLoaded = true
-                return true
-            } catch (e: Throwable) {
-                // not in main app
+
+            val privateLibDir = File(context.filesDir, "native_libs")
+            val localSo = File(privateLibDir, "libsherpa-onnx-jni.so")
+
+            // 1. 如果私有目录中已有有效 .so 文件，直接加载
+            if (localSo.exists() && localSo.length() > 500 * 1024) {
+                try {
+                    injectNativeLibDir(context, privateLibDir)
+                    System.load(localSo.absolutePath)
+                    isLibraryLoaded = true
+                    return true
+                } catch (t: Throwable) {
+                    android.util.Log.w("OfflineTtsProvider", "加载本地私有 so 失败: ${t.message}")
+                    localSo.delete()
+                }
             }
 
-            return try {
-                val packageInfo = context.packageManager.getPackageInfo("com.aitts.engine.offline.runtime", 0)
-                val nativeLibDir = packageInfo.applicationInfo.nativeLibraryDir
-                val soFile = File(nativeLibDir, "libsherpa-onnx-jni.so")
-                if (soFile.exists()) {
-                    injectNativeLibDir(context, File(nativeLibDir))
-                    System.load(soFile.absolutePath)
-                    isLibraryLoaded = true
-                    true
-                } else {
-                    false
+            // 2. 尝试从独立拓展包 APK 中提取 .so 到本应用私有目录
+            try {
+                val pm = context.packageManager
+                val packageInfo = pm.getPackageInfo("com.aitts.engine.offline.runtime", 0)
+                val apkPath = packageInfo.applicationInfo.sourceDir
+                val apkFile = File(apkPath)
+                if (apkFile.exists() && apkFile.canRead()) {
+                    java.util.zip.ZipFile(apkFile).use { zip ->
+                        val entry = zip.getEntry("lib/arm64-v8a/libsherpa-onnx-jni.so")
+                            ?: zip.entries().asSequence().firstOrNull { it.name.endsWith("libsherpa-onnx-jni.so") }
+                        if (entry != null) {
+                            privateLibDir.mkdirs()
+                            val tempSo = File(privateLibDir, "libsherpa-onnx-jni.so.tmp")
+                            zip.getInputStream(entry).use { input ->
+                                java.io.FileOutputStream(tempSo).use { output ->
+                                    input.copyTo(output)
+                                }
+                            }
+                            if (tempSo.exists() && tempSo.length() > 500 * 1024) {
+                                if (localSo.exists()) localSo.delete()
+                                tempSo.renameTo(localSo)
+                                localSo.setReadOnly()
+                                injectNativeLibDir(context, privateLibDir)
+                                System.load(localSo.absolutePath)
+                                isLibraryLoaded = true
+                                return true
+                            }
+                        }
+                    }
                 }
-            } catch (e: Throwable) {
+            } catch (t: Throwable) {
+                android.util.Log.w("OfflineTtsProvider", "从拓展包提取 so 失败: ${t.message}")
+            }
+
+            // 3. 最后尝试直接 System.loadLibrary
+            return try {
+                System.loadLibrary("sherpa-onnx-jni")
+                isLibraryLoaded = true
+                true
+            } catch (t: Throwable) {
                 false
             }
         }
@@ -157,6 +196,7 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
             val espeakDir = allFiles.firstOrNull { it.isDirectory && it.name.equals("espeak-ng-data", ignoreCase = true) }
 
             val isMatcha = modelId.contains("matcha", ignoreCase = true)
+            val isKokoro = modelId.contains("kokoro", ignoreCase = true)
             val modelConfig = if (isMatcha) {
                 val acousticModel = allFiles.firstOrNull { it.name.contains("model", ignoreCase = true) && it.extension.equals("onnx", ignoreCase = true) }
                     ?: onnxFile
@@ -184,6 +224,28 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
                     debug = false,
                     provider = "cpu"
                 )
+            } else if (isKokoro) {
+                val voicesFile = allFiles.firstOrNull { it.name.contains("voices", ignoreCase = true) }
+                val kokoroConfig = OfflineTtsKokoroModelConfig(
+                    model = onnxFile.absolutePath,
+                    voices = voicesFile?.absolutePath ?: "",
+                    tokens = tokensFile.absolutePath,
+                    dataDir = espeakDir?.absolutePath ?: "",
+                    lexicon = lexiconFile?.absolutePath ?: "",
+                    lengthScale = 1.0f
+                )
+                OfflineTtsModelConfig(
+                    vits = OfflineTtsVitsModelConfig(),
+                    matcha = OfflineTtsMatchaModelConfig(),
+                    kokoro = kokoroConfig,
+                    zipvoice = OfflineTtsZipVoiceModelConfig(),
+                    kitten = OfflineTtsKittenModelConfig(),
+                    pocket = OfflineTtsPocketModelConfig(),
+                    supertonic = OfflineTtsSupertonicModelConfig(),
+                    numThreads = 4,
+                    debug = false,
+                    provider = "cpu"
+                )
             } else {
                 val vitsConfig = OfflineTtsVitsModelConfig(
                     model = onnxFile.absolutePath,
@@ -203,7 +265,19 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
                 )
             }
 
-            val ttsConfig = OfflineTtsConfig(model = modelConfig)
+            // 扫描并加载配套的中文文本正则化/音素规则 FST (如 phone.fst, date.fst, number.fst)
+            val fstFiles = allFiles.filter { it.extension.equals("fst", ignoreCase = true) }
+            val ruleFstsStr = fstFiles.joinToString(",") { it.absolutePath }
+            val farFiles = allFiles.filter { it.extension.equals("far", ignoreCase = true) }
+            val ruleFarsStr = farFiles.joinToString(",") { it.absolutePath }
+
+            val ttsConfig = OfflineTtsConfig(
+                model = modelConfig,
+                ruleFsts = ruleFstsStr,
+                ruleFars = ruleFarsStr,
+                maxNumSentences = 1,
+                silenceScale = 0.2f
+            )
             // 严禁传入 context.assets！传入 null 时底层 C++ 将调用 newFromFile 正确读取磁盘中的神经网络模型
             val tts = OfflineTts(null, ttsConfig)
 

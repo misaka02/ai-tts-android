@@ -271,9 +271,9 @@ fun VinylHubScreen(
                     isSynthesizing = false
                     Toast.makeText(context, "合成失败: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                 }
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
                 isSynthesizing = false
-                Toast.makeText(context, "异常: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "异常: ${t.message ?: t.javaClass.simpleName}", Toast.LENGTH_SHORT).show()
             }
         }
     }

@@ -281,11 +281,12 @@ fun PulseHubScreen(
                     configDataStore.log("❌ 合成失败: $err")
                     Toast.makeText(context, "合成失败: $err", Toast.LENGTH_LONG).show()
                 }
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
                 isSynthesizing = false
                 isPlaying = false
-                configDataStore.log("💥 调用异常: ${e.message}")
-                Toast.makeText(context, "调用异常: ${e.message}", Toast.LENGTH_LONG).show()
+                val msg = t.message ?: t.javaClass.simpleName
+                configDataStore.log("💥 调用异常: $msg")
+                Toast.makeText(context, "调用异常: $msg", Toast.LENGTH_LONG).show()
             }
         }
     }

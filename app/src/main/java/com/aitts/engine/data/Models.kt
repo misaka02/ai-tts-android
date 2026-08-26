@@ -612,6 +612,28 @@ object PresetConfigs {
                 tags = listOf("中英双语", "混读拟真", "高质量")
             ),
             TtsProviderConfig(
+                id = "offline_piper_chaowen",
+                type = ProviderType.OFFLINE_VITS,
+                name = "Piper-Chaowen 超文沉浸中文男声",
+                enabled = false,
+                modelName = "vits-piper-zh_CN-chaowen-medium",
+                voiceId = "piper_chaowen_male",
+                sampleRate = 22050,
+                audioFormat = "wav",
+                tags = listOf("磁性男声", "小说旁白", "低功耗")
+            ),
+            TtsProviderConfig(
+                id = "offline_piper_xiaoya",
+                type = ProviderType.OFFLINE_VITS,
+                name = "Piper-Xiaoya 小雅灵动少女音",
+                enabled = false,
+                modelName = "vits-piper-zh_CN-xiao_ya-medium",
+                voiceId = "piper_xiaoya_female",
+                sampleRate = 22050,
+                audioFormat = "wav",
+                tags = listOf("灵动少女", "轻松读物", "低延迟")
+            ),
+            TtsProviderConfig(
                 id = "offline_matcha_baker",
                 type = ProviderType.OFFLINE_VITS,
                 name = "Matcha-Baker 标贝标准播音女声",
@@ -621,6 +643,28 @@ object PresetConfigs {
                 sampleRate = 22050,
                 audioFormat = "wav",
                 tags = listOf("FlowMatching", "标贝标准", "端庄播音")
+            ),
+            TtsProviderConfig(
+                id = "offline_cantonese",
+                type = ProviderType.OFFLINE_VITS,
+                name = "粤语广府话 (小麦女声)",
+                enabled = false,
+                modelName = "vits-cantonese-hf-xiaomaiiwn",
+                voiceId = "cantonese_xiaomaiiwn",
+                sampleRate = 22050,
+                audioFormat = "wav",
+                tags = listOf("粤语方言", "广府白话", "地道特色")
+            ),
+            TtsProviderConfig(
+                id = "offline_kokoro_multi",
+                type = ProviderType.OFFLINE_VITS,
+                name = "Kokoro-Multi 多语言量化模型",
+                enabled = false,
+                modelName = "kokoro-int8-multi-lang-v1_0",
+                voiceId = "kokoro_multi_0",
+                sampleRate = 24000,
+                audioFormat = "wav",
+                tags = listOf("Kokoro架构", "INT8量化", "多国语言")
             )
         )
     }
