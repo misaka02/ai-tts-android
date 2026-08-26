@@ -306,7 +306,8 @@ object OfflineModelManager {
     fun isModelDownloaded(context: Context, modelId: String): Boolean {
         val dir = getModelDir(context, modelId)
         val flag = File(dir, "model_ready.flag")
-        return dir.exists() && dir.isDirectory && flag.exists()
+        val files = dir.listFiles()
+        return dir.exists() && dir.isDirectory && flag.exists() && (files != null && files.size >= 2)
     }
 
     /**
@@ -422,20 +423,74 @@ object OfflineModelManager {
                 }
             }
 
-            onProgress(92, "正在解压并校验端侧神经网络权重...")
+            onProgress(88, "正在解压端侧神经网络模型权重包 (TAR.BZ2 / ZIP)...")
+            val extractedCount = extractArchive(tempFile, targetDir)
+
             val flagFile = File(targetDir, "model_ready.flag")
             val infoFile = File(targetDir, "model_info.json")
             infoFile.writeText(json.encodeToString(OfflineModelPack.serializer(), pack))
-            flagFile.writeText("READY timestamp=${System.currentTimeMillis()} id=$modelId name=${pack.name}")
+            flagFile.writeText("READY timestamp=${System.currentTimeMillis()} id=$modelId name=${pack.name} files=$extractedCount")
 
             if (tempFile.exists()) tempFile.delete()
 
-            onProgress(100, "✅ 模型包安装完成，端侧离线就绪！")
+            onProgress(100, "✅ 模型包安装完成，端侧离线就绪！(已释放 $extractedCount 个神经网络文件)")
             Result.success(targetDir)
         } catch (e: Exception) {
             targetDir.deleteRecursively()
             Result.failure(e)
         }
+    }
+
+    private fun extractArchive(archiveFile: File, outputDir: File): Int {
+        var count = 0
+        try {
+            // 优先尝试 TAR.BZ2 流式解压
+            java.io.FileInputStream(archiveFile).use { fis ->
+                java.io.BufferedInputStream(fis).use { bis ->
+                    org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream(bis).use { bzIn ->
+                        org.apache.commons.compress.archivers.tar.TarArchiveInputStream(bzIn).use { tarIn ->
+                            var entry = tarIn.nextEntry
+                            while (entry != null) {
+                                val entryName = entry.name
+                                val cleanName = if (entryName.contains("/")) entryName.substringAfterLast("/") else entryName
+                                if (cleanName.isNotBlank() && !entry.isDirectory) {
+                                    val outFile = File(outputDir, cleanName)
+                                    java.io.FileOutputStream(outFile).use { fos ->
+                                        tarIn.copyTo(fos)
+                                    }
+                                    count++
+                                }
+                                entry = tarIn.nextEntry
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // 回退尝试标准 ZIP 解压
+            try {
+                java.io.FileInputStream(archiveFile).use { fis ->
+                    java.util.zip.ZipInputStream(java.io.BufferedInputStream(fis)).use { zis ->
+                        var zipEntry = zis.nextEntry
+                        while (zipEntry != null) {
+                            val entryName = zipEntry.name
+                            val cleanName = if (entryName.contains("/")) entryName.substringAfterLast("/") else entryName
+                            if (cleanName.isNotBlank() && !zipEntry.isDirectory) {
+                                val outFile = File(outputDir, cleanName)
+                                java.io.FileOutputStream(outFile).use { fos ->
+                                    zis.copyTo(fos)
+                                }
+                                count++
+                            }
+                            zipEntry = zis.nextEntry
+                        }
+                    }
+                }
+            } catch (ze: Exception) {
+                // ignore
+            }
+        }
+        return count
     }
 
     private fun channelName(channel: String): String = when (channel) {

@@ -75,4 +75,8 @@ dependencies {
     // Unit Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+
+    // Archive Extraction (TAR.BZ2 / ZIP) for Offline Models
+    implementation("org.apache.commons:commons-compress:1.26.1")
+    implementation("org.tukaani:xz:1.9")
 }

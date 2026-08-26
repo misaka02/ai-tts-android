@@ -79,10 +79,12 @@ class AndroidAudioPlayer(private val context: Context) {
                         )
                         setDataSource(dataSource)
                         setOnCompletionListener {
+                            AudioVisualizerManager.getInstance().decayToSilence()
                             stop()
                             onCompletion()
                         }
                         setOnErrorListener { _, what, extra ->
+                            AudioVisualizerManager.getInstance().decayToSilence()
                             stop()
                             onError("播放器错误 what=$what, extra=$extra")
                             true
@@ -100,12 +102,23 @@ class AndroidAudioPlayer(private val context: Context) {
                     mediaPlayer = player
                     AudioVisualizerManager.getInstance().attachToSession(player.audioSessionId)
 
-                    // 异步高速解码出真实 PCM 数据并驱动 STFT 频域示波器
+                    // 异步高速解码出真实 PCM 数据并驱动 STFT 频域示波器，强力绑定播放器实际播放状态与倍速
                     kotlinx.coroutines.CoroutineScope(Dispatchers.Default).launch {
                         try {
                             val decoded = AudioDecoder.decodeToPcm(audioBytes)
                             if (decoded.pcmData.isNotEmpty()) {
-                                AudioVisualizerManager.getInstance().startRealPcmAnalysis(decoded.pcmData, decoded.sampleRate)
+                                AudioVisualizerManager.getInstance().startRealPcmAnalysis(
+                                    pcmBytes = decoded.pcmData,
+                                    sampleRate = decoded.sampleRate,
+                                    speed = speed,
+                                    isStillPlaying = {
+                                        try {
+                                            player.isPlaying
+                                        } catch (e: Exception) {
+                                            false
+                                        }
+                                    }
+                                )
                             }
                         } catch (e: Exception) {
                             Log.w("AudioPlayer", "示波器 PCM 解码分析异常: ${e.message}")

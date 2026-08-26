@@ -178,6 +178,7 @@ fun PulseProviderConfigScreen(
     var downloadChannel by remember { mutableStateOf("hf_mirror") }
     var showOfflineSpeakerDialog by remember { mutableStateOf(false) }
     var offlineSpeakerSearchQuery by remember { mutableStateOf("") }
+    var modelPendingDelete by remember { mutableStateOf<com.aitts.engine.offline.OfflineModelPack?>(null) }
 
     val audioPlayer = remember { AndroidAudioPlayer(context) }
     DisposableEffect(Unit) {
@@ -1116,11 +1117,7 @@ fun PulseProviderConfigScreen(
                                                         if (isDownloaded) {
                                                             Button(
                                                                 onClick = {
-                                                                    val success = com.aitts.engine.offline.OfflineModelManager.deleteModel(context, pack.id)
-                                                                    if (success) {
-                                                                        offlineCatalog = com.aitts.engine.offline.OfflineModelManager.getCatalog()
-                                                                        Toast.makeText(context, "已删除模型【${pack.name}】，释放本地存储空间", Toast.LENGTH_SHORT).show()
-                                                                    }
+                                                                    modelPendingDelete = pack
                                                                 },
                                                                 shape = RoundedCornerShape(8.dp),
                                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
@@ -1147,10 +1144,7 @@ fun PulseProviderConfigScreen(
                                                                             }
                                                                         )
                                                                         if (res.isSuccess) {
-                                                                            Toast.makeText(context, "【${pack.name}】下载安装就绪！", Toast.LENGTH_SHORT).show()
-                                                                            modelName = pack.id
-                                                                            voiceId = pack.defaultVoiceId
-                                                                            sampleRate = pack.sampleRate.toString()
+                                                                            Toast.makeText(context, "【${pack.name}】下载安装完成！可在列表中点击「选用此模型」启用", Toast.LENGTH_LONG).show()
                                                                         } else {
                                                                             downloadProgressMap = downloadProgressMap - pack.id
                                                                             Toast.makeText(context, "下载失败: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
@@ -1652,6 +1646,45 @@ fun PulseProviderConfigScreen(
                 confirmButton = {
                     TextButton(onClick = { showOfflineSpeakerDialog = false }) {
                         Text("关闭", color = PulseTokens.CyanElectric)
+                    }
+                },
+                containerColor = PulseTokens.SurfaceElevated
+            )
+        }
+
+        if (modelPendingDelete != null) {
+            val pack = modelPendingDelete!!
+            AlertDialog(
+                onDismissRequest = { modelPendingDelete = null },
+                title = {
+                    Text("确认删除离线模型？", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFF6B6B))
+                },
+                text = {
+                    Text(
+                        text = "确定要删除本地已下载的离线模型包【${pack.name}】(${pack.sizeMb}MB) 吗？\n\n删除后将彻底清理本地文件以释放手机存储空间，后续可随时通过高速通道重新下载安装。",
+                        fontSize = 13.sp,
+                        color = PulseTokens.TextSecondary,
+                        lineHeight = 18.sp
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val success = com.aitts.engine.offline.OfflineModelManager.deleteModel(context, pack.id)
+                            if (success) {
+                                offlineCatalog = com.aitts.engine.offline.OfflineModelManager.getCatalog()
+                                Toast.makeText(context, "已删除模型【${pack.name}】，释放本地存储空间", Toast.LENGTH_SHORT).show()
+                            }
+                            modelPendingDelete = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444), contentColor = Color.White)
+                    ) {
+                        Text("确认删除", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { modelPendingDelete = null }) {
+                        Text("取消", color = PulseTokens.TextSecondary)
                     }
                 },
                 containerColor = PulseTokens.SurfaceElevated

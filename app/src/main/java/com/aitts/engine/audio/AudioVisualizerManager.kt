@@ -96,8 +96,14 @@ class AudioVisualizerManager private constructor() {
 
     /**
      * 接收已解码的真实 16-bit 线性 PCM 数据进行高保真 STFT 频域分析
+     * 接入主播放器实际物理时钟与 isStillPlaying 状态，确保动画持续律动到播音完全结束的最后一刻
      */
-    fun startRealPcmAnalysis(pcmBytes: ByteArray, sampleRate: Int = 24000) {
+    fun startRealPcmAnalysis(
+        pcmBytes: ByteArray,
+        sampleRate: Int = 24000,
+        speed: Float = 1.0f,
+        isStillPlaying: () -> Boolean = { true }
+    ) {
         pcmAnalysisJob?.cancel()
         decayJob?.cancel()
 
@@ -107,81 +113,106 @@ class AudioVisualizerManager private constructor() {
         }
 
         pcmAnalysisJob = scope.launch {
-            val frameDurationMs = 40L
+            val frameDurationMs = 30L
             val frameSamples = (sampleRate * frameDurationMs / 1000).toInt()
             val frameBytes = frameSamples * 2 // 16-bit Mono
 
-            var byteOffset = 0
             val totalBytes = pcmBytes.size
+            val effectiveSpeed = speed.coerceIn(0.25f, 3.0f)
+            val startTime = System.currentTimeMillis()
 
-            while (isActive && byteOffset < totalBytes) {
+            while (isActive && isStillPlaying()) {
+                val now = System.currentTimeMillis()
+                val elapsedMs = now - startTime
+
+                // 根据真实播放流逝时间与语速动态计算当前 PCM 字节偏移
+                val effectiveAudioMs = (elapsedMs * effectiveSpeed).toLong()
+                val byteOffset = ((effectiveAudioMs * sampleRate / 1000) * 2).toInt().coerceIn(0, totalBytes)
+
                 val currentEnd = (byteOffset + frameBytes).coerceAtMost(totalBytes)
                 val currentLength = currentEnd - byteOffset
                 val samplesCount = currentLength / 2
 
-                if (samplesCount < 32) break
+                if (samplesCount >= 32) {
+                    // 提取 16-bit PCM 归一化采样值并施加 Hann 窗
+                    val samples = FloatArray(samplesCount)
+                    var sumSquare = 0.0
 
-                // 提取 16-bit PCM 归一化采样值并施加 Hann 窗
-                val samples = FloatArray(samplesCount)
-                var sumSquare = 0.0
+                    for (i in 0 until samplesCount) {
+                        val idx = byteOffset + i * 2
+                        val low = pcmBytes[idx].toInt() and 0xFF
+                        val high = pcmBytes[idx + 1].toInt()
+                        val rawSample = (high shl 8) or low
+                        val normalized = rawSample.toShort() / 32768.0f
 
-                for (i in 0 until samplesCount) {
-                    val idx = byteOffset + i * 2
-                    val low = pcmBytes[idx].toInt() and 0xFF
-                    val high = pcmBytes[idx + 1].toInt()
-                    val rawSample = (high shl 8) or low
-                    val normalized = rawSample.toShort() / 32768.0f
-
-                    // Hann 窗
-                    val hann = 0.5 * (1.0 - cos(2.0 * PI * i / samplesCount))
-                    samples[i] = (normalized * hann).toFloat()
-                    sumSquare += normalized * normalized
-                }
-
-                val rms = sqrt(sumSquare / samplesCount.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f)
-                _rmsEnergyFlow.value = rms
-
-                // 32-Band Mel/对数频域能量计算 (基于离散傅里叶基波变换)
-                val targetBands = FloatArray(BAND_COUNT)
-                val minFreq = 80.0
-                val maxFreq = (sampleRate / 2.0).coerceAtMost(6000.0)
-
-                for (b in 0 until BAND_COUNT) {
-                    // 对数频率分配
-                    val freq = minFreq * Math.pow(maxFreq / minFreq, b.toDouble() / (BAND_COUNT - 1))
-                    val k = (freq * samplesCount / sampleRate).toInt().coerceIn(1, samplesCount / 2)
-
-                    // 计算在目标频率 k 处的实部与虚部相关性
-                    var real = 0.0
-                    var imag = 0.0
-                    val step = (samplesCount / 64).coerceAtLeast(1) // 降采样快速 DFT 计算
-
-                    for (n in 0 until samplesCount step step) {
-                        val angle = 2.0 * PI * k * n / samplesCount
-                        real += samples[n] * cos(angle)
-                        imag -= samples[n] * sin(angle)
+                        val hann = 0.5 * (1.0 - cos(2.0 * PI * i / samplesCount))
+                        samples[i] = (normalized * hann).toFloat()
+                        sumSquare += normalized * normalized
                     }
 
-                    val magnitude = hypot(real, imag) * (step.toDouble() / samplesCount) * 16.0
-                    targetBands[b] = magnitude.toFloat().coerceIn(0.02f, 1.0f)
-                }
+                    val rms = sqrt(sumSquare / samplesCount.coerceAtLeast(1)).toFloat().coerceIn(0f, 1f)
+                    _rmsEnergyFlow.value = rms
 
-                // 物理阻尼与平滑处理 (Attack 快，Decay 柔和)
-                for (b in 0 until BAND_COUNT) {
-                    val target = targetBands[b]
-                    currentBands[b] = if (target > currentBands[b]) {
-                        currentBands[b] * 0.25f + target * 0.75f // 快速上冲
-                    } else {
-                        (currentBands[b] - 0.06f).coerceAtLeast(target).coerceAtLeast(0.02f) // 重力平滑回落
+                    // 32-Band Mel/对数频域能量计算
+                    val targetBands = FloatArray(BAND_COUNT)
+                    val minFreq = 80.0
+                    val maxFreq = (sampleRate / 2.0).coerceAtMost(6000.0)
+
+                    for (b in 0 until BAND_COUNT) {
+                        val freq = minFreq * Math.pow(maxFreq / minFreq, b.toDouble() / (BAND_COUNT - 1))
+                        val k = (freq * samplesCount / sampleRate).toInt().coerceIn(1, samplesCount / 2)
+
+                        var real = 0.0
+                        var imag = 0.0
+                        val step = (samplesCount / 64).coerceAtLeast(1)
+
+                        for (n in 0 until samplesCount step step) {
+                            val angle = 2.0 * PI * k * n / samplesCount
+                            real += samples[n] * cos(angle)
+                            imag -= samples[n] * sin(angle)
+                        }
+
+                        val magnitude = hypot(real, imag) * (step.toDouble() / samplesCount) * 16.0
+                        targetBands[b] = magnitude.toFloat().coerceIn(0.02f, 1.0f)
                     }
+
+                    for (b in 0 until BAND_COUNT) {
+                        val target = targetBands[b]
+                        currentBands[b] = if (target > currentBands[b]) {
+                            currentBands[b] * 0.25f + target * 0.75f
+                        } else {
+                            (currentBands[b] - 0.06f).coerceAtLeast(target).coerceAtLeast(0.02f)
+                        }
+                    }
+                    _spectrumFlow.value = currentBands.copyOf()
+                } else if (isStillPlaying()) {
+                    // 如果音频播音尚未结束 (播放器仍处于 playing)，保持自然微动余振，绝不提前清零静止
+                    for (b in 0 until BAND_COUNT) {
+                        currentBands[b] = (currentBands[b] * 0.94f).coerceAtLeast(0.05f)
+                    }
+                    _spectrumFlow.value = currentBands.copyOf()
+                    _rmsEnergyFlow.value = (_rmsEnergyFlow.value * 0.92f).coerceAtLeast(0.04f)
                 }
 
-                _spectrumFlow.value = currentBands.copyOf()
-
-                byteOffset += frameBytes
-                delay(frameDurationMs - 5) // 补偿计算耗时
+                delay(frameDurationMs)
             }
 
+            // 播音结束后平滑自然衰减至静止
+            decayToSilence()
+        }
+    }
+
+    fun decayToSilence() {
+        decayJob?.cancel()
+        decayJob = scope.launch {
+            for (step in 0 until 8) {
+                for (b in 0 until BAND_COUNT) {
+                    currentBands[b] = (currentBands[b] * 0.72f).coerceAtLeast(0.02f)
+                }
+                _spectrumFlow.value = currentBands.copyOf()
+                _rmsEnergyFlow.value = (_rmsEnergyFlow.value * 0.72f).coerceAtLeast(0f)
+                delay(20)
+            }
             resetToSilence()
         }
     }
