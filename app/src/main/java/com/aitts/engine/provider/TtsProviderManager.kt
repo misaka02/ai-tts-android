@@ -26,7 +26,7 @@ class TtsProviderManager {
         providers[ProviderType.AZURE] = AzureTtsProvider(client)
         providers[ProviderType.GEMINI] = GeminiTtsProvider(client)
         providers[ProviderType.CUSTOM_HTTP] = CustomHttpTtsProvider(client)
-        providers[ProviderType.OFFLINE_VITS] = CustomHttpTtsProvider(client)
+        providers[ProviderType.OFFLINE_VITS] = OfflineTtsProvider(com.aitts.engine.AiTtsApp.instance)
     }
 
     fun getProvider(type: ProviderType): TtsProvider {

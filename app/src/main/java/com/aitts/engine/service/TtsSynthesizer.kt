@@ -89,13 +89,13 @@ class TtsSynthesizer(private val context: Context) {
 
         // 适配系统与阅读器传入的语速与音调参数 (智能适配静读天下/阅读 1~30 刻度与标准 Android 100 刻度)
         val systemSpeed = when {
-            request.speechRate <= 0 -> 1.0f
+            request.speechRate <= 0 || request.speechRate == 10 || request.speechRate == 100 -> 1.0f
             request.speechRate in 1..30 -> (request.speechRate / 10.0f).coerceIn(0.25f, 3.0f)
             else -> (request.speechRate / 100.0f).coerceIn(0.25f, 3.0f)
         }
 
         val systemPitch = when {
-            request.pitch <= 0 -> 1.0f
+            request.pitch <= 0 || request.pitch == 10 || request.pitch == 100 -> 1.0f
             request.pitch in 1..30 -> (request.pitch / 10.0f).coerceIn(0.5f, 2.0f)
             else -> (request.pitch / 100.0f).coerceIn(0.5f, 2.0f)
         }
@@ -282,13 +282,12 @@ class TtsSynthesizer(private val context: Context) {
                     configDataStore.log("⚡ [流式首包秒开] 第 ${i + 1}/${segments.size} 段开启实时推流播报 (语速: ${segConfig.speed}x)...")
                     val streamRes = providerManager.synthesizeStreaming(seg.text, segConfig) { rawChunk ->
                         if (isStopped.get() || !isActive) return@synthesizeStreaming
-                        val resampled = AudioResampler.resampleWithSpeed(
+                        val resampled = AudioResampler.resample(
                             pcmData = rawChunk,
                             sourceSampleRate = segConfig.sampleRate,
                             sourceChannels = 1,
                             targetSampleRate = targetSampleRate,
-                            targetChannels = 1,
-                            speed = segConfig.speed
+                            targetChannels = 1
                         )
                         val enhanced = AudioEnhancer.processPcm(
                             pcmData = resampled,

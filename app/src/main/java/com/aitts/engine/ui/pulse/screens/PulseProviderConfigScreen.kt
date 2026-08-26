@@ -171,6 +171,12 @@ fun PulseProviderConfigScreen(
     var fetchedModelsList by remember { mutableStateOf<List<String>>(emptyList()) }
     var modelsFetchStatus by remember { mutableStateOf<String?>("") }
 
+    var offlineCatalog by remember { mutableStateOf(com.aitts.engine.offline.OfflineModelManager.getCatalog()) }
+    var isRefreshingOfflineCatalog by remember { mutableStateOf(false) }
+    var selectedOfflineCategory by remember { mutableStateOf("全部") }
+    var downloadProgressMap by remember { mutableStateOf<Map<String, Pair<Int, String>>>(emptyMap()) }
+    var downloadChannel by remember { mutableStateOf("hf_mirror") }
+
     val audioPlayer = remember { AndroidAudioPlayer(context) }
     DisposableEffect(Unit) {
         onDispose { audioPlayer.stop() }
@@ -860,7 +866,7 @@ fun PulseProviderConfigScreen(
                     }
                 }
 
-                // 离线神经网络专属配置卡片 (模型包自选管理、端侧推理加速、内置音色)
+                // 离线神经网络专属配置卡片 (大模型库自选管理、端侧推理加速、多通道下载、在线动态同步)
                 if (selectedType == ProviderType.OFFLINE_VITS) {
                     item(contentType = "offline_model_pack") {
                         PulseCard(
@@ -878,56 +884,218 @@ fun PulseProviderConfigScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("📦 离线神经网络语音库 (ONNX / VITS)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
-                                    Text("端侧 0 流量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PulseTokens.AcidGreen)
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("📦 离线神经网络语音库", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
+                                        Text("顶级大模型 / 微软全系列 / Sherpa-ONNX", fontSize = 11.sp, color = PulseTokens.TextSecondary)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            if (!isRefreshingOfflineCatalog) {
+                                                isRefreshingOfflineCatalog = true
+                                                scope.launch {
+                                                    val res = com.aitts.engine.offline.OfflineModelManager.refreshRemoteCatalog(context)
+                                                    if (res.isSuccess) {
+                                                        offlineCatalog = res.getOrNull() ?: offlineCatalog
+                                                        Toast.makeText(context, "已从云端同步最新离线模型列表 (${offlineCatalog.size}款)", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        Toast.makeText(context, "刷新失败: ${res.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                    isRefreshingOfflineCatalog = false
+                                                }
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.5f)),
+                                        modifier = Modifier.height(34.dp)
+                                    ) {
+                                        if (isRefreshingOfflineCatalog) {
+                                            CircularProgressIndicator(modifier = Modifier.size(12.dp), color = PulseTokens.CyanElectric, strokeWidth = 1.5.dp)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                        } else {
+                                            Icon(Icons.Default.Refresh, contentDescription = null, tint = PulseTokens.CyanElectric, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                        }
+                                        Text("刷新最新模型", fontSize = 11.sp, color = PulseTokens.CyanElectric, fontWeight = FontWeight.SemiBold)
+                                    }
                                 }
-                                Text("支持自选下载离线神经网络语音包，下载后无需联网、零延迟，随时流畅听书：", fontSize = 12.sp, color = PulseTokens.TextSecondary)
 
-                                val offlinePacks = listOf(
-                                    // 微软离线自然语音包 (Microsoft Natural Offline)
-                                    Triple("ms-offline-xiaoxiao", "微软晓晓离线自然版 (48MB ONNX int8)", "微软官方晓晓自然女声，高拟真、纯本地端侧离线运行"),
-                                    Triple("ms-offline-yunxi", "微软云希离线自然版 (52MB ONNX int8)", "微软官方云希沉浸男声，适合长篇小说与玄幻都市"),
-                                    Triple("ms-offline-yunyang", "微软云扬离线播音版 (50MB ONNX int8)", "微软专业播音腔男声，字正腔圆，新闻与纪实首选"),
-                                    // Sherpa-ONNX / VITS 开源模型包
-                                    Triple("vits-zh-aishell3", "Sherpa-ONNX Aishell3 (88MB)", "通用中文多发音人女声，音质干净纯粹"),
-                                    Triple("vits-piper-zh", "Piper-Zh 超轻量离线模型 (42MB)", "极低运存占用，手机不发热，超低延迟"),
-                                    Triple("melo-tts-zh-en", "MeloTTS 中英自然双语 (115MB)", "中英文混读拟真模型，发音流畅自然")
-                                )
+                                // 下载节点镜像切换
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("下载节点:", fontSize = 11.sp, color = PulseTokens.TextTertiary)
+                                    val channels = listOf("hf_mirror" to "国内高速(HF)", "github" to "GitHub直连", "cdn" to "CDN加速")
+                                    channels.forEach { (cId, cName) ->
+                                        val isSel = downloadChannel == cId
+                                        Surface(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .clickable { downloadChannel = cId },
+                                            color = if (isSel) PulseTokens.CyanElectric.copy(alpha = 0.2f) else PulseTokens.SurfaceDark,
+                                            border = if (isSel) BorderStroke(1.dp, PulseTokens.CyanElectric) else PulseTokens.BorderSubtle,
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = cName,
+                                                fontSize = 10.5.sp,
+                                                color = if (isSel) PulseTokens.CyanElectric else PulseTokens.TextSecondary,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
+                                }
 
-                                offlinePacks.forEach { (mId, mTitle, mDesc) ->
-                                    val isCur = modelName == mId
+                                // 分类筛选标签
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val cats = listOf("全部", "顶级大模型高拟真", "微软离线自然语音", "Sherpa-ONNX 经典")
+                                    cats.forEach { cat ->
+                                        val isSel = selectedOfflineCategory == cat
+                                        Surface(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .clickable { selectedOfflineCategory = cat },
+                                            color = if (isSel) PulseTokens.SonicBlue.copy(alpha = 0.25f) else PulseTokens.SurfaceDark,
+                                            border = if (isSel) BorderStroke(1.dp, PulseTokens.SonicBlue) else PulseTokens.BorderSubtle,
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = if (cat == "全部") "全部" else cat.take(4),
+                                                fontSize = 11.sp,
+                                                color = if (isSel) PulseTokens.SonicBlue else PulseTokens.TextSecondary,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
+                                }
+
+                                val displayedPacks = offlineCatalog.filter {
+                                    selectedOfflineCategory == "全部" || it.category == selectedOfflineCategory
+                                }
+
+                                displayedPacks.forEach { pack ->
+                                    val isCur = modelName == pack.id
+                                    val isDownloaded = com.aitts.engine.offline.OfflineModelManager.isModelDownloaded(context, pack.id)
+                                    val progressInfo = downloadProgressMap[pack.id]
+                                    val isDownloading = progressInfo != null && progressInfo.first < 100
+
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .clickable {
-                                                modelName = mId
-                                                voiceId = when (mId) {
-                                                    "ms-offline-xiaoxiao" -> "zh-CN-XiaoxiaoOffline"
-                                                    "ms-offline-yunxi" -> "zh-CN-YunxiOffline"
-                                                    "ms-offline-yunyang" -> "zh-CN-YunyangOffline"
-                                                    "vits-piper-zh" -> "piper_zh_female"
-                                                    "melo-tts-zh-en" -> "melo_zh_default"
-                                                    else -> "aishell3_female_01"
-                                                }
-                                                sampleRate = if (mId.startsWith("ms-") || mId.startsWith("melo-")) "24000" else "22050"
-                                                Toast.makeText(context, "已选用离线模型: $mTitle", Toast.LENGTH_SHORT).show()
-                                            },
+                                            .clip(RoundedCornerShape(10.dp)),
                                         color = if (isCur) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceDark,
                                         border = if (isCur) BorderStroke(1.2.dp, PulseTokens.CyanElectric) else PulseTokens.BorderSubtle,
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(mTitle, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (isCur) PulseTokens.CyanElectric else PulseTokens.TextPrimary)
-                                                Text(mDesc, fontSize = 11.sp, color = PulseTokens.TextSecondary)
+                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(pack.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (isCur) PulseTokens.CyanElectric else PulseTokens.TextPrimary)
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = PulseTokens.SurfaceElevated,
+                                                            border = PulseTokens.BorderSubtle
+                                                        ) {
+                                                            Text("${pack.sizeMb}MB", fontSize = 10.sp, color = PulseTokens.TextTertiary, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                                        }
+                                                    }
+                                                    Text(pack.description, fontSize = 11.sp, color = PulseTokens.TextSecondary)
+                                                }
+                                                if (isCur) {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = PulseTokens.CyanElectric, modifier = Modifier.size(18.dp))
+                                                }
                                             }
-                                            if (isCur) {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = PulseTokens.CyanElectric, modifier = Modifier.size(18.dp))
+
+                                            // 下载与选用控制条
+                                            if (isDownloading) {
+                                                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    androidx.compose.material3.LinearProgressIndicator(
+                                                        progress = { (progressInfo.first.toFloat() / 100f).coerceIn(0f, 1f) },
+                                                        modifier = Modifier.fillMaxWidth().height(4.dp),
+                                                        color = PulseTokens.CyanElectric,
+                                                        trackColor = PulseTokens.SurfaceElevated
+                                                    )
+                                                    Text(progressInfo.second, fontSize = 10.5.sp, color = PulseTokens.CyanElectric)
+                                                }
+                                            } else {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    if (isDownloaded) {
+                                                        Text("🟢 本地已就绪", fontSize = 11.sp, color = PulseTokens.AcidGreen, fontWeight = FontWeight.SemiBold)
+                                                    } else {
+                                                        Text("⚪ 待下载 (${pack.sizeMb}MB)", fontSize = 11.sp, color = PulseTokens.TextTertiary)
+                                                    }
+
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                        if (!isDownloaded) {
+                                                            Button(
+                                                                onClick = {
+                                                                    scope.launch {
+                                                                        downloadProgressMap = downloadProgressMap + (pack.id to (5 to "正在连接节点..."))
+                                                                        val res = com.aitts.engine.offline.OfflineModelManager.downloadModelPackage(
+                                                                            context = context,
+                                                                            modelId = pack.id,
+                                                                            channel = downloadChannel,
+                                                                            onProgress = { pct, txt ->
+                                                                                downloadProgressMap = downloadProgressMap + (pack.id to (pct to txt))
+                                                                            }
+                                                                        )
+                                                                        if (res.isSuccess) {
+                                                                            Toast.makeText(context, "【${pack.name}】下载安装就绪！", Toast.LENGTH_SHORT).show()
+                                                                            modelName = pack.id
+                                                                            voiceId = pack.defaultVoiceId
+                                                                            sampleRate = pack.sampleRate.toString()
+                                                                        } else {
+                                                                            downloadProgressMap = downloadProgressMap - pack.id
+                                                                            Toast.makeText(context, "下载失败: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                                                        }
+                                                                    }
+                                                                },
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                                colors = ButtonDefaults.buttonColors(containerColor = PulseTokens.CyanElectric, contentColor = Color.Black),
+                                                                modifier = Modifier.height(30.dp)
+                                                            ) {
+                                                                Text("一键下载", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                            }
+                                                        }
+
+                                                        Button(
+                                                            onClick = {
+                                                                modelName = pack.id
+                                                                voiceId = pack.defaultVoiceId
+                                                                sampleRate = pack.sampleRate.toString()
+                                                                Toast.makeText(context, "已选用模型: ${pack.name}", Toast.LENGTH_SHORT).show()
+                                                            },
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                            colors = ButtonDefaults.buttonColors(
+                                                                containerColor = if (isCur) PulseTokens.SurfaceElevated else PulseTokens.SonicBlue,
+                                                                contentColor = if (isCur) PulseTokens.TextSecondary else Color.Black
+                                                            ),
+                                                            modifier = Modifier.height(30.dp)
+                                                        ) {
+                                                            Text(if (isCur) "已选用" else "选用此模型", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -970,30 +1138,64 @@ fun PulseProviderConfigScreen(
                     }
                 }
 
-                // 底部全宽保存配置卡片按钮 (大号高对比度明显按钮)
-                item(contentType = "bottom_save_button") {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            val updated = buildCurrentConfig()
-                            configDataStore.updateProvider(updated)
-                            Toast.makeText(context, "已保存模型配置: ${updated.name}", Toast.LENGTH_SHORT).show()
-                            onNavigateBack()
-                        },
+                // 底部紧凑双操作栏 (试听当前配置 + 保存配置)
+                item(contentType = "bottom_action_bar") {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = PulseTokens.CyanElectric,
-                            contentColor = Color.Black
-                        )
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Black)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("保存模型配置", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        OutlinedButton(
+                            onClick = { testAudioPlayback() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isTestingAudio) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceElevated,
+                                contentColor = PulseTokens.CyanElectric
+                            ),
+                            border = BorderStroke(1.2.dp, PulseTokens.CyanElectric.copy(alpha = 0.7f))
+                        ) {
+                            Icon(
+                                imageVector = if (isTestingAudio) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = PulseTokens.CyanElectric
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                if (isTestingAudio) "停止试听" else "试听当前配置",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                val updated = buildCurrentConfig()
+                                configDataStore.updateProvider(updated)
+                                Toast.makeText(context, "已保存模型配置: ${updated.name}", Toast.LENGTH_SHORT).show()
+                                onNavigateBack()
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PulseTokens.CyanElectric,
+                                contentColor = Color.Black
+                            )
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Black)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("保存配置", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        }
                     }
-                    Spacer(modifier = Modifier.height(88.dp))
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
         }
