@@ -133,8 +133,9 @@ import kotlin.math.roundToInt
 private data class RequestLogSession(
     val sessionId: String,
     val startTime: String,
+    val endTime: String,
     val summaryTitle: String,
-    val details: String?,
+    val subtitle: String?,
     val isComplete: Boolean,
     val isError: Boolean,
     val entries: List<AppLogEntry>
@@ -209,6 +210,11 @@ fun PulseHubScreen(
         audioPlayer.stop()
         isPlaying = false
         isSynthesizing = false
+        val sId = configDataStore.activeSessionId
+        if (sId != null) {
+            configDataStore.log("⏹️ 朗读播音结束 (手动停止)", sessionId = sId)
+            configDataStore.activeSessionId = null
+        }
     }
 
     fun startSynthesis(provider: TtsProviderConfig) {
@@ -226,6 +232,7 @@ fun PulseHubScreen(
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
         val trialSessionId = "trial-" + java.util.UUID.randomUUID().toString().take(6)
+        configDataStore.activeSessionId = trialSessionId
 
         scope.launch {
             try {
@@ -281,17 +288,26 @@ fun PulseHubScreen(
                             speed = playbackSpeed,
                             onCompletion = {
                                 isPlaying = false
-                                configDataStore.log("⏹️ 朗读播放完成", sessionId = trialSessionId)
+                                configDataStore.log("⏹️ 朗读播音结束 (播放完毕)", sessionId = trialSessionId)
+                                if (configDataStore.activeSessionId == trialSessionId) {
+                                    configDataStore.activeSessionId = null
+                                }
                             },
                             onError = { err ->
                                 isPlaying = false
                                 configDataStore.log("⚠️ 播放器异常: $err", sessionId = trialSessionId)
+                                if (configDataStore.activeSessionId == trialSessionId) {
+                                    configDataStore.activeSessionId = null
+                                }
                             }
                         )
                     } else {
                         isSynthesizing = false
                         isPlaying = false
                         configDataStore.log("⚠️ 合成音频流为空 (0 字节)", sessionId = trialSessionId)
+                        if (configDataStore.activeSessionId == trialSessionId) {
+                            configDataStore.activeSessionId = null
+                        }
                         Toast.makeText(context, "合成音频流为空", Toast.LENGTH_SHORT).show()
                     }
                 } else {
@@ -299,13 +315,19 @@ fun PulseHubScreen(
                     isPlaying = false
                     val err = result.exceptionOrNull()?.message ?: "未知异常"
                     configDataStore.log("❌ 合成失败: $err", sessionId = trialSessionId)
+                    if (configDataStore.activeSessionId == trialSessionId) {
+                        configDataStore.activeSessionId = null
+                    }
                     Toast.makeText(context, "合成失败: $err", Toast.LENGTH_LONG).show()
                 }
             } catch (t: Throwable) {
                 isSynthesizing = false
                 isPlaying = false
                 val msg = t.message ?: t.javaClass.simpleName
-                configDataStore.log("💥 调用异常: $msg")
+                configDataStore.log("💥 调用异常: $msg", sessionId = trialSessionId)
+                if (configDataStore.activeSessionId == trialSessionId) {
+                    configDataStore.activeSessionId = null
+                }
                 Toast.makeText(context, "调用异常: $msg", Toast.LENGTH_LONG).show()
             }
         }
@@ -1171,50 +1193,100 @@ fun PulseHubScreen(
     if (showLiveLogsDialog) {
         var expandedSessionIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         val requestSessions = remember(structuredLogs) {
-            val groups = mutableListOf<RequestLogSession>()
-            var currentId: String? = null
-            var currentEntries = mutableListOf<AppLogEntry>()
+            val sessions = mutableListOf<RequestLogSession>()
+            var currentSessionEntries = mutableListOf<AppLogEntry>()
+            var currentSessionId: String? = null
 
-            for (entry in structuredLogs) {
-                val sId = entry.sessionId ?: ("sys-" + entry.timestamp.take(5))
-                if (currentId != null && sId != currentId) {
-                    val first = currentEntries.first()
-                    val hasErr = currentEntries.any { it.level == LogLevel.ERROR || it.title.contains("失败") || it.title.contains("异常") }
-                    val hasSuccess = currentEntries.any { it.level == LogLevel.SUCCESS || it.title.contains("完成") || it.title.contains("播放开始") }
-                    groups.add(
-                        RequestLogSession(
-                            sessionId = currentId,
-                            startTime = first.timestamp,
-                            summaryTitle = first.title,
-                            details = currentEntries.find { !it.details.isNullOrBlank() }?.details,
-                            isComplete = hasSuccess,
-                            isError = hasErr,
-                            entries = currentEntries.toList()
-                        )
-                    )
-                    currentEntries = mutableListOf()
+            fun finalizeSession() {
+                if (currentSessionEntries.isEmpty()) return
+                val first = currentSessionEntries.first()
+                val last = currentSessionEntries.last()
+                val sId = currentSessionId ?: first.sessionId ?: ("req-" + first.timestamp.take(5).replace(":", ""))
+
+                val hasErr = currentSessionEntries.any { 
+                    it.level == LogLevel.ERROR || it.title.contains("失败") || it.title.contains("异常") 
                 }
-                currentId = sId
-                currentEntries.add(entry)
-            }
+                val hasComplete = currentSessionEntries.any { 
+                    it.title.contains("播音结束") || it.title.contains("播放完成") || it.title.contains("全部完成") 
+                }
 
-            if (currentEntries.isNotEmpty() && currentId != null) {
-                val first = currentEntries.first()
-                val hasErr = currentEntries.any { it.level == LogLevel.ERROR || it.title.contains("失败") || it.title.contains("异常") }
-                val hasSuccess = currentEntries.any { it.level == LogLevel.SUCCESS || it.title.contains("完成") || it.title.contains("播放开始") }
-                groups.add(
+                var summaryTitle = first.title
+                if (summaryTitle.startsWith("🚀 发起语音合成")) {
+                    val snippet = summaryTitle.substringAfter("文本=“", "").substringBefore("”", "")
+                    if (snippet.isNotBlank()) {
+                        summaryTitle = "试听合成 · “${snippet.take(24)}...”"
+                    }
+                } else if (summaryTitle.startsWith("收到朗读请求")) {
+                    summaryTitle = "系统朗读 · " + (first.details ?: "${first.title}")
+                }
+
+                val ttfbEntry = currentSessionEntries.find { it.title.contains("TTFB") || it.details?.contains("TTFB") == true }
+                val bytesEntry = currentSessionEntries.find { it.title.contains("字节") || it.details?.contains("字节") == true }
+                
+                val metricParts = mutableListOf<String>()
+                if (ttfbEntry != null) {
+                    val m = Regex("""TTFB[=:]?\s*(\d+)ms""").find(ttfbEntry.title + " " + (ttfbEntry.details ?: ""))
+                    if (m != null) metricParts.add("首包 ${m.groupValues[1]}ms")
+                }
+                if (bytesEntry != null) {
+                    val m = Regex("""(\d+)\s*字节""").find(bytesEntry.title + " " + (bytesEntry.details ?: ""))
+                    if (m != null) {
+                        val kb = m.groupValues[1].toIntOrNull()?.let { it / 1024 } ?: 0
+                        metricParts.add("${kb} KB")
+                    }
+                }
+                val subText = if (metricParts.isNotEmpty()) metricParts.joinToString(" · ") else (currentSessionEntries.find { !it.details.isNullOrBlank() }?.details)
+
+                sessions.add(
                     RequestLogSession(
-                        sessionId = currentId,
+                        sessionId = sId,
                         startTime = first.timestamp,
-                        summaryTitle = first.title,
-                        details = currentEntries.find { !it.details.isNullOrBlank() }?.details,
-                        isComplete = hasSuccess,
+                        endTime = last.timestamp,
+                        summaryTitle = summaryTitle,
+                        subtitle = subText,
+                        isComplete = hasComplete,
                         isError = hasErr,
-                        entries = currentEntries.toList()
+                        entries = currentSessionEntries.toList()
                     )
                 )
+                currentSessionEntries = mutableListOf()
+                currentSessionId = null
             }
-            groups.reversed()
+
+            for (entry in structuredLogs) {
+                val isStart = entry.title.contains("收到朗读请求") || 
+                              entry.title.contains("发起语音合成") || 
+                              entry.title.contains("阅读器调用")
+                val isEnd = entry.title.contains("播音结束") || 
+                            entry.title.contains("播放完成") || 
+                            entry.title.contains("全部完成") || 
+                            entry.title.contains("合成失败") || 
+                            entry.title.contains("异常中止") ||
+                            entry.title.contains("已取消")
+
+                val entrySessionId = entry.sessionId
+
+                if (isStart && currentSessionEntries.isNotEmpty()) {
+                    finalizeSession()
+                } else if (entrySessionId != null && currentSessionId != null && entrySessionId != currentSessionId) {
+                    finalizeSession()
+                }
+
+                if (entrySessionId != null) {
+                    currentSessionId = entrySessionId
+                }
+                currentSessionEntries.add(entry)
+
+                if (isEnd) {
+                    finalizeSession()
+                }
+            }
+
+            if (currentSessionEntries.isNotEmpty()) {
+                finalizeSession()
+            }
+
+            sessions.reversed()
         }
 
         AlertDialog(
@@ -1337,7 +1409,7 @@ fun PulseHubScreen(
                                 val isExpanded = expandedSessionIds.contains(session.sessionId)
                                 val (statusText, statusColor) = when {
                                     session.isError -> "失败/异常" to PulseTokens.MagentaLaser
-                                    session.isComplete -> "完成" to Color(0xFF34D399)
+                                    session.isComplete -> "播音完成" to Color(0xFF34D399)
                                     else -> "推流中" to PulseTokens.CyanElectric
                                 }
 
@@ -1368,7 +1440,7 @@ fun PulseHubScreen(
                                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                                 )
                                             }
-                                            Text(session.startTime, fontSize = 9.sp, color = PulseTokens.TextTertiary)
+                                            Text("${session.startTime} ➔ ${session.endTime.takeLast(6)}", fontSize = 8.5.sp, color = PulseTokens.TextTertiary)
                                         }
 
                                         Spacer(modifier = Modifier.height(4.dp))
@@ -1380,10 +1452,10 @@ fun PulseHubScreen(
                                             maxLines = if (isExpanded) 4 else 2
                                         )
 
-                                        if (!session.details.isNullOrBlank()) {
+                                        if (!session.subtitle.isNullOrBlank()) {
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
-                                                text = session.details,
+                                                text = session.subtitle,
                                                 fontSize = 10.sp,
                                                 color = Color(0xFF8B949E),
                                                 maxLines = if (isExpanded) 4 else 1
@@ -1406,7 +1478,7 @@ fun PulseHubScreen(
                                                     val sessionText = session.entries.joinToString("\n") { it.formatToString() }
                                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                                     clipboard.setPrimaryClip(ClipData.newPlainText("TTS-Request-${session.sessionId}", sessionText))
-                                                    Toast.makeText(context, "已复制单次请求日志 (#${session.sessionId})", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "已复制单次完整请求日志 (#${session.sessionId})", Toast.LENGTH_SHORT).show()
                                                 }
                                             ) {
                                                 Row(
@@ -1420,9 +1492,9 @@ fun PulseHubScreen(
                                             }
 
                                             Text(
-                                                text = if (isExpanded) "收起详细 ▲" else "展开详细 (${session.entries.size}条) ▼",
+                                                text = if (isExpanded) "收起详情流程 ▲" else "查看详情流程 (${session.entries.size}步) ▼",
                                                 fontSize = 10.sp,
-                                                color = PulseTokens.TextSecondary,
+                                                color = PulseTokens.CyanElectric,
                                                 modifier = Modifier
                                                     .clickable {
                                                         expandedSessionIds = if (isExpanded) {
@@ -1445,14 +1517,14 @@ fun PulseHubScreen(
                                                     .padding(4.dp),
                                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
-                                                session.entries.forEach { subEntry ->
+                                                session.entries.forEachIndexed { stepIdx, subEntry ->
                                                     Row(
                                                         modifier = Modifier.fillMaxWidth(),
                                                         horizontalArrangement = Arrangement.SpaceBetween,
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
                                                         Text(
-                                                            text = "${subEntry.level.label} [${subEntry.tag}] ${subEntry.title}",
+                                                            text = "${stepIdx + 1}. ${subEntry.level.label} [${subEntry.tag}] ${subEntry.title}",
                                                             fontSize = 10.sp,
                                                             color = when (subEntry.level) {
                                                                 LogLevel.ERROR -> PulseTokens.MagentaLaser
@@ -1470,7 +1542,7 @@ fun PulseHubScreen(
                                                             text = subEntry.details,
                                                             fontSize = 9.sp,
                                                             color = Color.Gray,
-                                                            modifier = Modifier.padding(start = 6.dp)
+                                                            modifier = Modifier.padding(start = 12.dp)
                                                         )
                                                     }
                                                 }

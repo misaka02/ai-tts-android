@@ -137,10 +137,12 @@ class AiTextToSpeechService : TextToSpeechService() {
         val text = request.charSequenceText?.toString() ?: ""
         val sessionId = UUID.randomUUID().toString().take(8)
         activeSessionId = sessionId
+        configDataStore.activeSessionId = sessionId
 
         if (text.isBlank()) {
             callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
             callback.done()
+            configDataStore.activeSessionId = null
             return
         }
 
@@ -149,11 +151,15 @@ class AiTextToSpeechService : TextToSpeechService() {
                 synthesizer.processSynthesisRequest(request, callback, sessionId)
             }
         } catch (e: Throwable) {
-            configDataStore.log("onSynthesizeText [$sessionId] 异常: ${e.message}")
+            configDataStore.log("onSynthesizeText [$sessionId] 异常: ${e.message}", sessionId = sessionId)
             try {
                 callback.error(TextToSpeech.ERROR_SYNTHESIS)
             } catch (ce: Throwable) {
                 // ignore
+            }
+        } finally {
+            if (configDataStore.activeSessionId == sessionId) {
+                configDataStore.activeSessionId = null
             }
         }
     }

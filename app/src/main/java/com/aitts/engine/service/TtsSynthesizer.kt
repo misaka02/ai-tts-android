@@ -109,7 +109,8 @@ class TtsSynthesizer(private val context: Context) {
             level = LogLevel.INFO,
             tag = "TTS_SERVICE",
             title = "收到朗读请求",
-            details = "引擎=[${mergedConfig.name}], 文本=${rawText.length}字, 语速=${systemSpeed}x, 模式=${if (mergedConfig.isStreamingEnabled) "流式" else "非流式"}"
+            details = "引擎=[${mergedConfig.name}], 文本=${rawText.length}字, 语速=${systemSpeed}x, 模式=${if (mergedConfig.isStreamingEnabled) "流式" else "非流式"}",
+            sessionId = sessionId
         )
 
         // 1. 文本预处理与网页/Markdown/手机号/缩写/数字清洗
@@ -470,15 +471,16 @@ class TtsSynthesizer(private val context: Context) {
             callback.done()
             val totalCost = System.currentTimeMillis() - reqStartTime
             configDataStore.logStructured(
-                level = LogLevel.METRIC,
+                level = LogLevel.SUCCESS,
                 tag = "TTS_SERVICE",
-                title = "合成任务全部完成",
-                details = "共完成 ${segments.size} 段推流, 总耗时 ${totalCost}ms"
+                title = "朗读播音结束",
+                details = "共完成 ${segments.size} 段推流, 总耗时 ${totalCost}ms",
+                sessionId = sessionId
             )
         } catch (e: CancellationException) {
-            configDataStore.logStructured(LogLevel.WARN, "TTS_SERVICE", "合成已被取消", "会话=[$sessionId]")
+            configDataStore.logStructured(LogLevel.WARN, "TTS_SERVICE", "朗读已被取消", "会话=[$sessionId]", sessionId = sessionId)
         } catch (e: Exception) {
-            configDataStore.logStructured(LogLevel.ERROR, "TTS_SERVICE", "合成发生异常", e.message ?: "未知错误")
+            configDataStore.logStructured(LogLevel.ERROR, "TTS_SERVICE", "朗读发生异常", e.message ?: "未知错误", sessionId = sessionId)
             try {
                 callback.error()
             } catch (ce: Exception) {

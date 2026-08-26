@@ -46,14 +46,18 @@ class ConfigDataStore(private val context: Context) {
     private val _structuredLogsFlow = MutableStateFlow<List<AppLogEntry>>(emptyList())
     val structuredLogsFlow: StateFlow<List<AppLogEntry>> = _structuredLogsFlow.asStateFlow()
 
+    @Volatile
+    var activeSessionId: String? = null
+
     fun log(message: String, level: LogLevel = LogLevel.INFO, tag: String = "TTS", sessionId: String? = null) {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        val resolvedSessionId = sessionId ?: activeSessionId
         val entry = AppLogEntry(
             timestamp = timestamp,
             level = level,
             tag = tag,
             title = message,
-            sessionId = sessionId
+            sessionId = resolvedSessionId
         )
         val formatted = entry.formatToString()
         android.util.Log.d("AiTtsEngine", formatted)
@@ -76,13 +80,14 @@ class ConfigDataStore(private val context: Context) {
         sessionId: String? = null
     ) {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        val resolvedSessionId = sessionId ?: activeSessionId
         val entry = AppLogEntry(
             timestamp = timestamp,
             level = level,
             tag = tag,
             title = title,
             details = details,
-            sessionId = sessionId
+            sessionId = resolvedSessionId
         )
         val formatted = entry.formatToString()
         android.util.Log.d("AiTtsEngine", formatted)
