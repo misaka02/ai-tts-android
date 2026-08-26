@@ -164,13 +164,13 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
                 }
                 if (tempFile.exists()) tempFile.delete()
             } catch (e: Exception) {
-                // 回退到端侧声学生成器
+                // ignore
             }
         }
 
-        // 3. 工业级端侧原生声学生成器保障 (当系统 TTS 处于冷启动或无中文引擎时，绝不抛出调用异常报错)
-        val fallbackWav = generateCleanOfflineSpeech(text, targetSampleRate, config.speed, config.pitch)
-        Result.success(fallbackWav)
+        Result.failure(
+            IOException("设备端侧离线语音服务未响应或未安装离线中文语音包。请检查系统设置中的「文字转语音 (TTS)」配置，或安装 Google 语音服务离线数据。")
+        )
     }
 
     override suspend fun synthesizeStreaming(
@@ -194,81 +194,5 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
             }
         }
         fullResult
-    }
-
-    /**
-     * 高保真端侧语音声学生成器 (确保在任何定制 Android 系统上都 100% 具备发声能力，绝不出错)
-     */
-    private fun generateCleanOfflineSpeech(text: String, sampleRate: Int, speed: Float, pitch: Float): ByteArray {
-        val effectiveSpeed = speed.coerceIn(0.5f, 2.5f)
-        val basePitch = (200.0 * pitch.coerceIn(0.5f, 2.0f)).coerceIn(80.0, 450.0)
-        val durationPerChar = (0.24 / effectiveSpeed).coerceIn(0.08, 0.45)
-        val totalDurationSec = (text.length * durationPerChar).coerceAtLeast(0.6)
-        val totalSamples = (sampleRate * totalDurationSec).toInt()
-
-        val pcm = ShortArray(totalSamples)
-        var phase = 0.0
-
-        for (i in 0 until totalSamples) {
-            val t = i.toDouble() / sampleRate
-            val charIdx = (t / durationPerChar).toInt().coerceIn(0, text.length - 1)
-            val ch = text[charIdx]
-
-            // 依据汉字字形特征调制声学共振峰
-            val charHash = ch.code
-            val f0 = basePitch * (1.0 + 0.12 * Math.sin(2.0 * Math.PI * 4.0 * t))
-            val formant1 = 500.0 + (charHash % 7) * 80.0
-            val formant2 = 1500.0 + ((charHash / 7) % 9) * 120.0
-
-            phase += 2.0 * Math.PI * f0 / sampleRate
-            if (phase > 2.0 * Math.PI) phase -= 2.0 * Math.PI
-
-            // 自然发音包络 (每个字头部清晰起音，尾部自然衰减)
-            val charT = (t % durationPerChar) / durationPerChar
-            val charEnv = when {
-                charT < 0.15 -> charT / 0.15
-                charT > 0.85 -> (1.0 - charT) / 0.15
-                else -> 1.0
-            }
-
-            // 共振峰声带脉冲激励
-            val vocalChord = Math.sin(phase) + 0.35 * Math.sin(phase * 2.0) + 0.15 * Math.sin(phase * 3.0)
-            val resonance = Math.sin(2.0 * Math.PI * formant1 * t) * 0.4 + Math.sin(2.0 * Math.PI * formant2 * t) * 0.25
-            val sampleVal = (vocalChord * 0.65 + resonance * 0.35) * charEnv * 0.55
-
-            pcm[i] = (sampleVal * Short.MAX_VALUE).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-        }
-
-        // 封装为标准 WAV
-        val pcmBytes = ByteArray(pcm.size * 2)
-        val bb = ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN)
-        for (s in pcm) bb.putShort(s)
-
-        return wrapWavHeader(pcmBytes, sampleRate, 1, 16)
-    }
-
-    private fun wrapWavHeader(pcmData: ByteArray, sampleRate: Int, channels: Int, bitsPerSample: Int): ByteArray {
-        val totalDataLen = pcmData.size + 36
-        val byteRate = sampleRate * channels * bitsPerSample / 8
-        val header = ByteArray(44)
-        val bb = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
-        bb.put("RIFF".toByteArray())
-        bb.putInt(totalDataLen)
-        bb.put("WAVE".toByteArray())
-        bb.put("fmt ".toByteArray())
-        bb.putInt(16) // Subchunk1Size
-        bb.putShort(1.toShort()) // PCM
-        bb.putShort(channels.toShort())
-        bb.putInt(sampleRate)
-        bb.putInt(byteRate)
-        bb.putShort((channels * bitsPerSample / 8).toShort())
-        bb.putShort(bitsPerSample.toShort())
-        bb.put("data".toByteArray())
-        bb.putInt(pcmData.size)
-
-        val out = ByteArrayOutputStream(header.size + pcmData.size)
-        out.write(header)
-        out.write(pcmData)
-        return out.toByteArray()
     }
 }

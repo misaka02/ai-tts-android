@@ -282,34 +282,38 @@ class TtsSynthesizer(private val context: Context) {
                     configDataStore.log("⚡ [流式首包秒开] 第 ${i + 1}/${segments.size} 段开启实时推流播报 (语速: ${segConfig.speed}x)...")
                     val streamRes = providerManager.synthesizeStreaming(seg.text, segConfig) { rawChunk ->
                         if (isStopped.get() || !isActive) return@synthesizeStreaming
-                        val resampled = AudioResampler.resample(
-                            pcmData = rawChunk,
-                            sourceSampleRate = segConfig.sampleRate,
-                            sourceChannels = 1,
-                            targetSampleRate = targetSampleRate,
-                            targetChannels = 1
-                        )
-                        // WSOLA 变速不变调处理，严格保持神经网络音调，语速与 aitts 100% 同步
-                        val speedScaled = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
-                            com.aitts.engine.audio.SonicAudioProcessor.process(
-                                pcmData = resampled,
-                                sampleRate = targetSampleRate,
-                                speed = segConfig.speed
+                        try {
+                            val resampled = AudioResampler.resample(
+                                pcmData = rawChunk,
+                                sourceSampleRate = segConfig.sampleRate,
+                                sourceChannels = 1,
+                                targetSampleRate = targetSampleRate,
+                                targetChannels = 1
                             )
-                        } else resampled
-                        val enhanced = AudioEnhancer.processPcm(
-                            pcmData = speedScaled,
-                            channels = 1,
-                            enableClarity = settings.voiceClarityBoostEnabled,
-                            gainFactor = effectiveGain,
-                            trimSilence = false
-                        )
-                        var off = 0
-                        while (off < enhanced.size) {
-                            if (isStopped.get() || !isActive) break
-                            val len = minOf(bufferChunkSize, enhanced.size - off)
-                            callback.audioAvailable(enhanced, off, len)
-                            off += len
+                            // WSOLA 变速不变调处理，严格保持神经网络音调，语速与 aitts 100% 同步
+                            val speedScaled = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
+                                com.aitts.engine.audio.SonicAudioProcessor.process(
+                                    pcmData = resampled,
+                                    sampleRate = targetSampleRate,
+                                    speed = segConfig.speed
+                                )
+                            } else resampled
+                            val enhanced = AudioEnhancer.processPcm(
+                                pcmData = speedScaled,
+                                channels = 1,
+                                enableClarity = settings.voiceClarityBoostEnabled,
+                                gainFactor = effectiveGain,
+                                trimSilence = false
+                            )
+                            var off = 0
+                            while (off < enhanced.size) {
+                                if (isStopped.get() || !isActive) break
+                                val len = minOf(bufferChunkSize, enhanced.size - off)
+                                callback.audioAvailable(enhanced, off, len)
+                                off += len
+                            }
+                        } catch (e: Throwable) {
+                            configDataStore.log("⚠️ 流式数据块处理告警: ${e.message}")
                         }
                     }
 
@@ -350,13 +354,17 @@ class TtsSynthesizer(private val context: Context) {
                     )
 
                     // WSOLA 变速不变调处理，严格保持神经网络音调，语速与 aitts 100% 同步
-                    val speedScaledPcm = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
-                        com.aitts.engine.audio.SonicAudioProcessor.process(
-                            pcmData = resampledPcm,
-                            sampleRate = targetSampleRate,
-                            speed = segConfig.speed
-                        )
-                    } else resampledPcm
+                    val speedScaledPcm = try {
+                        if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
+                            com.aitts.engine.audio.SonicAudioProcessor.process(
+                                pcmData = resampledPcm,
+                                sampleRate = targetSampleRate,
+                                speed = segConfig.speed
+                            )
+                        } else resampledPcm
+                    } catch (e: Throwable) {
+                        resampledPcm
+                    }
 
                     val finalPcm = AudioEnhancer.processPcm(
                         pcmData = speedScaledPcm,
