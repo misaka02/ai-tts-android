@@ -148,21 +148,25 @@ class AiTextToSpeechService : TextToSpeechService() {
             runBlocking {
                 synthesizer.processSynthesisRequest(request, callback, sessionId)
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             configDataStore.log("onSynthesizeText [$sessionId] 异常: ${e.message}")
             try {
                 callback.error(TextToSpeech.ERROR_SYNTHESIS)
-            } catch (ce: Exception) {
+            } catch (ce: Throwable) {
                 // ignore
             }
         }
     }
 
     override fun onStop() {
-        val sessionToCancel = activeSessionId
-        synthesizer.stop(sessionToCancel)
-        TtsNotificationManager.cancelPlaybackNotification(this)
-        configDataStore.log("收到系统 onStop() 信号，已精准中断会话 [$sessionToCancel]")
+        try {
+            val sessionToCancel = activeSessionId
+            synthesizer.stop(sessionToCancel)
+            TtsNotificationManager.cancelPlaybackNotification(this)
+            configDataStore.log("收到系统 onStop() 信号，已精准中断会话 [$sessionToCancel]")
+        } catch (e: Throwable) {
+            // ignore
+        }
     }
 
     override fun onGetVoices(): MutableList<Voice> {

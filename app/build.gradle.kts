@@ -79,4 +79,7 @@ dependencies {
     // Archive Extraction (TAR.BZ2 / ZIP) for Offline Models
     implementation("org.apache.commons:commons-compress:1.26.1")
     implementation("org.tukaani:xz:1.9")
+
+    // Native Sherpa-ONNX Engine Runtime (AAR in libs/)
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
 }

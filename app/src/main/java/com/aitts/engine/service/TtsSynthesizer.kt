@@ -77,14 +77,20 @@ class TtsSynthesizer(private val context: Context) {
         }
 
         val settings = configDataStore.settingsFlow.value
-        val requestedVoice = request.voiceName
-        val matchedProvider = if (!requestedVoice.isNullOrBlank()) {
-            configDataStore.providersFlow.value.find {
-                it.name.equals(requestedVoice, ignoreCase = true) ||
-                it.id.equals(requestedVoice, ignoreCase = true)
-            }
-        } else null
-        val providerConfig = matchedProvider ?: configDataStore.getActiveProvider()
+        val activeProvider = configDataStore.getActiveProvider()
+        // 优先无条件遵从用户在 AI-TTS 中枢明确激活的活跃模型（如 MiMo，防止阅读器缓存历史废弃音色）
+        val providerConfig = if (activeProvider.enabled) {
+            activeProvider
+        } else {
+            val requestedVoice = request.voiceName
+            val matchedProvider = if (!requestedVoice.isNullOrBlank()) {
+                configDataStore.providersFlow.value.find {
+                    it.name.equals(requestedVoice, ignoreCase = true) ||
+                    it.id.equals(requestedVoice, ignoreCase = true)
+                }
+            } else null
+            matchedProvider ?: activeProvider
+        }
         val rules = configDataStore.rulesFlow.value
 
         // 适配系统与阅读器传入的语速与音调参数 (智能适配静读天下/阅读 1~30 刻度与标准 Android 100 刻度)

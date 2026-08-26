@@ -1,74 +1,36 @@
 package com.aitts.engine.provider
 
 import android.content.Context
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
 import com.aitts.engine.offline.OfflineModelManager
-import kotlinx.coroutines.CompletableDeferred
+import com.k2fsa.sherpa.onnx.OfflineTts
+import com.k2fsa.sherpa.onnx.OfflineTtsConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.Locale
-import java.util.UUID
 
 /**
- * 真实端侧离线神经网络语音合成引擎 (100% On-Device Offline TTS Engine)
- * 1. 深度接入设备端侧离线语音服务，并在主线程安全绑定 Looper，绝不超时阻塞；
- * 2. 多重稳健容错机制，确保端侧离线合成 100% 成功，告别调用异常报错；
- * 3. 严格原生支持端侧语速 (Speed) 与音高 (Pitch) 控制；
- * 4. 零网络请求，零数据消耗，断网离线无缝可用。
+ * 真实端侧 Sherpa-ONNX 离线神经网络语音合成引擎 (100% On-Device Neural Offline TTS)
+ * 1. 采用官方 pre-built C++ JNI 静态链接运行时，直接驱动本地 .onnx 模型权重；
+ * 2. 100% 本地计算，零依赖系统自带 TTS，断网无缝可用；
+ * 3. 原生支持多发音人 (Speaker ID) 切换与高精度语速控制；
+ * 4. 纯净 PCM/WAV 输出，杜绝任何杂音与破音。
  */
 class OfflineTtsProvider(private val context: Context) : TtsProvider {
 
     @Volatile
-    private var ttsInstance: TextToSpeech? = null
+    private var currentTts: OfflineTts? = null
     @Volatile
-    private var isInitialized = false
-    private val initLock = Any()
-
-    private suspend fun ensureTtsInitialized(): TextToSpeech? = withContext(Dispatchers.Main) {
-        if (ttsInstance != null && isInitialized) return@withContext ttsInstance
-
-        val deferred = CompletableDeferred<Boolean>()
-        val appContext = context.applicationContext
-
-        try {
-            var createdTts: TextToSpeech? = null
-            createdTts = TextToSpeech(appContext) { status ->
-                if (status == TextToSpeech.SUCCESS) {
-                    try {
-                        createdTts?.language = Locale.CHINESE
-                        isInitialized = true
-                        deferred.complete(true)
-                    } catch (e: Exception) {
-                        deferred.complete(true)
-                    }
-                } else {
-                    deferred.complete(false)
-                }
-            }
-            ttsInstance = createdTts
-
-            val success = withTimeoutOrNull(4000L) { deferred.await() } ?: false
-            if (success) {
-                return@withContext ttsInstance
-            }
-        } catch (e: Exception) {
-            // fallback
-        }
-        ttsInstance
-    }
+    private var loadedModelId: String? = null
+    private val lock = Any()
 
     override suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> = withContext(Dispatchers.IO) {
         val catalog = OfflineModelManager.getCatalog()
@@ -96,6 +58,53 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
         OfflineModelManager.getCatalog().map { it.id }
     }
 
+    private fun getOrInitTts(modelId: String): OfflineTts {
+        synchronized(lock) {
+            if (currentTts != null && loadedModelId == modelId) {
+                return currentTts!!
+            }
+
+            val modelDir = File(context.filesDir, "models/offline/$modelId")
+            if (!modelDir.exists()) {
+                throw IOException("模型目录不存在: ${modelDir.absolutePath}")
+            }
+
+            val allFiles = modelDir.walkTopDown().toList()
+            val onnxFile = allFiles.firstOrNull { it.extension.equals("onnx", ignoreCase = true) }
+                ?: throw IOException("在模型目录未找到 .onnx 权重文件")
+            val tokensFile = allFiles.firstOrNull { it.name.equals("tokens.txt", ignoreCase = true) }
+                ?: throw IOException("在模型目录未找到 tokens.txt 字典映射文件")
+            val lexiconFile = allFiles.firstOrNull { it.name.equals("lexicon.txt", ignoreCase = true) }
+            val dictDir = allFiles.firstOrNull { it.isDirectory && it.name.equals("dict", ignoreCase = true) }
+            val espeakDir = allFiles.firstOrNull { it.isDirectory && it.name.equals("espeak-ng-data", ignoreCase = true) }
+
+            val vitsConfig = OfflineTtsVitsModelConfig(
+                model = onnxFile.absolutePath,
+                lexicon = lexiconFile?.absolutePath ?: "",
+                tokens = tokensFile.absolutePath,
+                dataDir = espeakDir?.absolutePath ?: "",
+                dictDir = dictDir?.absolutePath ?: "",
+                noiseScale = 0.667f,
+                noiseScaleW = 0.8f,
+                lengthScale = 1.0f
+            )
+
+            val modelConfig = OfflineTtsModelConfig(
+                vits = vitsConfig,
+                numThreads = 2,
+                debug = false,
+                provider = "cpu"
+            )
+
+            val ttsConfig = OfflineTtsConfig(model = modelConfig)
+            val tts = OfflineTts(context.assets, ttsConfig)
+
+            currentTts = tts
+            loadedModelId = modelId
+            return tts
+        }
+    }
+
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig
@@ -116,61 +125,31 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
             )
         }
 
-        val targetSampleRate = pack?.sampleRate ?: 24000
+        try {
+            val tts = getOrInitTts(modelId)
+            val speakerId = parseSpeakerId(config.voiceId)
+            val safeSpeed = config.speed.coerceIn(0.5f, 2.5f)
 
-        // 2. 主动初始化本地语音引擎服务 (保证在主线程 Looper 绑定)
-        val tts = ensureTtsInitialized()
+            val generated = tts.generate(text = text, sid = speakerId, speed = safeSpeed)
+            val samples = generated.samples
+            val sampleRate = generated.sampleRate
 
-        if (tts != null) {
-            try {
-                tts.language = Locale.CHINESE
-                tts.setSpeechRate(config.speed.coerceIn(0.5f, 2.5f))
-                tts.setPitch(config.pitch.coerceIn(0.5f, 2.0f))
-
-                val tempFile = File(context.cacheDir, "offline_tts_${UUID.randomUUID().toString().take(8)}.wav")
-                val utteranceId = "offline_utt_${System.currentTimeMillis()}"
-                val deferred = CompletableDeferred<Boolean>()
-
-                tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(uttId: String?) {}
-
-                    override fun onDone(uttId: String?) {
-                        if (uttId == utteranceId) deferred.complete(true)
-                    }
-
-                    @Deprecated("Deprecated in Java")
-                    override fun onError(uttId: String?) {
-                        if (uttId == utteranceId) deferred.complete(false)
-                    }
-
-                    override fun onError(uttId: String?, errorCode: Int) {
-                        if (uttId == utteranceId) deferred.complete(false)
-                    }
-                })
-
-                val params = Bundle().apply {
-                    putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
-                }
-
-                val startStatus = tts.synthesizeToFile(text, params, tempFile, utteranceId)
-
-                if (startStatus == TextToSpeech.SUCCESS) {
-                    val completed = withTimeoutOrNull(8000L) { deferred.await() } ?: false
-                    if (completed && tempFile.exists() && tempFile.length() > 44L) {
-                        val wavBytes = tempFile.readBytes()
-                        tempFile.delete()
-                        return@withContext Result.success(wavBytes)
-                    }
-                }
-                if (tempFile.exists()) tempFile.delete()
-            } catch (e: Exception) {
-                // ignore
+            if (samples.isEmpty()) {
+                return@withContext Result.failure(IOException("Sherpa-ONNX 离线推理返回空音频采样"))
             }
-        }
 
-        Result.failure(
-            IOException("设备端侧离线语音服务未响应或未安装离线中文语音包。请检查系统设置中的「文字转语音 (TTS)」配置，或安装 Google 语音服务离线数据。")
-        )
+            val pcmBytes = ByteArray(samples.size * 2)
+            val bb = ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN)
+            for (sample in samples) {
+                val s = (sample.coerceIn(-1.0f, 1.0f) * 32767.0f).toInt()
+                bb.putShort(s.toShort())
+            }
+
+            val wavBytes = wrapWavHeader(pcmBytes, sampleRate, 1, 16)
+            Result.success(wavBytes)
+        } catch (e: Throwable) {
+            Result.failure(IOException("端侧离线神经网络推理异常: ${e.message}", e))
+        }
     }
 
     override suspend fun synthesizeStreaming(
@@ -194,5 +173,43 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
             }
         }
         fullResult
+    }
+
+    private fun parseSpeakerId(voiceId: String): Int {
+        if (voiceId.isBlank()) return 0
+        return try {
+            if (voiceId.contains("_spk_")) {
+                voiceId.substringAfterLast("_spk_").toIntOrNull() ?: 0
+            } else {
+                voiceId.filter { it.isDigit() }.toIntOrNull() ?: 0
+            }
+        } catch (e: Exception) {
+            0
+        }
+    }
+
+    private fun wrapWavHeader(pcmData: ByteArray, sampleRate: Int, channels: Int, bitsPerSample: Int): ByteArray {
+        val totalDataLen = pcmData.size + 36
+        val byteRate = sampleRate * channels * bitsPerSample / 8
+        val header = ByteArray(44)
+        val bb = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
+        bb.put("RIFF".toByteArray())
+        bb.putInt(totalDataLen)
+        bb.put("WAVE".toByteArray())
+        bb.put("fmt ".toByteArray())
+        bb.putInt(16) // Subchunk1Size
+        bb.putShort(1.toShort()) // PCM
+        bb.putShort(channels.toShort())
+        bb.putInt(sampleRate)
+        bb.putInt(byteRate)
+        bb.putShort((channels * bitsPerSample / 8).toShort())
+        bb.putShort(bitsPerSample.toShort())
+        bb.put("data".toByteArray())
+        bb.putInt(pcmData.size)
+
+        val out = ByteArrayOutputStream(header.size + pcmData.size)
+        out.write(header)
+        out.write(pcmData)
+        return out.toByteArray()
     }
 }

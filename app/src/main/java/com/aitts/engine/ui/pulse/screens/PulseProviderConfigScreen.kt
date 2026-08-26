@@ -1383,16 +1383,18 @@ fun PulseProviderConfigScreen(
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (!modelsFetchStatus.isNullOrBlank()) {
+                        val status = modelsFetchStatus
+                        if (!status.isNullOrBlank()) {
+                            val isSuccess = status.startsWith("🟢")
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = if (modelsFetchStatus!!.startsWith("🟢")) PulseTokens.AcidGreen.copy(alpha = 0.15f) else PulseTokens.AmberWarm.copy(alpha = 0.15f),
+                                color = if (isSuccess) PulseTokens.AcidGreen.copy(alpha = 0.15f) else PulseTokens.AmberWarm.copy(alpha = 0.15f),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    text = modelsFetchStatus!!,
+                                    text = status,
                                     fontSize = 11.sp,
-                                    color = if (modelsFetchStatus!!.startsWith("🟢")) PulseTokens.AcidGreen else PulseTokens.AmberWarm,
+                                    color = if (isSuccess) PulseTokens.AcidGreen else PulseTokens.AmberWarm,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                                 )
                             }
@@ -1484,16 +1486,18 @@ fun PulseProviderConfigScreen(
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (!voicesFetchStatus.isNullOrBlank()) {
+                        val vStatus = voicesFetchStatus
+                        if (!vStatus.isNullOrBlank()) {
+                            val isSuccess = vStatus.startsWith("🟢")
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = if (voicesFetchStatus!!.startsWith("🟢")) PulseTokens.AcidGreen.copy(alpha = 0.15f) else PulseTokens.AmberWarm.copy(alpha = 0.15f),
+                                color = if (isSuccess) PulseTokens.AcidGreen.copy(alpha = 0.15f) else PulseTokens.AmberWarm.copy(alpha = 0.15f),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    text = voicesFetchStatus!!,
+                                    text = vStatus,
                                     fontSize = 11.sp,
-                                    color = if (voicesFetchStatus!!.startsWith("🟢")) PulseTokens.AcidGreen else PulseTokens.AmberWarm,
+                                    color = if (isSuccess) PulseTokens.AcidGreen else PulseTokens.AmberWarm,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                                 )
                             }
@@ -1652,8 +1656,7 @@ fun PulseProviderConfigScreen(
             )
         }
 
-        if (modelPendingDelete != null) {
-            val pack = modelPendingDelete!!
+        modelPendingDelete?.let { pack ->
             AlertDialog(
                 onDismissRequest = { modelPendingDelete = null },
                 title = {
