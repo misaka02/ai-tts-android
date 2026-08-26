@@ -995,13 +995,15 @@ fun PulseProviderConfigScreen(
                                                                 try {
                                                                     val apkFile = java.io.File(context.cacheDir, "ai-tts-offline-runtime-arm64.apk")
                                                                     val urls = listOf(
-                                                                        "https://ghproxy.net/https://github.com/liuyuanlin/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk",
-                                                                        "https://github.com/liuyuanlin/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk"
+                                                                        "https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk",
+                                                                        "https://gh.ddlc.top/https://github.com/misaka02/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk",
+                                                                        "https://ghproxy.net/https://github.com/misaka02/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk",
+                                                                        "https://github.com/misaka02/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk"
                                                                     )
                                                                     var downloaded = false
                                                                     val client = okhttp3.OkHttpClient.Builder()
                                                                         .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-                                                                        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                                                                        .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
                                                                         .build()
 
                                                                     for (downloadUrl in urls) {
@@ -1014,7 +1016,7 @@ fun PulseProviderConfigScreen(
                                                                                 var bytesRead = 0L
                                                                                 body.byteStream().use { input ->
                                                                                     apkFile.outputStream().use { output ->
-                                                                                        val buffer = ByteArray(8192)
+                                                                                        val buffer = ByteArray(64 * 1024)
                                                                                         var read: Int
                                                                                         while (input.read(buffer).also { read = it } != -1) {
                                                                                             output.write(buffer, 0, read)
@@ -1200,13 +1202,14 @@ fun PulseProviderConfigScreen(
                                     }
                                 }
 
-                                // 分类筛选标签
-                                Row(
+                                // 分类筛选标签 (横向滑动，完整展示 5 大主流专区)
+                                androidx.compose.foundation.lazy.LazyRow(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    val cats = listOf("全部", "顶级大模型高拟真", "微软离线自然语音", "Sherpa-ONNX 经典")
-                                    cats.forEach { cat ->
+                                    val cats = listOf("全部", "🔥 极速13MB", "大模型及前沿", "微软经典自然", "ACG 动漫音色", "官方多发音人")
+                                    items(cats.size) { idx ->
+                                        val cat = cats[idx]
                                         val isSel = selectedOfflineCategory == cat
                                         Surface(
                                             modifier = Modifier
@@ -1217,10 +1220,10 @@ fun PulseProviderConfigScreen(
                                             shape = RoundedCornerShape(6.dp)
                                         ) {
                                             Text(
-                                                text = if (cat == "全部") "全部" else cat.take(4),
+                                                text = cat,
                                                 fontSize = 11.sp,
                                                 color = if (isSel) PulseTokens.SonicBlue else PulseTokens.TextSecondary,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
                                             )
                                         }

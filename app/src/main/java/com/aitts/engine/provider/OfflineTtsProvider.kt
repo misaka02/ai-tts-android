@@ -197,6 +197,7 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
 
             val isMatcha = modelId.contains("matcha", ignoreCase = true)
             val isKokoro = modelId.contains("kokoro", ignoreCase = true)
+            val isZipVoice = modelId.contains("zipvoice", ignoreCase = true)
             val modelConfig = if (isMatcha) {
                 val acousticModel = allFiles.firstOrNull { it.name.contains("model", ignoreCase = true) && it.extension.equals("onnx", ignoreCase = true) }
                     ?: onnxFile
@@ -239,6 +240,30 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
                     matcha = OfflineTtsMatchaModelConfig(),
                     kokoro = kokoroConfig,
                     zipvoice = OfflineTtsZipVoiceModelConfig(),
+                    kitten = OfflineTtsKittenModelConfig(),
+                    pocket = OfflineTtsPocketModelConfig(),
+                    supertonic = OfflineTtsSupertonicModelConfig(),
+                    numThreads = 4,
+                    debug = false,
+                    provider = "cpu"
+                )
+            } else if (isZipVoice) {
+                val encoder = allFiles.firstOrNull { it.name.contains("encoder", ignoreCase = true) } ?: onnxFile
+                val decoder = allFiles.firstOrNull { it.name.contains("decoder", ignoreCase = true) } ?: onnxFile
+                val vocoder = allFiles.firstOrNull { it.name.contains("vocoder", ignoreCase = true) } ?: onnxFile
+                val zipConfig = OfflineTtsZipVoiceModelConfig(
+                    encoder = encoder.absolutePath,
+                    decoder = decoder.absolutePath,
+                    vocoder = vocoder.absolutePath,
+                    tokens = tokensFile.absolutePath,
+                    dataDir = espeakDir?.absolutePath ?: "",
+                    lexicon = lexiconFile?.absolutePath ?: ""
+                )
+                OfflineTtsModelConfig(
+                    vits = OfflineTtsVitsModelConfig(),
+                    matcha = OfflineTtsMatchaModelConfig(),
+                    kokoro = OfflineTtsKokoroModelConfig(),
+                    zipvoice = zipConfig,
                     kitten = OfflineTtsKittenModelConfig(),
                     pocket = OfflineTtsPocketModelConfig(),
                     supertonic = OfflineTtsSupertonicModelConfig(),

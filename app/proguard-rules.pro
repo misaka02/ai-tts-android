@@ -26,3 +26,8 @@
 # Keep Kotlin Coroutines & Reflective metadata
 -keepclassmembers class kotlinx.coroutines.** { *; }
 -dontwarn java.lang.invoke.**
+
+# Keep Sherpa-ONNX JNI Native Reflection Models & Interfaces (Prevent C++ SIGSEGV crash)
+-keep class com.k2fsa.sherpa.onnx.** { *; }
+-keepclassmembers class com.k2fsa.sherpa.onnx.** { *; }
+-dontwarn com.k2fsa.sherpa.onnx.**

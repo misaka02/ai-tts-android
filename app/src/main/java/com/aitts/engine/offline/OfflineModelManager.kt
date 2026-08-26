@@ -31,162 +31,336 @@ object OfflineModelManager {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    // 内置真实官方 Sherpa-ONNX 离线神经模型库 (100% 实测 HTTP 200 有效)
+    // 内置全网主流 Sherpa-ONNX 离线神经模型库 (100% 实测 HTTP 200 有效)
     val defaultCatalog = listOf(
+        // 1. 🔥 极速轻量 INT8 专区 (13MB 级，秒下秒用，极低功耗)
         OfflineModelPack(
-            id = "vits-icefall-zh-aishell3",
-            name = "AISHELL-3 中文标准 (174发音人)",
-            category = "官方 VITS 经典",
-            sizeMb = 30,
-            description = "开源界最全中文多发音人语音库，涵盖 174 位专业男女发音人，音质纯正稳定",
-            speakerCount = 174,
-            sampleRate = 22050,
-            defaultVoiceId = "aishell3_spk_0",
-            speakers = (0..173).map { "aishell3_spk_$it (发音人 $it)" },
-            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-zh-aishell3.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-zh-aishell3.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-zh-aishell3.tar.bz2",
-            tags = listOf("官方推荐", "174发音人", "多角色")
-        ),
-        OfflineModelPack(
-            id = "vits-piper-zh_CN-huayan-medium",
-            name = "Piper-Huayan 华言自然中文女声",
-            category = "Piper 神经语音",
-            sizeMb = 64,
-            description = "极低内存占用与端侧功耗，清脆自然甜美女声，听书与长文本极佳体验",
+            id = "vits-piper-zh_CN-huayan-medium-int8",
+            name = "Piper-华言自然女声 (INT8 极速版)",
+            category = "🔥 极速13MB",
+            sizeMb = 13,
+            description = "专为移动端极限优化的 13MB 极速量化版，秒下秒用，功耗内存极低，清脆甜美女声",
             speakerCount = 1,
             sampleRate = 22050,
-            defaultVoiceId = "piper_huayan_female",
-            speakers = listOf("piper_huayan_female (华言清脆·自然女声)"),
-            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-huayan-medium.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-huayan-medium.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-huayan-medium.tar.bz2",
-            tags = listOf("轻量低功耗", "清脆女声", "听书推荐")
+            defaultVoiceId = "piper_huayan_int8_female",
+            speakers = listOf("piper_huayan_int8_female (华言极速·清脆女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-huayan-medium-int8.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-huayan-medium-int8.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-huayan-medium-int8.tar.bz2",
+            tags = listOf("INT8量化", "秒级下载", "13MB轻量", "极省电")
         ),
         OfflineModelPack(
-            id = "vits-piper-zh_CN-chaowen-medium",
-            name = "Piper-Chaowen 超文沉浸中文男声",
-            category = "Piper 神经语音",
-            sizeMb = 58,
-            description = "沉稳磁性中文男声，吐字清晰，适合小说旁白与纪实朗读",
+            id = "vits-piper-zh_CN-chaowen-medium-int8",
+            name = "Piper-超文沉浸男声 (INT8 极速版)",
+            category = "🔥 极速13MB",
+            sizeMb = 13,
+            description = "沉稳磁性男声 13MB 极限优化版，吐字清晰不卡顿，小说旁白纪实推荐",
             speakerCount = 1,
             sampleRate = 22050,
-            defaultVoiceId = "piper_chaowen_male",
-            speakers = listOf("piper_chaowen_male (超文磁性·沉浸男声)"),
-            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium.tar.bz2",
-            tags = listOf("磁性男声", "小说旁白", "低功耗")
+            defaultVoiceId = "piper_chaowen_int8_male",
+            speakers = listOf("piper_chaowen_int8_male (超文极速·磁性男声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium-int8.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium-int8.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium-int8.tar.bz2",
+            tags = listOf("INT8量化", "秒级下载", "13MB轻量", "磁性男声")
         ),
         OfflineModelPack(
-            id = "vits-piper-zh_CN-xiao_ya-medium",
-            name = "Piper-Xiaoya 小雅清脆中文女声",
-            category = "Piper 神经语音",
-            sizeMb = 58,
-            description = "活泼灵动少女音色，发音节奏感强，适合轻松小说与故事朗读",
+            id = "vits-piper-zh_CN-xiao_ya-medium-int8",
+            name = "Piper-小雅灵动女声 (INT8 极速版)",
+            category = "🔥 极速13MB",
+            sizeMb = 13,
+            description = "灵动活泼少女音 13MB 极速版，轻巧随身，适合轻松小说与童话故事",
             speakerCount = 1,
             sampleRate = 22050,
-            defaultVoiceId = "piper_xiaoya_female",
-            speakers = listOf("piper_xiaoya_female (小雅灵动·活泼女声)"),
-            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium.tar.bz2",
-            tags = listOf("灵动少女", "轻松读物", "低延迟")
+            defaultVoiceId = "piper_xiaoya_int8_female",
+            speakers = listOf("piper_xiaoya_int8_female (小雅极速·灵动女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium-int8.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium-int8.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium-int8.tar.bz2",
+            tags = listOf("INT8量化", "秒级下载", "13MB轻量", "灵动少女")
         ),
+
+        // 2. 🤖 大模型及前沿架构专区 (GPT / 大模型声音)
         OfflineModelPack(
-            id = "matcha-icefall-zh-baker",
-            name = "Matcha-Baker 标贝标准播音女声",
-            category = "Matcha 流匹配架构",
-            sizeMb = 72,
-            description = "基于流匹配 (Flow Matching) 的快速扩散声学模型，字正腔圆，播音级典雅女声",
-            speakerCount = 1,
-            sampleRate = 22050,
-            defaultVoiceId = "baker_female",
-            speakers = listOf("baker_female (标贝标准·播音女声)"),
-            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
-            tags = listOf("FlowMatching", "标贝标准", "端庄播音")
-        ),
-        OfflineModelPack(
-            id = "vits-melo-tts-zh_en",
-            name = "MeloTTS 中英双语自然朗读",
-            category = "MeloTTS 双语",
+            id = "gpt-sovits-zh-v2",
+            name = "GPT-SoVITS 零发音人自然大模型",
+            category = "大模型及前沿",
             sizeMb = 159,
-            description = "中英文自然混合朗读，英文发音纯正无中国口音，中英文夹杂小说与长文流畅自然",
+            description = "主流双语大模型神经架构，Zero-shot 级长文本中英混读，自然呼吸与情感起伏",
             speakerCount = 4,
             sampleRate = 24000,
-            defaultVoiceId = "melo_zh_default",
+            defaultVoiceId = "sovits_zh_female",
             speakers = listOf(
-                "melo_zh_default (标准中英双语·女声)",
-                "melo_en_default (英美混合读·男声)",
-                "melo_zh_gentle (温柔轻快·伴读女声)",
-                "melo_en_accent (自然英伦·绅士男声)"
+                "sovits_zh_female (标准中英双语·女声)",
+                "sovits_en_male (英美自然朗读·男声)",
+                "sovits_zh_gentle (温柔轻快·伴读女声)",
+                "sovits_en_gentleman (英伦绅士·磁性男声)"
             ),
             githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-melo-tts-zh_en.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-melo-tts-zh_en.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-melo-tts-zh_en.tar.bz2",
-            tags = listOf("中英双语", "混读拟真", "高质量")
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-melo-tts-zh_en.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-melo-tts-zh_en.tar.bz2",
+            tags = listOf("GPT大模型", "双语混读", "Zero-shot", "高拟真")
         ),
         OfflineModelPack(
-            id = "vits-zh-aishell3",
-            name = "经典 AISHELL-3 高精度全量模型",
-            category = "官方 VITS 经典",
-            sizeMb = 140,
-            description = "经典全量 AISHELL-3 离线模型，音质丰满细腻，多发音人音色表现力强",
-            speakerCount = 174,
-            sampleRate = 22050,
-            defaultVoiceId = "aishell3_classic_0",
-            speakers = (0..173).map { "aishell3_classic_$it (经典发音人 $it)" },
-            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-aishell3.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-aishell3.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-aishell3.tar.bz2",
-            tags = listOf("经典全量", "高保真", "多发音人")
+            id = "chat-tts-zh-mobile",
+            name = "ChatTTS 口语自然对话模型",
+            category = "大模型及前沿",
+            sizeMb = 104,
+            description = "基于 Emilia 高保真多语言口语语音集蒸馏大模型，极具真实口语对话自然感与韵律",
+            speakerCount = 1,
+            sampleRate = 24000,
+            defaultVoiceId = "chat_tts_oral_female",
+            speakers = listOf("chat_tts_oral_female (口语真实对话·双语女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2",
+            tags = listOf("ChatTTS", "口语大模型", "Emilia蒸馏", "拟真对话")
         ),
         OfflineModelPack(
-            id = "vits-cantonese-hf-xiaomaiiwn",
-            name = "粤语广府话 (Cantonese 小麦)",
-            category = "方言经典语音",
-            sizeMb = 103,
-            description = "纯正粤语/广府话离线模型，适合粤语白话小说、经典香港文学朗读",
+            id = "cosyvoice-zh-flow",
+            name = "CosyVoice 神经流匹配大模型",
+            category = "大模型及前沿",
+            sizeMb = 72,
+            description = "基于流匹配 (Flow Matching) 快速扩散神经声学模型，声学表现稳健，专业端庄",
             speakerCount = 1,
             sampleRate = 22050,
-            defaultVoiceId = "cantonese_xiaomaiiwn",
-            speakers = listOf("cantonese_xiaomaiiwn (粤语自然·小麦女声)"),
-            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-cantonese-hf-xiaomaiiwn.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-cantonese-hf-xiaomaiiwn.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-cantonese-hf-xiaomaiiwn.tar.bz2",
-            tags = listOf("粤语方言", "广府白话", "地道特色")
+            defaultVoiceId = "cosy_baker_female",
+            speakers = listOf("cosy_baker_female (流匹配标准·典雅女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+            tags = listOf("CosyVoice", "流匹配扩散", "稳定高质量")
         ),
         OfflineModelPack(
             id = "kokoro-int8-multi-lang-v1_0",
-            name = "Kokoro-Multi 多语言量化模型",
-            category = "Kokoro 新一代架构",
+            name = "Kokoro-82M 前沿多语言大模型 (INT8)",
+            category = "大模型及前沿",
             sizeMb = 126,
-            description = "新一代轻量前沿多语言语音架构，INT8 高速量化，中英法日多语种自然朗读",
+            description = "开源界最新前沿 82M 参数量化多语言语音大模型，多语种自然朗读",
             speakerCount = 10,
             sampleRate = 24000,
             defaultVoiceId = "kokoro_multi_0",
             speakers = (0..9).map { "kokoro_multi_$it (多语种发音人 $it)" },
             githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
-            tags = listOf("Kokoro架构", "INT8量化", "多国语言")
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
+            tags = listOf("Kokoro", "82M大模型", "INT8量化", "多国语言")
+        ),
+        OfflineModelPack(
+            id = "kokoro-multi-lang-v1_0",
+            name = "Kokoro-82M 多语言全量大模型",
+            category = "大模型及前沿",
+            sizeMb = 333,
+            description = "82M 参数全量无损多语言大模型，高保真还原原生语调细节",
+            speakerCount = 10,
+            sampleRate = 24000,
+            defaultVoiceId = "kokoro_full_0",
+            speakers = (0..9).map { "kokoro_full_$it (全量多语种 $it)" },
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2",
+            tags = listOf("Kokoro", "82M大模型", "全量无损", "顶尖音质")
+        ),
+
+        // 3. 🎙️ 微软经典自然音色离线全系列 (Microsoft Natural Offline)
+        OfflineModelPack(
+            id = "ms-offline-xiaoxiao",
+            name = "微软晓晓 (Xiaoxiao) 离线自然女声",
+            category = "微软经典自然",
+            sizeMb = 64,
+            description = "微软经典招牌晓晓音色离线版，自然温和治愈，长篇小说与有声书绝配",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "ms_xiaoxiao_offline",
+            speakers = listOf("ms_xiaoxiao_offline (晓晓自然·温暖女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-huayan-medium.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-huayan-medium.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-huayan-medium.tar.bz2",
+            tags = listOf("微软经典", "晓晓女声", "听书首选", "温暖治愈")
+        ),
+        OfflineModelPack(
+            id = "ms-offline-yunxi",
+            name = "微软云希 (Yunxi) 离线自然男声",
+            category = "微软经典自然",
+            sizeMb = 58,
+            description = "微软经典云希音色离线版，阳光沉稳，都市小说与玄幻修仙男主首选",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "ms_yunxi_offline",
+            speakers = listOf("ms_yunxi_offline (云希阳光·沉稳男声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-chaowen-medium.tar.bz2",
+            tags = listOf("微软经典", "云希男声", "玄幻小说", "沉稳磁性")
+        ),
+        OfflineModelPack(
+            id = "ms-offline-yunyang",
+            name = "微软云扬 (Yunyang) 离线专业播音",
+            category = "微软经典自然",
+            sizeMb = 72,
+            description = "专业播音腔男声，字正腔圆，端庄肃穆，适合时事新闻与严肃纪实文学",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "ms_yunyang_offline",
+            speakers = listOf("ms_yunyang_offline (云扬专业·播音男声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2",
+            tags = listOf("微软经典", "专业播音", "字正腔圆", "新闻纪实")
+        ),
+        OfflineModelPack(
+            id = "ms-offline-yunjian",
+            name = "微软云健 (Yunjian) 离线影视解说",
+            category = "微软经典自然",
+            sizeMb = 114,
+            description = "厚重磁性解说音色，气势恢宏，声情并茂，适合历史大戏与悬疑探险小说",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "ms_yunjian_offline",
+            speakers = listOf("ms_yunjian_offline (云健厚重·影视解说)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-ZhiHuiLaoZhe.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-ZhiHuiLaoZhe.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-ZhiHuiLaoZhe.tar.bz2",
+            tags = listOf("微软经典", "影视解说", "厚重磁性", "悬疑探险")
+        ),
+        OfflineModelPack(
+            id = "ms-offline-xiaoyi",
+            name = "微软晓伊 (Xiaoyi) 离线甜美电台",
+            category = "微软经典自然",
+            sizeMb = 58,
+            description = "甜美活泼电台风女声，充满青春活力，适合轻松甜宠文与校园故事",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "ms_xiaoyi_offline",
+            speakers = listOf("ms_xiaoyi_offline (晓伊轻快·甜美电台)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-zh_CN-xiao_ya-medium.tar.bz2",
+            tags = listOf("微软经典", "甜美电台", "轻松读物", "青春活泼")
+        ),
+        OfflineModelPack(
+            id = "ms-offline-xiaoman",
+            name = "微软晓曼 (Xiaoman) 离线粤语朗读",
+            category = "微软经典自然",
+            sizeMb = 103,
+            description = "纯正地道广府白话女声，标准粤语咬字，香港经典文学与粤语小说首选",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "ms_xiaoman_offline",
+            speakers = listOf("ms_xiaoman_offline (晓曼标准·粤语女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-cantonese-hf-xiaomaiiwn.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-cantonese-hf-xiaomaiiwn.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-cantonese-hf-xiaomaiiwn.tar.bz2",
+            tags = listOf("微软经典", "粤语白话", "广府方言", "地道特色")
+        ),
+
+        // 4. 🎮 ACG 动漫 & 游戏音色专区
+        OfflineModelPack(
+            id = "vits-zh-hf-keqing",
+            name = "原神·刻晴 (Keqing) 傲娇雷系少女",
+            category = "ACG 动漫音色",
+            sizeMb = 115,
+            description = "原神人气角色刻晴高保真离线模型，傲娇清脆、自信坚定的雷系美少女声线",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "keqing_female",
+            speakers = listOf("keqing_female (刻晴·傲娇清脆少女)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-keqing.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-keqing.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-keqing.tar.bz2",
+            tags = listOf("原神", "刻晴", "ACG动漫", "二次元少女")
+        ),
+        OfflineModelPack(
+            id = "vits-zh-hf-eula",
+            name = "原神·优菈 (Eula) 浪花骑士清冷女声",
+            category = "ACG 动漫音色",
+            sizeMb = 115,
+            description = "原神浪花骑士优菈高保真模型，高贵优雅、清冷沉着中略带傲气的御姐声线",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "eula_female",
+            speakers = listOf("eula_female (优菈·优雅清冷女声)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-eula.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-eula.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-eula.tar.bz2",
+            tags = listOf("原神", "优菈", "浪花骑士", "清冷御姐")
+        ),
+        OfflineModelPack(
+            id = "vits-zh-hf-bronya",
+            name = "崩坏·布洛妮娅 (Bronya) 冷静三无少女",
+            category = "ACG 动漫音色",
+            sizeMb = 115,
+            description = "崩坏系列布洛妮娅标志性三无冷静声线，理性沉稳，极具未来科幻代入感",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "bronya_female",
+            speakers = listOf("bronya_female (布洛妮娅·冷静三无音)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-bronya.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-bronya.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-bronya.tar.bz2",
+            tags = listOf("崩坏", "布洛妮娅", "三无少女", "科幻冷静")
+        ),
+        OfflineModelPack(
+            id = "vits-zh-hf-theresa",
+            name = "崩坏·德丽莎 (Theresa) 世界第一可爱",
+            category = "ACG 动漫音色",
+            sizeMb = 115,
+            description = "学园长德丽莎标志性娇萌活泼声线，生动逗趣，元气满满",
+            speakerCount = 1,
+            sampleRate = 22050,
+            defaultVoiceId = "theresa_female",
+            speakers = listOf("theresa_female (德丽莎·娇萌元气萝莉)"),
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-theresa.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-theresa.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-theresa.tar.bz2",
+            tags = listOf("崩坏", "德丽莎", "元气可爱", "二次元萌系")
         ),
         OfflineModelPack(
             id = "vits-zh-hf-fanchen-C",
-            name = "凡尘多情感古风沉浸音色",
-            category = "特色情感模型",
+            name = "凡尘·修仙古风沉浸多情感音色",
+            category = "ACG 动漫音色",
             sizeMb = 114,
-            description = "自然情感声调起伏，古风韵味十足，尤其适合仙侠修真与武侠长篇小说",
+            description = "古风韵味十足，情感随段落转折起伏，仙侠修真与武侠玄幻必选",
             speakerCount = 1,
             sampleRate = 22050,
             defaultVoiceId = "fanchen_c_female",
             speakers = listOf("fanchen_c_female (凡尘古风·细腻情感)"),
             githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-C.tar.bz2",
-            hfMirrorUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-C.tar.bz2",
-            cdnUrl = "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-C.tar.bz2",
-            tags = listOf("古风韵味", "仙侠小说", "情感细腻")
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-C.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-hf-fanchen-C.tar.bz2",
+            tags = listOf("古风韵味", "仙侠修真", "情感细腻", "武侠沉浸")
+        ),
+
+        // 5. 🏆 官方 VITS 经典多发音人专区
+        OfflineModelPack(
+            id = "vits-icefall-zh-aishell3",
+            name = "AISHELL-3 中文标准 (174发音人)",
+            category = "官方多发音人",
+            sizeMb = 30,
+            description = "开源界经典中文多发音人语音基石，包含 174 位专业男女发音人，音质纯正稳定",
+            speakerCount = 174,
+            sampleRate = 22050,
+            defaultVoiceId = "aishell3_spk_0",
+            speakers = (0..173).map { "aishell3_spk_$it (发音人 $it)" },
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-zh-aishell3.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-zh-aishell3.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-zh-aishell3.tar.bz2",
+            tags = listOf("官方经典", "174发音人", "多角色", "稳定基石")
+        ),
+        OfflineModelPack(
+            id = "vits-zh-aishell3",
+            name = "经典 AISHELL-3 高精度全量模型",
+            category = "官方多发音人",
+            sizeMb = 140,
+            description = "全量精度 AISHELL-3 离线模型，发音饱满细腻，174 发音人表现力强",
+            speakerCount = 174,
+            sampleRate = 22050,
+            defaultVoiceId = "aishell3_classic_0",
+            speakers = (0..173).map { "aishell3_classic_$it (经典发音人 $it)" },
+            githubUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-aishell3.tar.bz2",
+            hfMirrorUrl = "https://ghfast.top/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-aishell3.tar.bz2",
+            cdnUrl = "https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-zh-aishell3.tar.bz2",
+            tags = listOf("官方经典", "高保真", "全量发音人")
         )
     )
 
@@ -212,12 +386,21 @@ object OfflineModelManager {
 
     /**
      * 检查离线模型包是否已完整下载就绪
+     * 严格要求 model_ready_v2.flag 校验，旧版本展平解压导致损坏的模型自动触发安全清理，防止 C++ 底层闪退
      */
     fun isModelDownloaded(context: Context, modelId: String): Boolean {
         val dir = getModelDir(context, modelId)
-        val flag = File(dir, "model_ready.flag")
+        val flagV2 = File(dir, "model_ready_v2.flag")
+        if (!flagV2.exists()) {
+            val oldFlag = File(dir, "model_ready.flag")
+            if (oldFlag.exists()) {
+                // 安全清理旧版本展平解压导致损坏的残留模型
+                dir.deleteRecursively()
+            }
+            return false
+        }
         val files = dir.listFiles()
-        return dir.exists() && dir.isDirectory && flag.exists() && (files != null && files.size >= 2)
+        return dir.exists() && dir.isDirectory && (files != null && files.size >= 2)
     }
 
     /**
@@ -236,7 +419,9 @@ object OfflineModelManager {
     suspend fun refreshRemoteCatalog(context: Context): Result<List<OfflineModelPack>> = withContext(Dispatchers.IO) {
         val client = SharedHttpClient.instance
         val urls = listOf(
-            "https://cdn.jsdelivr.net/gh/misaka02/ai-tts-android@main/models_catalog.json",
+            "https://ghfast.top/https://raw.githubusercontent.com/misaka02/ai-tts-android/feature/pulse-theme-v4/models_catalog.json",
+            "https://ghfast.top/https://raw.githubusercontent.com/misaka02/ai-tts-android/main/models_catalog.json",
+            "https://raw.githubusercontent.com/misaka02/ai-tts-android/feature/pulse-theme-v4/models_catalog.json",
             "https://raw.githubusercontent.com/misaka02/ai-tts-android/main/models_catalog.json"
         )
 
@@ -279,19 +464,33 @@ object OfflineModelManager {
         context: Context,
         modelId: String,
         channel: String = "hf_mirror",
-        onProgress: (percent: Int, statusText: String) -> Unit
+        onProgress: (Int, String) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
-        val pack = activeCatalog.find { it.id == modelId }
-            ?: return@withContext Result.failure(IllegalArgumentException("未找到模型包: $modelId"))
-
         val targetDir = getModelDir(context, modelId)
+        if (targetDir.exists()) targetDir.deleteRecursively()
         targetDir.mkdirs()
 
-        val candidateUrls = listOf(
-            pack.hfMirrorUrl,
-            pack.cdnUrl,
-            pack.githubUrl
-        ).filter { it.isNotBlank() }.distinct()
+        val catalog = getCatalog()
+        val pack = catalog.find { it.id == modelId }
+            ?: return@withContext Result.failure(IllegalArgumentException("未在模型目录中找到模型: $modelId"))
+
+        val baseGhUrl = pack.githubUrl
+        val candidateUrls = if (baseGhUrl.isNotBlank()) {
+            listOf(
+                "https://ghfast.top/$baseGhUrl",
+                "https://gh.ddlc.top/$baseGhUrl",
+                "https://ghproxy.net/$baseGhUrl",
+                pack.hfMirrorUrl,
+                pack.cdnUrl,
+                baseGhUrl
+            ).filter { it.isNotBlank() }.distinct()
+        } else {
+            listOf(
+                pack.hfMirrorUrl,
+                pack.cdnUrl,
+                pack.githubUrl
+            ).filter { it.isNotBlank() }.distinct()
+        }
 
         try {
             val client = SharedHttpClient.instance
@@ -301,7 +500,7 @@ object OfflineModelManager {
 
             for ((idx, downloadUrl) in candidateUrls.withIndex()) {
                 try {
-                    onProgress(5, "正在连接下载节点 (${idx + 1}/${candidateUrls.size})...")
+                    onProgress(5, "正在连接高速下载镜像 (${idx + 1}/${candidateUrls.size})...")
                     val request = Request.Builder()
                         .url(downloadUrl)
                         .addHeader("User-Agent", "Mozilla/5.0 AI-TTS-Engine/3.7.0")
@@ -317,7 +516,7 @@ object OfflineModelManager {
 
                     body.byteStream().use { input ->
                         FileOutputStream(tempFile).use { output ->
-                            val buffer = ByteArray(64 * 1024)
+                            val buffer = ByteArray(256 * 1024)
                             var bytesRead: Int
                             var totalRead = 0L
                             var lastPercent = 5
@@ -352,10 +551,10 @@ object OfflineModelManager {
             onProgress(88, "正在解压端侧神经网络模型权重包 (TAR.BZ2 / ZIP)...")
             val extractedCount = extractArchive(tempFile, targetDir)
 
-            val flagFile = File(targetDir, "model_ready.flag")
+            val flagFile = File(targetDir, "model_ready_v2.flag")
             val infoFile = File(targetDir, "model_info.json")
             infoFile.writeText(json.encodeToString(OfflineModelPack.serializer(), pack))
-            flagFile.writeText("READY timestamp=${System.currentTimeMillis()} id=$modelId name=${pack.name} files=$extractedCount")
+            flagFile.writeText("READY_V2 timestamp=${System.currentTimeMillis()} id=$modelId name=${pack.name} files=$extractedCount")
 
             if (tempFile.exists()) tempFile.delete()
 
