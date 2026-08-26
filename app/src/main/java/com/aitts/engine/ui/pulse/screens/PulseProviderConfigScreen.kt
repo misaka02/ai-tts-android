@@ -995,9 +995,11 @@ fun PulseProviderConfigScreen(
                                                                 try {
                                                                     val apkFile = java.io.File(context.cacheDir, "ai-tts-offline-runtime-arm64.apk")
                                                                     val urls = listOf(
+                                                                        "https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/v3.7.0/ai-tts-offline-runtime-arm64.apk",
                                                                         "https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk",
-                                                                        "https://gh.ddlc.top/https://github.com/misaka02/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk",
-                                                                        "https://ghproxy.net/https://github.com/misaka02/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk",
+                                                                        "https://gh.ddlc.top/https://github.com/misaka02/ai-tts-android/releases/download/v3.7.0/ai-tts-offline-runtime-arm64.apk",
+                                                                        "https://ghproxy.net/https://github.com/misaka02/ai-tts-android/releases/download/v3.7.0/ai-tts-offline-runtime-arm64.apk",
+                                                                        "https://github.com/misaka02/ai-tts-android/releases/download/v3.7.0/ai-tts-offline-runtime-arm64.apk",
                                                                         "https://github.com/misaka02/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk"
                                                                     )
                                                                     var downloaded = false

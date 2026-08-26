@@ -79,9 +79,13 @@ cd ai-tts-android
 # 执行单元测试
 ./gradlew test
 
-# 构建正式版 Release APK
+# 构建正式版主程序与离线运行时组件
 ./gradlew assembleRelease
 ```
+
+> **离线运行时解耦与追新机制**：
+> - **体积轻量**：主程序 (~2MB) 与 Sherpa-ONNX C++ 推理引擎独立分体，仅在使用离线大模型时需安装 8.3MB 的运行时组件；
+> - **双轨构建**：由独立模块 `runtime-addon` 维护，随上游 [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx) 升级。CI 构建时自动同步产出 `ai-tts-offline-runtime-arm64.apk`。
 
 ---
 

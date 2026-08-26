@@ -42,6 +42,10 @@ jobs:
             TAG_NAME=${GITHUB_REF#refs/tags/}
             cp app/build/outputs/apk/release/app-release.apk "release_apks/ai-tts-engine-${TAG_NAME}.apk"
           fi
+          # 自动打包并提取端侧离线运行时拓展组件
+          if compgen -G "runtime-addon/build/outputs/apk/release/*.apk" > /dev/null; then
+            cp runtime-addon/build/outputs/apk/release/*.apk release_apks/ai-tts-offline-runtime-arm64.apk
+          fi
 
       - name: Upload Artifact to CI Actions
         uses: actions/upload-artifact@v4

@@ -180,6 +180,15 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
                 return currentTts!!
             }
 
+            // 切换新模型前，显式释放旧实例持有的底层 C++ ONNX 会话内存，彻底杜绝多模型试听时的内存叠加与 OOM
+            try {
+                currentTts?.release()
+            } catch (t: Throwable) {
+                android.util.Log.w("OfflineTtsProvider", "释放旧 TTS 实例异常: ${t.message}")
+            }
+            currentTts = null
+            loadedModelId = null
+
             // 全局统一从 OfflineModelManager 获取模型存储目录，杜绝路径不匹配
             val modelDir = OfflineModelManager.getModelDir(context, modelId)
             if (!modelDir.exists() || !modelDir.isDirectory) {

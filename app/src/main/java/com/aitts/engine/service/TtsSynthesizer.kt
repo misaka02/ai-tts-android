@@ -408,7 +408,8 @@ class TtsSynthesizer(private val context: Context) {
                         channels = 1,
                         enableClarity = settings.voiceClarityBoostEnabled,
                         gainFactor = effectiveGain,
-                        trimSilence = true
+                        trimSilence = true,
+                        normalizeLoudness = true
                     )
 
                     // 极速分块向系统音频管道流式写入 PCM

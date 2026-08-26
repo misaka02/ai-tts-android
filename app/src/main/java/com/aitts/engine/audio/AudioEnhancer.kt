@@ -44,7 +44,8 @@ object AudioEnhancer {
         channels: Int = 1,
         enableClarity: Boolean = false,
         gainFactor: Float = 1.0f,
-        trimSilence: Boolean = false
+        trimSilence: Boolean = false,
+        normalizeLoudness: Boolean = false
     ): ByteArray {
         if (pcmData.size < 2) {
             return pcmData
@@ -57,7 +58,32 @@ object AudioEnhancer {
             pcmData
         }
 
-        if (!enableClarity && gainFactor == 1.0f) {
+        // 2. 测量有效 RMS 能量，自适应平衡不同声学模型的音量落差
+        var effectiveGain = gainFactor
+        if (normalizeLoudness && activePcm.size >= 100) {
+            val shortCount = activePcm.size / 2
+            val bbTest = ByteBuffer.wrap(activePcm).order(ByteOrder.LITTLE_ENDIAN)
+            var sumSquare = 0.0
+            var validCount = 0
+            for (k in 0 until shortCount) {
+                val s = bbTest.short.toDouble()
+                if (abs(s) > 100.0) {
+                    sumSquare += s * s
+                    validCount++
+                }
+            }
+            if (validCount > 50) {
+                val rms = kotlin.math.sqrt(sumSquare / validCount)
+                // 设定舒适听书 RMS 目标 ~3800 (约 -18.7 dBFS)
+                val targetRms = 3800.0
+                if (rms in 200.0..3000.0) {
+                    val autoBoost = (targetRms / rms).toFloat().coerceIn(1.0f, 2.0f)
+                    effectiveGain *= autoBoost
+                }
+            }
+        }
+
+        if (!enableClarity && effectiveGain == 1.0f) {
             return activePcm
         }
 
