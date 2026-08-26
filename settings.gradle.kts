@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ai-tts-android"
 include(":app")
+include(":runtime-addon")

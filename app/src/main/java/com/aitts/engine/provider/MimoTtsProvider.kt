@@ -305,6 +305,14 @@ class MimoTtsProvider(
                 put("stream", true)
             }.toString()
 
+            val configDataStore = try {
+                com.aitts.engine.data.ConfigDataStore.getInstance(com.aitts.engine.AiTtsApp.instance)
+            } catch (e: Throwable) {
+                null
+            }
+            val startReqTime = System.currentTimeMillis()
+            configDataStore?.log("🌐 [MiMo流式发起] 正在向 $url 请求音频流 (模型: $modelName, 音色: $voiceName, 长度: ${text.length}字)")
+
             val requestBuilder = Request.Builder()
                 .url(url)
                 .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
@@ -319,6 +327,7 @@ class MimoTtsProvider(
 
             if (!response.isSuccessful) {
                 val errStr = responseBody.string()
+                configDataStore?.log("❌ [MiMo流式HTTP异常] HTTP ${response.code}: $errStr")
                 return@withContext Result.failure(
                     IOException("小米 MiMo 请求失败 HTTP ${response.code}: $errStr")
                 )
@@ -326,6 +335,7 @@ class MimoTtsProvider(
 
             val audioOutputStream = java.io.ByteArrayOutputStream()
             var isSseStreamDetected = false
+            var firstChunkReceived = false
 
             responseBody.byteStream().bufferedReader(Charsets.UTF_8).use { reader ->
                 for (line in reader.lineSequence()) {
@@ -350,6 +360,11 @@ class MimoTtsProvider(
                                     if (!b64Data.isNullOrBlank()) {
                                         val chunkBytes = Base64.decode(b64Data, Base64.DEFAULT)
                                         if (chunkBytes.isNotEmpty()) {
+                                            if (!firstChunkReceived) {
+                                                firstChunkReceived = true
+                                                val latency = System.currentTimeMillis() - startReqTime
+                                                configDataStore?.log("⚡ [MiMo流式首包就绪] 首包耗时: ${latency}ms, 正在推流...")
+                                            }
                                             audioOutputStream.write(chunkBytes)
                                             onAudioChunk(chunkBytes)
                                         }
@@ -365,8 +380,11 @@ class MimoTtsProvider(
 
             val collectedBytes = audioOutputStream.toByteArray()
             if (isSseStreamDetected && collectedBytes.isNotEmpty()) {
+                val totalTime = System.currentTimeMillis() - startReqTime
+                configDataStore?.log("✅ [MiMo流式完成] 累计获取 ${collectedBytes.size} 字节, 耗时: ${totalTime}ms")
                 Result.success(collectedBytes)
             } else {
+                configDataStore?.log("❌ [MiMo流式异常] 未能获取有效音频数据流 (isSse: $isSseStreamDetected, bytes: ${collectedBytes.size})")
                 Result.failure(IOException("MiMo 流式未接收到有效音频分块"))
             }
         } catch (e: Exception) {

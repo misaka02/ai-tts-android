@@ -49,6 +49,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -58,6 +59,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -924,8 +927,13 @@ fun PulseProviderConfigScreen(
                                     }
                                 }
 
-                                // 0. 离线神经推理环境 (Sherpa-ONNX Runtime) 状态与手动安装
-                                val isRuntimeInstalled = remember { com.aitts.engine.provider.OfflineTtsProvider.isEngineInstalled(context) }
+                                // 0. 离线神经推理环境 (Sherpa-ONNX Runtime) 状态与一键安装
+                                var isRuntimeInstalled by remember { mutableStateOf(com.aitts.engine.provider.OfflineTtsProvider.isEngineInstalled(context)) }
+                                var isDownloadingRuntime by remember { mutableStateOf(false) }
+                                var runtimeDownloadProgress by remember { mutableFloatStateOf(0f) }
+                                var runtimeStatusText by remember { mutableStateOf("") }
+                                val runtimeScope = rememberCoroutineScope()
+
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(10.dp),
@@ -956,27 +964,139 @@ fun PulseProviderConfigScreen(
                                         }
                                         Text(
                                             if (isRuntimeInstalled)
-                                                "已就绪 Sherpa-ONNX 原生神经网络加速引擎，支持完全脱网离线运行。"
+                                                "已挂载 Sherpa-ONNX 神经网络加速引擎 (v1.13.6)，支持完全脱网离线运行。"
                                             else
-                                                "主安装包已剔除近 100MB 二进制库以保证小巧纯净。如需脱网离线朗读，可手动安装拓展组件 (~8MB)。",
+                                                "主安装包已剔除近 100MB 冗余库以保持 2MB 极简。如需脱网离线朗读，可一键下载独立轻量拓展组件 (8.3MB) 并调起系统安装。",
                                             fontSize = 11.sp,
                                             color = PulseTokens.TextSecondary
                                         )
+
                                         if (!isRuntimeInstalled) {
-                                            Button(
-                                                onClick = {
-                                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/k2-fsa/sherpa-onnx/releases"))
-                                                    context.startActivity(intent)
-                                                },
-                                                modifier = Modifier.fillMaxWidth().height(36.dp),
-                                                shape = RoundedCornerShape(8.dp),
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = PulseTokens.AmberWarm.copy(alpha = 0.2f),
-                                                    contentColor = PulseTokens.AmberWarm
-                                                ),
-                                                border = BorderStroke(1.dp, PulseTokens.AmberWarm.copy(alpha = 0.5f))
-                                            ) {
-                                                Text("📥 手动安装离线推理引擎拓展组件 (~8MB)", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                            if (isDownloadingRuntime) {
+                                                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    LinearProgressIndicator(
+                                                        progress = { runtimeDownloadProgress },
+                                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                                        color = PulseTokens.CyanElectric,
+                                                        trackColor = PulseTokens.SurfaceElevated
+                                                    )
+                                                    Text(runtimeStatusText, fontSize = 10.5.sp, color = PulseTokens.CyanElectric)
+                                                }
+                                            } else {
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Button(
+                                                        onClick = {
+                                                            isDownloadingRuntime = true
+                                                            runtimeDownloadProgress = 0.05f
+                                                            runtimeStatusText = "正在连接高速镜像下载独立离线组件 (8.3MB)..."
+                                                            runtimeScope.launch(Dispatchers.IO) {
+                                                                try {
+                                                                    val apkFile = java.io.File(context.cacheDir, "ai-tts-offline-runtime-arm64.apk")
+                                                                    val urls = listOf(
+                                                                        "https://ghproxy.net/https://github.com/liuyuanlin/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk",
+                                                                        "https://github.com/liuyuanlin/ai-tts-android/releases/download/previous/ai-tts-offline-runtime-arm64.apk"
+                                                                    )
+                                                                    var downloaded = false
+                                                                    val client = okhttp3.OkHttpClient.Builder()
+                                                                        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                                                                        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                                                                        .build()
+
+                                                                    for (downloadUrl in urls) {
+                                                                        try {
+                                                                            val req = okhttp3.Request.Builder().url(downloadUrl).build()
+                                                                            val resp = client.newCall(req).execute()
+                                                                            if (resp.isSuccessful) {
+                                                                                val body = resp.body ?: continue
+                                                                                val totalLen = body.contentLength()
+                                                                                var bytesRead = 0L
+                                                                                body.byteStream().use { input ->
+                                                                                    apkFile.outputStream().use { output ->
+                                                                                        val buffer = ByteArray(8192)
+                                                                                        var read: Int
+                                                                                        while (input.read(buffer).also { read = it } != -1) {
+                                                                                            output.write(buffer, 0, read)
+                                                                                            bytesRead += read
+                                                                                            if (totalLen > 0) {
+                                                                                                val p = (bytesRead.toFloat() / totalLen).coerceIn(0f, 1f)
+                                                                                                runtimeDownloadProgress = p
+                                                                                                val readMb = String.format(java.util.Locale.US, "%.1f", bytesRead / (1024f * 1024f))
+                                                                                                val totalMb = String.format(java.util.Locale.US, "%.1f", totalLen / (1024f * 1024f))
+                                                                                                runtimeStatusText = "正在下载: $readMb MB / $totalMb MB (${(p * 100).toInt()}%)"
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                                downloaded = true
+                                                                                break
+                                                                            }
+                                                                        } catch (e: Throwable) {
+                                                                            // 尝试下一个镜像源
+                                                                        }
+                                                                    }
+
+                                                                    withContext(Dispatchers.Main) {
+                                                                        isDownloadingRuntime = false
+                                                                        if (downloaded && apkFile.exists() && apkFile.length() > 1024 * 1024) {
+                                                                            runtimeStatusText = "下载完成，正在调起系统安装界面..."
+                                                                            try {
+                                                                                val apkUri = androidx.core.content.FileProvider.getUriForFile(
+                                                                                    context,
+                                                                                    "${context.packageName}.provider",
+                                                                                    apkFile
+                                                                                )
+                                                                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                                                    setDataAndType(apkUri, "application/vnd.android.package-archive")
+                                                                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                                                }
+                                                                                context.startActivity(intent)
+                                                                            } catch (e: Throwable) {
+                                                                                Toast.makeText(context, "调起安装器失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                                                            }
+                                                                        } else {
+                                                                            runtimeStatusText = "下载失败，请检查网络"
+                                                                            Toast.makeText(context, "拓展组件下载失败，请稍后重试", Toast.LENGTH_LONG).show()
+                                                                        }
+                                                                    }
+                                                                } catch (e: Throwable) {
+                                                                    withContext(Dispatchers.Main) {
+                                                                        isDownloadingRuntime = false
+                                                                        runtimeStatusText = "下载异常: ${e.message}"
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        modifier = Modifier.weight(1f).height(36.dp),
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = PulseTokens.AmberWarm.copy(alpha = 0.2f),
+                                                            contentColor = PulseTokens.AmberWarm
+                                                        ),
+                                                        border = BorderStroke(1.dp, PulseTokens.AmberWarm.copy(alpha = 0.5f))
+                                                    ) {
+                                                        Text("📥 一键下载安装拓展组件 (8.3MB)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+
+                                                    Surface(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .clickable {
+                                                                isRuntimeInstalled = com.aitts.engine.provider.OfflineTtsProvider.isEngineInstalled(context)
+                                                                if (isRuntimeInstalled) {
+                                                                    Toast.makeText(context, "✅ 离线推理环境已成功就绪！", Toast.LENGTH_SHORT).show()
+                                                                } else {
+                                                                    Toast.makeText(context, "未检测到已安装的拓展组件", Toast.LENGTH_SHORT).show()
+                                                                }
+                                                            },
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        color = PulseTokens.SurfaceElevated,
+                                                        border = PulseTokens.BorderSubtle
+                                                    ) {
+                                                        Box(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                                            Text("刷新状态", fontSize = 11.sp, color = PulseTokens.TextSecondary)
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }

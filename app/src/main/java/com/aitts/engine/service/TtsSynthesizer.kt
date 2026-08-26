@@ -274,6 +274,14 @@ class TtsSynthesizer(private val context: Context) {
 
                 if (segConfig.isStreamingEnabled && !sessionCache.containsKey(i)) {
                     configDataStore.log("⚡ [流式首包秒开] 第 ${i + 1}/${segments.size} 段开启实时推流播报 (语速: ${segConfig.speed}x)...")
+                    val sonic = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
+                        com.aitts.engine.audio.Sonic(targetSampleRate, 1).apply {
+                            speed = segConfig.speed
+                        }
+                    } else null
+                    var streamChunkCount = 0
+                    var streamTotalBytes = 0
+
                     val streamRes = providerManager.synthesizeStreaming(seg.text, segConfig) { rawChunk ->
                         if (isStopped.get() || !isActive) return@synthesizeStreaming
                         try {
@@ -284,31 +292,78 @@ class TtsSynthesizer(private val context: Context) {
                                 targetSampleRate = targetSampleRate,
                                 targetChannels = 1
                             )
-                            // WSOLA 变速不变调处理，严格保持神经网络音调，语速与 aitts 100% 同步
-                            val speedScaled = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
-                                com.aitts.engine.audio.SonicAudioProcessor.process(
-                                    pcmData = resampled,
-                                    sampleRate = targetSampleRate,
-                                    speed = segConfig.speed
+
+                            val pcmToPush = if (sonic != null) {
+                                sonic.writeBytesToStream(resampled, resampled.size)
+                                val available = sonic.samplesAvailable() * 2
+                                if (available > 0) {
+                                    val tempBuf = ByteArray(available)
+                                    val readBytes = sonic.readBytesFromStream(tempBuf, tempBuf.size)
+                                    if (readBytes > 0) tempBuf.copyOf(readBytes) else ByteArray(0)
+                                } else {
+                                    ByteArray(0)
+                                }
+                            } else {
+                                resampled
+                            }
+
+                            if (pcmToPush.isNotEmpty()) {
+                                streamChunkCount++
+                                streamTotalBytes += pcmToPush.size
+                                val enhanced = AudioEnhancer.processPcm(
+                                    pcmData = pcmToPush,
+                                    channels = 1,
+                                    enableClarity = settings.voiceClarityBoostEnabled,
+                                    gainFactor = effectiveGain,
+                                    trimSilence = false
                                 )
-                            } else resampled
-                            val enhanced = AudioEnhancer.processPcm(
-                                pcmData = speedScaled,
-                                channels = 1,
-                                enableClarity = settings.voiceClarityBoostEnabled,
-                                gainFactor = effectiveGain,
-                                trimSilence = false
-                            )
-                            var off = 0
-                            while (off < enhanced.size) {
-                                if (isStopped.get() || !isActive) break
-                                val len = minOf(bufferChunkSize, enhanced.size - off)
-                                callback.audioAvailable(enhanced, off, len)
-                                off += len
+                                var off = 0
+                                while (off < enhanced.size) {
+                                    if (isStopped.get() || !isActive) break
+                                    val len = minOf(bufferChunkSize, enhanced.size - off)
+                                    callback.audioAvailable(enhanced, off, len)
+                                    off += len
+                                }
                             }
                         } catch (e: Throwable) {
                             configDataStore.log("⚠️ 流式数据块处理告警: ${e.message}")
                         }
+                    }
+
+                    // 流式尾包平滑冲刷
+                    if (sonic != null) {
+                        try {
+                            sonic.flushStream()
+                            val available = sonic.samplesAvailable() * 2
+                            if (available > 0) {
+                                val tailBuf = ByteArray(available)
+                                val readBytes = sonic.readBytesFromStream(tailBuf, tailBuf.size)
+                                if (readBytes > 0) {
+                                    val enhanced = AudioEnhancer.processPcm(
+                                        pcmData = tailBuf.copyOf(readBytes),
+                                        channels = 1,
+                                        enableClarity = settings.voiceClarityBoostEnabled,
+                                        gainFactor = effectiveGain,
+                                        trimSilence = false
+                                    )
+                                    var off = 0
+                                    while (off < enhanced.size) {
+                                        if (isStopped.get() || !isActive) break
+                                        val len = minOf(bufferChunkSize, enhanced.size - off)
+                                        callback.audioAvailable(enhanced, off, len)
+                                        off += len
+                                    }
+                                }
+                            }
+                        } catch (e: Throwable) {
+                            // ignore flush error
+                        }
+                    }
+
+                    if (streamRes.isFailure) {
+                        configDataStore.log("❌ [流式网络异常] 第 ${i + 1}/${segments.size} 段流式推流受阻: ${streamRes.exceptionOrNull()?.message}")
+                    } else {
+                        configDataStore.log("✅ [流式推流完成] 第 ${i + 1}/${segments.size} 段共推送 $streamChunkCount 帧音频 ($streamTotalBytes 字节)")
                     }
 
                     if (streamRes.isSuccess && settings.isAudioCacheEnabled) {
@@ -347,21 +402,9 @@ class TtsSynthesizer(private val context: Context) {
                         targetChannels = 1
                     )
 
-                    // WSOLA 变速不变调处理，严格保持神经网络音调，语速与 aitts 100% 同步
-                    val speedScaledPcm = try {
-                        if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
-                            com.aitts.engine.audio.SonicAudioProcessor.process(
-                                pcmData = resampledPcm,
-                                sampleRate = targetSampleRate,
-                                speed = segConfig.speed
-                            )
-                        } else resampledPcm
-                    } catch (e: Throwable) {
-                        resampledPcm
-                    }
-
+                    // 非流式 100% 遵从大模型原生提示词变速，绝不做任何机械二次处理
                     val finalPcm = AudioEnhancer.processPcm(
-                        pcmData = speedScaledPcm,
+                        pcmData = resampledPcm,
                         channels = 1,
                         enableClarity = settings.voiceClarityBoostEnabled,
                         gainFactor = effectiveGain,

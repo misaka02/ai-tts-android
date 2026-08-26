@@ -39,13 +39,29 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
 
         /**
          * 检测手机本地是否已具备 Sherpa-ONNX C++ 原生运行库环境
+         * 优先检查主程序，其次检查已安装的独立轻量拓展包 com.aitts.engine.offline.runtime
          */
         fun isEngineInstalled(context: Context): Boolean {
             if (isLibraryLoaded) return true
-            return try {
+            try {
                 System.loadLibrary("sherpa-onnx-jni")
                 isLibraryLoaded = true
-                true
+                return true
+            } catch (e: Throwable) {
+                // not in main app
+            }
+
+            return try {
+                val packageInfo = context.packageManager.getPackageInfo("com.aitts.engine.offline.runtime", 0)
+                val nativeLibDir = packageInfo.applicationInfo.nativeLibraryDir
+                val soFile = File(nativeLibDir, "libsherpa-onnx-jni.so")
+                if (soFile.exists()) {
+                    System.load(soFile.absolutePath)
+                    isLibraryLoaded = true
+                    true
+                } else {
+                    false
+                }
             } catch (e: Throwable) {
                 false
             }
