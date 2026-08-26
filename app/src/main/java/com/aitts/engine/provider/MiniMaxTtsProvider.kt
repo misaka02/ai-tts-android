@@ -154,6 +154,152 @@ class MiniMaxTtsProvider(
         }
     }
 
+    override suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> = withContext(Dispatchers.IO) {
+        try {
+            if (config.apiKey.isBlank()) {
+                return@withContext Result.failure(IOException("请先在「模型」界面填写 MiniMax API Key"))
+            }
+
+            var url = config.baseUrl.trim()
+            if (url.isBlank()) {
+                url = "https://api.minimax.chat/v1/t2a_v2"
+            }
+
+            val modelName = config.modelName.ifBlank { "speech-02-turbo" }
+            val voiceId = config.voiceId.ifBlank { "male-qn-qingse" }
+
+            val payload = buildJsonObject {
+                put("model", modelName)
+                put("text", text)
+                put("stream", true)
+                put("voice_setting", buildJsonObject {
+                    put("voice_id", voiceId)
+                    put("speed", config.speed)
+                    put("vol", 1.0)
+                    val pitchVal = ((config.pitch - 1.0f) * 12).toInt().coerceIn(-12, 12)
+                    put("pitch", pitchVal)
+                })
+                put("audio_setting", buildJsonObject {
+                    put("sample_rate", if (config.sampleRate > 0) config.sampleRate else 32000)
+                    put("bitrate", 128000)
+                    put("format", "pcm")
+                })
+            }.toString()
+
+            val configDataStore = try {
+                com.aitts.engine.data.ConfigDataStore.getInstance(com.aitts.engine.AiTtsApp.instance)
+            } catch (e: Throwable) {
+                null
+            }
+            val startReqTime = System.currentTimeMillis()
+            configDataStore?.logStructured(
+                level = com.aitts.engine.data.LogLevel.INFO,
+                tag = "MINIMAX",
+                title = "发起 SSE 流式推流",
+                details = "模型=$modelName, 音色=$voiceId, 长度=${text.length}字, 语速=${config.speed}x"
+            )
+
+            val request = Request.Builder()
+                .url(url)
+                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "text/event-stream")
+                .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
+                .build()
+
+            val response = client.newCall(request).execute()
+            val responseBody = response.body
+                ?: return@withContext Result.failure(IOException("MiniMax 返回空响应体"))
+
+            if (!response.isSuccessful) {
+                val errStr = responseBody.string()
+                configDataStore?.logStructured(
+                    level = com.aitts.engine.data.LogLevel.ERROR,
+                    tag = "MINIMAX",
+                    title = "流式 HTTP 异常 (${response.code})",
+                    details = errStr.take(200)
+                )
+                return@withContext Result.failure(
+                    IOException("MiniMax 请求失败 HTTP ${response.code}: $errStr")
+                )
+            }
+
+            val audioOutputStream = java.io.ByteArrayOutputStream()
+            var isSseStreamDetected = false
+            var firstChunkReceived = false
+
+            responseBody.byteStream().bufferedReader(Charsets.UTF_8).use { reader ->
+                for (line in reader.lineSequence()) {
+                    val trimmed = line.trim()
+                    if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
+                    if (trimmed == "data: [DONE]" || trimmed == "[DONE]") {
+                        isSseStreamDetected = true
+                        break
+                    }
+
+                    if (trimmed.startsWith("data:")) {
+                        isSseStreamDetected = true
+                        val jsonStr = trimmed.substring(5).trim()
+                        if (jsonStr.isNotBlank() && jsonStr != "[DONE]") {
+                            try {
+                                val root = json.decodeFromString<JsonObject>(jsonStr)
+                                val dataObj = root["data"]?.jsonObject
+                                val audioDataStr = dataObj?.get("audio")?.jsonPrimitive?.content
+                                    ?: root["audio"]?.jsonPrimitive?.content
+
+                                if (!audioDataStr.isNullOrBlank()) {
+                                    val chunkBytes = if (isHex(audioDataStr)) {
+                                        hexStringToByteArray(audioDataStr)
+                                    } else {
+                                        Base64.decode(audioDataStr, Base64.DEFAULT)
+                                    }
+                                    if (chunkBytes.isNotEmpty()) {
+                                        if (!firstChunkReceived) {
+                                            firstChunkReceived = true
+                                            val latency = System.currentTimeMillis() - startReqTime
+                                            configDataStore?.logStructured(
+                                                level = com.aitts.engine.data.LogLevel.METRIC,
+                                                tag = "MINIMAX",
+                                                title = "流式首包已就绪",
+                                                details = "TTFB=${latency}ms, 正在推流..."
+                                            )
+                                        }
+                                        audioOutputStream.write(chunkBytes)
+                                        onAudioChunk(chunkBytes)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // 忽略单帧异常
+                            }
+                        }
+                    }
+                }
+            }
+
+            val collectedBytes = audioOutputStream.toByteArray()
+            if (isSseStreamDetected && collectedBytes.isNotEmpty()) {
+                val totalTime = System.currentTimeMillis() - startReqTime
+                configDataStore?.logStructured(
+                    level = com.aitts.engine.data.LogLevel.SUCCESS,
+                    tag = "MINIMAX",
+                    title = "流式传输完成",
+                    details = "累计获取 ${collectedBytes.size} 字节, 耗时 ${totalTime}ms"
+                )
+                Result.success(collectedBytes)
+            } else {
+                synthesize(text, config).also { fallbackRes ->
+                    fallbackRes.getOrNull()?.let { onAudioChunk(it) }
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun isHex(s: String): Boolean {
         if (s.length % 2 != 0) return false
         val sample = s.take(100)

@@ -43,18 +43,60 @@ class ConfigDataStore(private val context: Context) {
     private val _logsFlow = MutableStateFlow<List<String>>(emptyList())
     val logsFlow: StateFlow<List<String>> = _logsFlow.asStateFlow()
 
-    fun log(message: String) {
+    private val _structuredLogsFlow = MutableStateFlow<List<AppLogEntry>>(emptyList())
+    val structuredLogsFlow: StateFlow<List<AppLogEntry>> = _structuredLogsFlow.asStateFlow()
+
+    fun log(message: String, level: LogLevel = LogLevel.INFO, tag: String = "TTS") {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
-        val logEntry = "[$timestamp] $message"
-        android.util.Log.d("AiTtsEngine", message)
-        val current = _logsFlow.value.toMutableList()
-        if (current.size > 200) current.removeAt(0)
-        current.add(logEntry)
-        _logsFlow.value = current
+        val entry = AppLogEntry(
+            timestamp = timestamp,
+            level = level,
+            tag = tag,
+            title = message
+        )
+        val formatted = entry.formatToString()
+        android.util.Log.d("AiTtsEngine", formatted)
+        val currentStr = _logsFlow.value.toMutableList()
+        if (currentStr.size > 200) currentStr.removeAt(0)
+        currentStr.add(formatted)
+        _logsFlow.value = currentStr
+
+        val currentStruct = _structuredLogsFlow.value.toMutableList()
+        if (currentStruct.size > 200) currentStruct.removeAt(0)
+        currentStruct.add(entry)
+        _structuredLogsFlow.value = currentStruct
+    }
+
+    fun logStructured(
+        level: LogLevel,
+        tag: String,
+        title: String,
+        details: String? = null
+    ) {
+        val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        val entry = AppLogEntry(
+            timestamp = timestamp,
+            level = level,
+            tag = tag,
+            title = title,
+            details = details
+        )
+        val formatted = entry.formatToString()
+        android.util.Log.d("AiTtsEngine", formatted)
+        val currentStr = _logsFlow.value.toMutableList()
+        if (currentStr.size > 200) currentStr.removeAt(0)
+        currentStr.add(formatted)
+        _logsFlow.value = currentStr
+
+        val currentStruct = _structuredLogsFlow.value.toMutableList()
+        if (currentStruct.size > 200) currentStruct.removeAt(0)
+        currentStruct.add(entry)
+        _structuredLogsFlow.value = currentStruct
     }
 
     fun clearLogs() {
         _logsFlow.value = emptyList()
+        _structuredLogsFlow.value = emptyList()
     }
 
     // --- History ---
@@ -364,6 +406,37 @@ class ConfigDataStore(private val context: Context) {
             return instance ?: synchronized(this) {
                 instance ?: ConfigDataStore(context.applicationContext).also { instance = it }
             }
+        }
+    }
+}
+
+enum class LogLevel(val label: String) {
+    INFO("INFO"),
+    SUCCESS("SUCCESS"),
+    WARN("WARN"),
+    ERROR("ERROR"),
+    METRIC("METRIC")
+}
+
+data class AppLogEntry(
+    val timestamp: String,
+    val level: LogLevel,
+    val tag: String,
+    val title: String,
+    val details: String? = null
+) {
+    fun formatToString(): String {
+        val levelTag = when (level) {
+            LogLevel.INFO -> "[INFO]"
+            LogLevel.SUCCESS -> "[OK]"
+            LogLevel.WARN -> "[WARN]"
+            LogLevel.ERROR -> "[ERR]"
+            LogLevel.METRIC -> "[PERF]"
+        }
+        return if (details.isNullOrBlank()) {
+            "[$timestamp] $levelTag [$tag] $title"
+        } else {
+            "[$timestamp] $levelTag [$tag] $title | $details"
         }
     }
 }

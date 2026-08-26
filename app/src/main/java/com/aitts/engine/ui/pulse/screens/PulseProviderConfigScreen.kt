@@ -89,6 +89,8 @@ import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
 import com.aitts.engine.provider.TtsProviderManager
+import com.aitts.engine.provider.MimoTtsProvider
+import com.aitts.engine.provider.GeminiTtsProvider
 import com.aitts.engine.ui.pulse.theme.PulseCard
 import com.aitts.engine.ui.pulse.theme.PulseTokens
 import kotlinx.coroutines.launch
@@ -659,24 +661,126 @@ fun PulseProviderConfigScreen(
                                 }
                             }
 
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text("发音倍速: ${String.format(java.util.Locale.US, "%.2f", speed)}x", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Surface(shape = CircleShape, color = PulseTokens.SurfaceElevated, modifier = Modifier.clip(CircleShape).clickable { speed = (speed - 0.05f).coerceAtLeast(0.5f) }) {
-                                            Icon(Icons.Default.Remove, contentDescription = null, tint = PulseTokens.TextPrimary, modifier = Modifier.padding(6.dp).size(14.dp))
+                            val isPromptGearsMode = (selectedType == ProviderType.MIMO && !isStreamingEnabled) || (selectedType == ProviderType.GEMINI)
+
+                            if (isPromptGearsMode) {
+                                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "发音倍速: ${String.format(java.util.Locale.US, "%.2f", speed)}x (声学指令 7 档)",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = PulseTokens.TextPrimary
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = brandColor.copy(alpha = 0.15f),
+                                            border = BorderStroke(0.5.dp, brandColor.copy(alpha = 0.4f))
+                                        ) {
+                                            Text(
+                                                if (selectedType == ProviderType.GEMINI) "全链路原生指令" else "大模型原生非流式",
+                                                fontSize = 10.5.sp,
+                                                color = brandColor,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
                                         }
-                                        Surface(shape = CircleShape, color = PulseTokens.SurfaceElevated, modifier = Modifier.clip(CircleShape).clickable { speed = (speed + 0.05f).coerceAtMost(2.5f) }) {
-                                            Icon(Icons.Default.Add, contentDescription = null, tint = PulseTokens.CyanElectric, modifier = Modifier.padding(6.dp).size(14.dp))
+                                    }
+
+                                    val gears = listOf(
+                                        Triple(0.60f, "0.6x 极缓", "极度舒缓"),
+                                        Triple(0.75f, "0.75x 从容", "从容较慢"),
+                                        Triple(0.88f, "0.88x 微慢", "悠闲微慢"),
+                                        Triple(1.00f, "1.0x 标准", "自然流畅"),
+                                        Triple(1.20f, "1.2x 轻快", "稍快明快"),
+                                        Triple(1.45f, "1.45x 紧凑", "紧凑干练"),
+                                        Triple(1.75f, "1.75x 极速", "快速疾读")
+                                    )
+
+                                    LazyRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        items(gears) { (gearSpeed, gearLabel, gearDesc) ->
+                                            val isCurrent = kotlin.math.abs(speed - gearSpeed) < 0.05f
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (isCurrent) brandColor.copy(alpha = 0.22f) else PulseTokens.SurfaceElevated,
+                                                border = if (isCurrent) BorderStroke(1.dp, brandColor) else PulseTokens.BorderSubtle,
+                                                modifier = Modifier.clickable { speed = gearSpeed }
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                                ) {
+                                                    Text(
+                                                        text = gearLabel,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                        color = if (isCurrent) brandColor else PulseTokens.TextPrimary
+                                                    )
+                                                    Text(
+                                                        text = gearDesc,
+                                                        fontSize = 9.5.sp,
+                                                        color = if (isCurrent) brandColor.copy(alpha = 0.9f) else PulseTokens.TextTertiary
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    val currentPromptDesc = when (selectedType) {
+                                        ProviderType.MIMO -> MimoTtsProvider.getSpeedInstruction(speed)
+                                        ProviderType.GEMINI -> GeminiTtsProvider.getSpeedInstruction(speed)
+                                        else -> ""
+                                    }
+                                    if (currentPromptDesc.isNotBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = PulseTokens.SurfaceDark,
+                                            border = BorderStroke(1.dp, brandColor.copy(alpha = 0.3f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = brandColor, modifier = Modifier.size(13.dp))
+                                                Text(
+                                                    text = "大模型声学指令：“$currentPromptDesc”",
+                                                    fontSize = 10.5.sp,
+                                                    color = PulseTokens.TextSecondary,
+                                                    lineHeight = 14.sp
+                                                )
+                                            }
                                         }
                                     }
                                 }
-                                Slider(
-                                    value = speed,
-                                    onValueChange = { speed = it },
-                                    valueRange = 0.5f..2.5f,
-                                    steps = 39
-                                )
+                            } else {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Text("发音倍速: ${String.format(java.util.Locale.US, "%.2f", speed)}x", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Surface(shape = CircleShape, color = PulseTokens.SurfaceElevated, modifier = Modifier.clip(CircleShape).clickable { speed = (speed - 0.05f).coerceAtLeast(0.5f) }) {
+                                                Icon(Icons.Default.Remove, contentDescription = null, tint = PulseTokens.TextPrimary, modifier = Modifier.padding(6.dp).size(14.dp))
+                                            }
+                                            Surface(shape = CircleShape, color = PulseTokens.SurfaceElevated, modifier = Modifier.clip(CircleShape).clickable { speed = (speed + 0.05f).coerceAtMost(2.5f) }) {
+                                                Icon(Icons.Default.Add, contentDescription = null, tint = PulseTokens.CyanElectric, modifier = Modifier.padding(6.dp).size(14.dp))
+                                            }
+                                        }
+                                    }
+                                    Slider(
+                                        value = speed,
+                                        onValueChange = { speed = it },
+                                        valueRange = 0.5f..2.5f,
+                                        steps = 39
+                                    )
+                                }
                             }
 
                             // 高级 AI 自回归大模型（如 MiMo、MiniMax、豆包、阶跃、OpenAI等）由端到端神经网络直出，仅传统参数化引擎支持 Pitch

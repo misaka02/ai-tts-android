@@ -126,4 +126,107 @@ class OpenAiTtsProvider(
             Result.failure(e)
         }
     }
+
+    override suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> = withContext(Dispatchers.IO) {
+        try {
+            if (config.apiKey.isBlank()) {
+                return@withContext Result.failure(IOException("请先在「模型」界面填写 OpenAI / 中转 API Key"))
+            }
+
+            var url = config.baseUrl.trim()
+            if (url.isBlank()) {
+                url = "https://api.openai.com/v1/audio/speech"
+            } else if (!url.endsWith("/audio/speech") && !url.contains("/speech")) {
+                url = if (url.endsWith("/")) "${url}audio/speech" else "$url/audio/speech"
+            }
+
+            val model = config.modelName.ifBlank { "tts-1" }
+            val voice = config.voiceId.ifBlank { "nova" }
+
+            val payload = buildJsonObject {
+                put("model", model)
+                put("input", text)
+                put("voice", voice)
+                put("response_format", "pcm")
+                put("speed", config.speed)
+            }.toString()
+
+            val configDataStore = try {
+                com.aitts.engine.data.ConfigDataStore.getInstance(com.aitts.engine.AiTtsApp.instance)
+            } catch (e: Throwable) {
+                null
+            }
+            val startReqTime = System.currentTimeMillis()
+            configDataStore?.logStructured(
+                level = com.aitts.engine.data.LogLevel.INFO,
+                tag = "OPENAI",
+                title = "发起 HTTP 分块流式推流",
+                details = "模型=$model, 音色=$voice, 长度=${text.length}字, 语速=${config.speed}x"
+            )
+
+            val request = Request.Builder()
+                .url(url)
+                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
+                .addHeader("Content-Type", "application/json")
+                .build()
+
+            val response = client.newCall(request).execute()
+            val responseBody = response.body
+                ?: return@withContext Result.failure(IOException("OpenAI 返回空响应体"))
+
+            if (!response.isSuccessful) {
+                val errStr = responseBody.string()
+                configDataStore?.logStructured(
+                    level = com.aitts.engine.data.LogLevel.ERROR,
+                    tag = "OPENAI",
+                    title = "流式 HTTP 异常 (${response.code})",
+                    details = errStr.take(200)
+                )
+                return@withContext Result.failure(
+                    IOException("OpenAI 请求失败 HTTP ${response.code}: $errStr")
+                )
+            }
+
+            val audioOutputStream = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(4096)
+            var firstChunk = true
+            var bytesRead: Int
+
+            responseBody.byteStream().use { input ->
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    if (bytesRead > 0) {
+                        if (firstChunk) {
+                            firstChunk = false
+                            val latency = System.currentTimeMillis() - startReqTime
+                            configDataStore?.logStructured(
+                                level = com.aitts.engine.data.LogLevel.METRIC,
+                                tag = "OPENAI",
+                                title = "流式首包已就绪",
+                                details = "TTFB=${latency}ms, 正在推流..."
+                            )
+                        }
+                        audioOutputStream.write(buffer, 0, bytesRead)
+                        onAudioChunk(buffer.copyOf(bytesRead))
+                    }
+                }
+            }
+
+            val collectedBytes = audioOutputStream.toByteArray()
+            val totalTime = System.currentTimeMillis() - startReqTime
+            configDataStore?.logStructured(
+                level = com.aitts.engine.data.LogLevel.SUCCESS,
+                tag = "OPENAI",
+                title = "流式推流完成",
+                details = "累计推送 ${collectedBytes.size} 字节, 耗时 ${totalTime}ms"
+            )
+            Result.success(collectedBytes)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

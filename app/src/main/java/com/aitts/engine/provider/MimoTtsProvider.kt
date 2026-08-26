@@ -401,14 +401,7 @@ class MimoTtsProvider(
         val speed = config.speed
         val pitch = config.pitch
 
-        val speedClause = when {
-            speed <= 0.65f -> "请用极慢的语速，极其缓慢、一字一顿地朗读这段文字"
-            speed <= 0.85f -> "请用缓慢、从容舒缓的语调朗读这段文字"
-            speed in 0.86f..1.14f -> "请用标准自然、流畅的语速朗读这段文字"
-            speed <= 1.35f -> "请用较快的语速朗读，保持紧凑轻快的节奏"
-            speed <= 1.75f -> "请用快速的语速朗读，极速流畅，明显加快发音速度"
-            else -> "请用极快的超快语速朗读，非常急促快速，大幅度加快发音速度"
-        }
+        val speedClause = getSpeedInstruction(speed)
 
         val pitchClause = when {
             pitch <= 0.85f -> "声音偏低沉浑厚，富含磁性"
@@ -422,5 +415,17 @@ class MimoTtsProvider(
         if (userPrompt.isNotBlank()) clauses.add(userPrompt)
 
         return clauses.joinToString("，") + "。"
+    }
+
+    companion object {
+        fun getSpeedInstruction(speed: Float): String = when {
+            speed <= 0.65f -> "请用极其舒缓柔和的语速朗读，声音沉静从容，尾音自然延展舒展"
+            speed <= 0.80f -> "请用偏慢从容的语速朗读，节奏平稳沉静，语气温和安定"
+            speed <= 0.95f -> "请用稍慢而从容的语速朗读，节奏舒缓流畅，声线柔顺连贯"
+            speed <= 1.10f -> "请用标准自然流畅的语速朗读，发音清晰大方，语调节奏适中"
+            speed <= 1.30f -> "请用稍快轻巧的语速朗读，节奏轻快利落，发音清晰紧凑"
+            speed <= 1.60f -> "请用较快紧凑的语速朗读，节奏连贯干练，语气敏捷果断"
+            else -> "请用快速流利的语速朗读，节奏急促紧凑，语流如流水般敏捷顺畅"
+        }
     }
 }

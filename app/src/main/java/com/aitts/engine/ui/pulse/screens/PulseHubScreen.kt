@@ -103,6 +103,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.aitts.engine.audio.AndroidAudioPlayer
 import com.aitts.engine.audio.AudioCacheManager
+import com.aitts.engine.data.AppLogEntry
+import com.aitts.engine.data.LogLevel
 import com.aitts.engine.audio.AudioVisualizerManager
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.ProviderType
@@ -143,6 +145,7 @@ fun PulseHubScreen(
     val settings by configDataStore.settingsFlow.collectAsState()
     val providers by configDataStore.providersFlow.collectAsState()
     val logs by configDataStore.logsFlow.collectAsState()
+    val structuredLogs by configDataStore.structuredLogsFlow.collectAsState()
 
     val activeProvider = providers.find { it.id == settings.activeProviderId }
         ?: providers.firstOrNull()
@@ -186,6 +189,7 @@ fun PulseHubScreen(
     var sheetDragStartIndex by remember { mutableStateOf(-1) }
     var sheetDragTargetIndex by remember { mutableStateOf(-1) }
     var sheetTotalDragOffsetY by remember { mutableFloatStateOf(0f) }
+    var sheetDraggedItemViewportY by remember { mutableFloatStateOf(-1f) }
 
     fun stopPlayback() {
         audioPlayer.stop()
@@ -888,6 +892,41 @@ fun PulseHubScreen(
                 }
                 val sheetLazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
+                LaunchedEffect(sheetDraggedProviderId) {
+                    if (sheetDraggedProviderId != null) {
+                        while (true) {
+                            val layoutInfo = sheetLazyListState.layoutInfo
+                            val viewportHeight = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat()
+                            if (sheetDraggedItemViewportY >= 0f && viewportHeight > 100f) {
+                                val edgeThreshold = 80f
+                                val scrollDelta = when {
+                                    sheetDraggedItemViewportY < edgeThreshold -> {
+                                        val factor = ((edgeThreshold - sheetDraggedItemViewportY) / edgeThreshold).coerceIn(0f, 1f)
+                                        -(factor * 14f).coerceAtLeast(3f)
+                                    }
+                                    sheetDraggedItemViewportY > (viewportHeight - edgeThreshold) -> {
+                                        val factor = ((sheetDraggedItemViewportY - (viewportHeight - edgeThreshold)) / edgeThreshold).coerceIn(0f, 1f)
+                                        (factor * 14f).coerceAtLeast(3f)
+                                    }
+                                    else -> 0f
+                                }
+                                if (scrollDelta != 0f) {
+                                    val consumed = sheetLazyListState.scrollBy(scrollDelta)
+                                    if (consumed != 0f) {
+                                        sheetTotalDragOffsetY += consumed
+                                        val offsetSteps = (sheetTotalDragOffsetY / sheetItemHeightPx).roundToInt()
+                                        val newTarget = (sheetDragStartIndex + offsetSteps).coerceIn(0, hubLocalList.size - 1)
+                                        if (newTarget != sheetDragTargetIndex) {
+                                            sheetDragTargetIndex = newTarget
+                                        }
+                                    }
+                                }
+                            }
+                            delay(16)
+                        }
+                    }
+                }
+
                 LazyColumn(
                     state = sheetLazyListState,
                     modifier = Modifier
@@ -1047,12 +1086,15 @@ fun PulseHubScreen(
                                                             sheetDragStartIndex = idx
                                                             sheetDragTargetIndex = idx
                                                             sheetTotalDragOffsetY = 0f
+                                                            val itemInfo = sheetLazyListState.layoutInfo.visibleItemsInfo.find { it.index == idx }
+                                                            sheetDraggedItemViewportY = (itemInfo?.offset?.toFloat() ?: 0f) + sheetItemHeightPx / 2f
                                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                         }
                                                     },
                                                     onDrag = { change, dragAmount ->
                                                         change.consume()
                                                         sheetTotalDragOffsetY += dragAmount.y
+                                                        sheetDraggedItemViewportY += dragAmount.y
                                                         val offsetSteps = (sheetTotalDragOffsetY / sheetItemHeightPx).roundToInt()
                                                         val newTarget = (sheetDragStartIndex + offsetSteps).coerceIn(0, hubLocalList.size - 1)
                                                         if (newTarget != sheetDragTargetIndex) {
@@ -1072,6 +1114,7 @@ fun PulseHubScreen(
                                                         sheetDragStartIndex = -1
                                                         sheetDragTargetIndex = -1
                                                         sheetTotalDragOffsetY = 0f
+                                                        sheetDraggedItemViewportY = -1f
                                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                     },
                                                     onDragCancel = {
@@ -1079,6 +1122,7 @@ fun PulseHubScreen(
                                                         sheetDragStartIndex = -1
                                                         sheetDragTargetIndex = -1
                                                         sheetTotalDragOffsetY = 0f
+                                                        sheetDraggedItemViewportY = -1f
                                                     }
                                                 )
                                             },
@@ -1160,24 +1204,63 @@ fun PulseHubScreen(
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(300.dp)
-                                .background(Color.Black, RoundedCornerShape(8.dp))
+                                .height(320.dp)
+                                .background(Color(0xFF0D1117), RoundedCornerShape(8.dp))
                                 .padding(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            items(logs.reversed()) { logLine ->
-                                val lineStr = logLine
-                                Text(
-                                    text = lineStr,
-                                    fontSize = 11.sp,
-                                    color = when {
-                                        lineStr.contains("失败") || lineStr.contains("异常") -> PulseTokens.MagentaLaser
-                                        lineStr.contains("就绪") || lineStr.contains("完成") -> PulseTokens.CyanElectric
-                                        lineStr.contains("任务接收") -> PulseTokens.AmberWarm
-                                        else -> Color.LightGray
-                                    },
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                )
+                            if (structuredLogs.isNotEmpty()) {
+                                items(structuredLogs.reversed()) { entry ->
+                                    val (badgeBg, badgeText) = when (entry.level) {
+                                        LogLevel.INFO -> PulseTokens.CyanElectric.copy(alpha = 0.18f) to PulseTokens.CyanElectric
+                                        LogLevel.SUCCESS -> Color(0xFF10B981).copy(alpha = 0.2f) to Color(0xFF34D399)
+                                        LogLevel.WARN -> PulseTokens.AmberWarm.copy(alpha = 0.2f) to PulseTokens.AmberWarm
+                                        LogLevel.ERROR -> PulseTokens.MagentaLaser.copy(alpha = 0.22f) to PulseTokens.MagentaLaser
+                                        LogLevel.METRIC -> Color(0xFF8B5CF6).copy(alpha = 0.2f) to Color(0xFFA78BFA)
+                                    }
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0xFF161B22), RoundedCornerShape(6.dp))
+                                            .padding(6.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(shape = RoundedCornerShape(4.dp), color = badgeBg) {
+                                                    Text(entry.level.label, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = badgeText, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                                }
+                                                Surface(shape = RoundedCornerShape(4.dp), color = Color.White.copy(alpha = 0.1f)) {
+                                                    Text(entry.tag, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = Color.LightGray, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                                }
+                                            }
+                                            Text(entry.timestamp, fontSize = 9.5.sp, color = PulseTokens.TextTertiary, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                                        }
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Text(entry.title, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        if (!entry.details.isNullOrBlank()) {
+                                            Text(entry.details, fontSize = 10.sp, color = Color(0xFF8B949E), lineHeight = 13.sp)
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(logs.reversed()) { logLine ->
+                                    val lineStr = logLine
+                                    Text(
+                                        text = lineStr,
+                                        fontSize = 11.sp,
+                                        color = when {
+                                            lineStr.contains("失败") || lineStr.contains("异常") -> PulseTokens.MagentaLaser
+                                            lineStr.contains("就绪") || lineStr.contains("完成") -> PulseTokens.CyanElectric
+                                            lineStr.contains("任务接收") -> PulseTokens.AmberWarm
+                                            else -> Color.LightGray
+                                        },
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                }
                             }
                         }
                     }

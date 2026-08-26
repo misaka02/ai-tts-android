@@ -131,6 +131,7 @@ fun PulseDeckScreen(
     var dragStartIndex by remember { mutableStateOf(-1) }
     var dragTargetIndex by remember { mutableStateOf(-1) }
     var totalDragOffsetY by remember { mutableFloatStateOf(0f) }
+    var draggedItemViewportY by remember { mutableFloatStateOf(-1f) }
 
     LaunchedEffect(providers) {
         if (draggedProviderId == null) {
@@ -206,19 +207,31 @@ fun PulseDeckScreen(
     LaunchedEffect(draggedProviderId) {
         if (draggedProviderId != null) {
             while (true) {
-                val y = totalDragOffsetY
                 val layoutInfo = lazyListState.layoutInfo
-                val viewportEnd = layoutInfo.viewportEndOffset.toFloat()
-                if (y != 0f && viewportEnd > 300f) {
-                    val topThreshold = 120f
-                    val bottomThreshold = viewportEnd - 120f
+                val viewportHeight = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat()
+                if (draggedItemViewportY >= 0f && viewportHeight > 200f) {
+                    val edgeThreshold = 130f
                     val scrollDelta = when {
-                        y < topThreshold -> -((topThreshold - y) / topThreshold * 22f).coerceAtLeast(4f)
-                        y > bottomThreshold -> ((y - bottomThreshold) / 120f * 22f).coerceAtLeast(4f)
+                        draggedItemViewportY < edgeThreshold -> {
+                            val factor = ((edgeThreshold - draggedItemViewportY) / edgeThreshold).coerceIn(0f, 1f)
+                            -(factor * 16f).coerceAtLeast(3f)
+                        }
+                        draggedItemViewportY > (viewportHeight - edgeThreshold) -> {
+                            val factor = ((draggedItemViewportY - (viewportHeight - edgeThreshold)) / edgeThreshold).coerceIn(0f, 1f)
+                            (factor * 16f).coerceAtLeast(3f)
+                        }
                         else -> 0f
                     }
                     if (scrollDelta != 0f) {
-                        lazyListState.scrollBy(scrollDelta)
+                        val consumed = lazyListState.scrollBy(scrollDelta)
+                        if (consumed != 0f) {
+                            totalDragOffsetY += consumed
+                            val offsetSteps = (totalDragOffsetY / itemHeightPx).roundToInt()
+                            val newTarget = (dragStartIndex + offsetSteps).coerceIn(0, localProviders.size - 1)
+                            if (newTarget != dragTargetIndex) {
+                                dragTargetIndex = newTarget
+                            }
+                        }
                     }
                 }
                 delay(16)
@@ -469,12 +482,15 @@ fun PulseDeckScreen(
                                                     dragStartIndex = idx
                                                     dragTargetIndex = idx
                                                     totalDragOffsetY = 0f
+                                                    val itemInfo = lazyListState.layoutInfo.visibleItemsInfo.find { it.index == idx }
+                                                    draggedItemViewportY = (itemInfo?.offset?.toFloat() ?: 0f) + itemHeightPx / 2f
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                 }
                                             },
                                             onDrag = { change, dragAmount ->
                                                 change.consume()
                                                 totalDragOffsetY += dragAmount.y
+                                                draggedItemViewportY += dragAmount.y
                                                 val offsetSteps = (totalDragOffsetY / itemHeightPx).roundToInt()
                                                 val newTarget = (dragStartIndex + offsetSteps).coerceIn(0, localProviders.size - 1)
                                                 if (newTarget != dragTargetIndex) {
@@ -495,6 +511,7 @@ fun PulseDeckScreen(
                                                 dragStartIndex = -1
                                                 dragTargetIndex = -1
                                                 totalDragOffsetY = 0f
+                                                draggedItemViewportY = -1f
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             },
                                             onDragCancel = {
@@ -502,6 +519,7 @@ fun PulseDeckScreen(
                                                 dragStartIndex = -1
                                                 dragTargetIndex = -1
                                                 totalDragOffsetY = 0f
+                                                draggedItemViewportY = -1f
                                             }
                                         )
                                     },

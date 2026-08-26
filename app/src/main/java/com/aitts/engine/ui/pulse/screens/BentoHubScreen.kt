@@ -29,8 +29,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import kotlinx.coroutines.delay
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -1017,10 +1019,47 @@ fun BentoHubScreen(
             var sheetDragStartIndex by remember { mutableStateOf(-1) }
             var sheetDragTargetIndex by remember { mutableStateOf(-1) }
             var sheetTotalDragOffsetY by remember { mutableFloatStateOf(0f) }
+            var sheetDraggedItemViewportY by remember { mutableFloatStateOf(-1f) }
+            val sheetLazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
             LaunchedEffect(providers) {
                 if (sheetDraggedProviderId == null) {
                     hubLocalList = providers
+                }
+            }
+
+            LaunchedEffect(sheetDraggedProviderId) {
+                if (sheetDraggedProviderId != null) {
+                    while (true) {
+                        val layoutInfo = sheetLazyListState.layoutInfo
+                        val viewportHeight = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat()
+                        if (sheetDraggedItemViewportY >= 0f && viewportHeight > 100f) {
+                            val edgeThreshold = 80f
+                            val scrollDelta = when {
+                                sheetDraggedItemViewportY < edgeThreshold -> {
+                                    val factor = ((edgeThreshold - sheetDraggedItemViewportY) / edgeThreshold).coerceIn(0f, 1f)
+                                    -(factor * 14f).coerceAtLeast(3f)
+                                }
+                                sheetDraggedItemViewportY > (viewportHeight - edgeThreshold) -> {
+                                    val factor = ((sheetDraggedItemViewportY - (viewportHeight - edgeThreshold)) / edgeThreshold).coerceIn(0f, 1f)
+                                    (factor * 14f).coerceAtLeast(3f)
+                                }
+                                else -> 0f
+                            }
+                            if (scrollDelta != 0f) {
+                                val consumed = sheetLazyListState.scrollBy(scrollDelta)
+                                if (consumed != 0f) {
+                                    sheetTotalDragOffsetY += consumed
+                                    val offsetSteps = (sheetTotalDragOffsetY / sheetItemHeightPx).roundToInt()
+                                    val newTarget = (sheetDragStartIndex + offsetSteps).coerceIn(0, hubLocalList.size - 1)
+                                    if (newTarget != sheetDragTargetIndex) {
+                                        sheetDragTargetIndex = newTarget
+                                    }
+                                }
+                            }
+                        }
+                        delay(16)
+                    }
                 }
             }
 
@@ -1057,6 +1096,7 @@ fun BentoHubScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     LazyColumn(
+                        state = sheetLazyListState,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(340.dp),
@@ -1202,12 +1242,15 @@ fun BentoHubScreen(
                                                                 sheetDragStartIndex = idx
                                                                 sheetDragTargetIndex = idx
                                                                 sheetTotalDragOffsetY = 0f
+                                                                val itemInfo = sheetLazyListState.layoutInfo.visibleItemsInfo.find { it.index == idx }
+                                                                sheetDraggedItemViewportY = (itemInfo?.offset?.toFloat() ?: 0f) + sheetItemHeightPx / 2f
                                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                             }
                                                         },
                                                         onDrag = { change, dragAmount ->
                                                             change.consume()
                                                             sheetTotalDragOffsetY += dragAmount.y
+                                                            sheetDraggedItemViewportY += dragAmount.y
                                                             val offsetSteps = (sheetTotalDragOffsetY / sheetItemHeightPx).roundToInt()
                                                             val newTarget = (sheetDragStartIndex + offsetSteps).coerceIn(0, hubLocalList.size - 1)
                                                             if (newTarget != sheetDragTargetIndex) {
@@ -1227,6 +1270,7 @@ fun BentoHubScreen(
                                                             sheetDragStartIndex = -1
                                                             sheetDragTargetIndex = -1
                                                             sheetTotalDragOffsetY = 0f
+                                                            sheetDraggedItemViewportY = -1f
                                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                         },
                                                         onDragCancel = {
@@ -1234,6 +1278,7 @@ fun BentoHubScreen(
                                                             sheetDragStartIndex = -1
                                                             sheetDragTargetIndex = -1
                                                             sheetTotalDragOffsetY = 0f
+                                                            sheetDraggedItemViewportY = -1f
                                                         }
                                                     )
                                                 },

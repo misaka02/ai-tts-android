@@ -10,6 +10,8 @@ import com.aitts.engine.audio.AudioEnhancer
 import com.aitts.engine.audio.AudioResampler
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.GlobalSettings
+import com.aitts.engine.data.LogLevel
+import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.SegmentRole
 import com.aitts.engine.data.SentenceSegment
 import com.aitts.engine.data.TtsProviderConfig
@@ -102,8 +104,13 @@ class TtsSynthesizer(private val context: Context) {
             pitch = effectivePitch
         )
 
-        configDataStore.log("📥 [阅读器调用] 收到朗读请求 [$sessionId] (文本共 ${rawText.length} 字, 换行符 ${rawText.count { it == '\n' }} 个, 语速: ${request.speechRate}(${systemSpeed}x), 音调: ${request.pitch}(${systemPitch}x), 引擎: [${mergedConfig.name}])")
-        configDataStore.log("📄 [阅读器文本预览] \"${rawText.take(150).replace("\r", "").replace("\n", " ↵ ")}${if (rawText.length > 150) "..." else ""}\"")
+        val reqStartTime = System.currentTimeMillis()
+        configDataStore.logStructured(
+            level = LogLevel.INFO,
+            tag = "TTS_SERVICE",
+            title = "收到朗读请求",
+            details = "引擎=[${mergedConfig.name}], 文本=${rawText.length}字, 语速=${systemSpeed}x, 模式=${if (mergedConfig.isStreamingEnabled) "流式" else "非流式"}"
+        )
 
         // 1. 文本预处理与网页/Markdown/手机号/缩写/数字清洗
         val preprocessedText = TextPreprocessor.process(rawText, rules, settings.isNumberNormalizationEnabled)
@@ -142,11 +149,13 @@ class TtsSynthesizer(private val context: Context) {
             return@withContext
         }
 
-        configDataStore.log("⚡ [分段流水线: ${if (settings.isSentenceSplittingEnabled) "已开启 · " + settings.textSegmentationMode else "未开启 · 原文整篇直通"}] 共切分出 ${segments.size} 个分段")
         if (segments.size > 1) {
-            segments.forEachIndexed { idx, seg ->
-                configDataStore.log("   ├─ 分段 ${idx + 1}/${segments.size} (${seg.text.length}字): \"${seg.text.take(32).replace("\n", " ")}...\"")
-            }
+            configDataStore.logStructured(
+                level = LogLevel.INFO,
+                tag = "PIPELINE",
+                title = "文本已分段",
+                details = "共切分出 ${segments.size} 段 (${settings.textSegmentationMode})"
+            )
         }
 
         // 统一在任务开始时初始化一次 callback
@@ -216,21 +225,14 @@ class TtsSynthesizer(private val context: Context) {
             for (lookAhead in startPrefetchIdx until minOf(prefetchWindow + startPrefetchIdx, segments.size)) {
                 val seg = segments[lookAhead]
                 val segConfig = getConfigForSegment(seg, lookAhead)
-                configDataStore.log("🚀 [后台预取] 提前启动第 ${lookAhead + 1}/${segments.size} 段并发合成...")
                 sessionCache[lookAhead] = async(Dispatchers.IO) {
-                    val startFetch = System.currentTimeMillis()
-                    val res = fetchOrSynthesizeAudio(seg.text, segConfig, settings)
-                    val costFetch = System.currentTimeMillis() - startFetch
-                    if (res.isSuccess) {
-                        configDataStore.log("✅ [预取就绪] 第 ${lookAhead + 1}/${segments.size} 段预加载完成 (耗时 ${costFetch}ms, 大小: ${res.getOrNull()?.size ?: 0} 字节)")
-                    }
-                    res
+                    fetchOrSynthesizeAudio(seg.text, segConfig, settings)
                 }
             }
 
             for (i in segments.indices) {
                 if (isStopped.get() || !isActive) {
-                    configDataStore.log("合成任务已中断")
+                    configDataStore.logStructured(LogLevel.WARN, "TTS_SERVICE", "合成任务已中断")
                     return@withContext
                 }
 
@@ -251,21 +253,12 @@ class TtsSynthesizer(private val context: Context) {
                         if (nextPrefetchIndex < segments.size && !sessionCache.containsKey(nextPrefetchIndex)) {
                             val nextSeg = segments[nextPrefetchIndex]
                             val nextSegConfig = getConfigForSegment(nextSeg, nextPrefetchIndex)
-                            configDataStore.log("🚀 [后台预取] 提前启动第 ${nextPrefetchIndex + 1}/${segments.size} 段并发合成...")
                             sessionCache[nextPrefetchIndex] = async(Dispatchers.IO) {
-                                val startFetch = System.currentTimeMillis()
-                                val res = fetchOrSynthesizeAudio(nextSeg.text, nextSegConfig, settings)
-                                val costFetch = System.currentTimeMillis() - startFetch
-                                if (res.isSuccess) {
-                                    configDataStore.log("✅ [预取就绪] 第 ${nextPrefetchIndex + 1}/${segments.size} 段预加载完成 (耗时 ${costFetch}ms, 大小: ${res.getOrNull()?.size ?: 0} 字节)")
-                                }
-                                res
+                                fetchOrSynthesizeAudio(nextSeg.text, nextSegConfig, settings)
                             }
                         }
                     }
                 }
-
-                configDataStore.log("🔊 [正在朗读] 第 ${i + 1}/${segments.size} 段开始推流播放...")
 
                 val seg = segments[i]
                 val segConfig = getConfigForSegment(seg, i)
@@ -273,8 +266,13 @@ class TtsSynthesizer(private val context: Context) {
                 val effectiveGain = (segConfig.volume * settings.loudnessGainFactor * sleepFadeFactor).coerceIn(0.0f, 2.5f)
 
                 if (segConfig.isStreamingEnabled && !sessionCache.containsKey(i)) {
-                    configDataStore.log("⚡ [流式首包秒开] 第 ${i + 1}/${segments.size} 段开启实时推流播报 (语速: ${segConfig.speed}x)...")
-                    val sonic = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
+                    configDataStore.logStructured(
+                        level = LogLevel.INFO,
+                        tag = "STREAM",
+                        title = "第 ${i + 1}/${segments.size} 段流式推流启动",
+                        details = "引擎=${segConfig.name}, 语速=${segConfig.speed}x"
+                    )
+                    val sonic = if (segConfig.type != ProviderType.GEMINI && kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
                         com.aitts.engine.audio.Sonic(targetSampleRate, 1).apply {
                             speed = segConfig.speed
                         }
@@ -361,9 +359,19 @@ class TtsSynthesizer(private val context: Context) {
                     }
 
                     if (streamRes.isFailure) {
-                        configDataStore.log("❌ [流式网络异常] 第 ${i + 1}/${segments.size} 段流式推流受阻: ${streamRes.exceptionOrNull()?.message}")
+                        configDataStore.logStructured(
+                            level = LogLevel.ERROR,
+                            tag = "STREAM",
+                            title = "第 ${i + 1}/${segments.size} 段推流受阻",
+                            details = streamRes.exceptionOrNull()?.message ?: "未知异常"
+                        )
                     } else {
-                        configDataStore.log("✅ [流式推流完成] 第 ${i + 1}/${segments.size} 段共推送 $streamChunkCount 帧音频 ($streamTotalBytes 字节)")
+                        configDataStore.logStructured(
+                            level = LogLevel.SUCCESS,
+                            tag = "STREAM",
+                            title = "第 ${i + 1}/${segments.size} 段推流完成",
+                            details = "共推送 $streamChunkCount 帧 ($streamTotalBytes 字节)"
+                        )
                     }
 
                     if (streamRes.isSuccess && settings.isAudioCacheEnabled) {
@@ -378,33 +386,30 @@ class TtsSynthesizer(private val context: Context) {
                         fetchOrSynthesizeAudio(seg.text, segConfig, settings)
                     }
 
-                    val audioResult = currentDeferred.await()
+                    val fetchResult = currentDeferred.await()
 
-                    if (audioResult.isFailure) {
-                        val err = audioResult.exceptionOrNull()?.message ?: "未知合成错误"
-                        configDataStore.log("第 ${i + 1}/${segments.size} 句合成失败: $err")
-                        continue
+                    if (fetchResult.isFailure) {
+                        throw fetchResult.exceptionOrNull() ?: Exception("合成失败: 未知错误")
                     }
 
-                    val rawAudioBytes = audioResult.getOrNull() ?: ByteArray(0)
-                    if (rawAudioBytes.isEmpty()) continue
+                    val rawAudioData = fetchResult.getOrNull()
+                        ?: throw Exception("合成失败: 返回空音频数据")
 
-                    // 纯内存 PCM 硬件解码
-                    val decoded = AudioDecoder.decodeToPcm(rawAudioBytes, segConfig.sampleRate)
-                    if (decoded.pcmData.isEmpty()) continue
+                    if (settings.isAudioCacheEnabled) {
+                        audioCacheManager.saveAudio(seg.text, segConfig, rawAudioData)
+                    }
 
-                    // 实时高精度 PCM 采样率自适应重采样与单声道混音
-                    val resampledPcm = AudioResampler.resample(
-                        pcmData = decoded.pcmData,
-                        sourceSampleRate = decoded.sampleRate,
-                        sourceChannels = decoded.channelCount,
+                    val decodedPcm = AudioDecoder.decodeToPcm(rawAudioData, segConfig.sampleRate)
+                    val resampled = AudioResampler.resample(
+                        pcmData = decodedPcm.pcmData,
+                        sourceSampleRate = decodedPcm.sampleRate,
+                        sourceChannels = decodedPcm.channelCount,
                         targetSampleRate = targetSampleRate,
                         targetChannels = 1
                     )
 
-                    // 非流式 100% 遵从大模型原生提示词变速，绝不做任何机械二次处理
-                    val finalPcm = AudioEnhancer.processPcm(
-                        pcmData = resampledPcm,
+                    val enhanced = AudioEnhancer.processPcm(
+                        pcmData = resampled,
                         channels = 1,
                         enableClarity = settings.voiceClarityBoostEnabled,
                         gainFactor = effectiveGain,
@@ -412,13 +417,33 @@ class TtsSynthesizer(private val context: Context) {
                         normalizeLoudness = true
                     )
 
-                    // 极速分块向系统音频管道流式写入 PCM
+                    // 对非流式音频进行倍速/音调处理 (仅当客户端需要局部变速且非大模型导演模式时生效)
+                    val finalPcm = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f &&
+                        segConfig.type != ProviderType.MIMO &&
+                        segConfig.type != ProviderType.GEMINI) {
+                        val sonic = com.aitts.engine.audio.Sonic(targetSampleRate, 1).apply {
+                            speed = segConfig.speed
+                        }
+                        sonic.writeBytesToStream(enhanced, enhanced.size)
+                        sonic.flushStream()
+                        val available = sonic.samplesAvailable() * 2
+                        if (available > 0) {
+                            val tempBuf = ByteArray(available)
+                            val readBytes = sonic.readBytesFromStream(tempBuf, tempBuf.size)
+                            if (readBytes > 0) tempBuf.copyOf(readBytes) else enhanced
+                        } else {
+                            enhanced
+                        }
+                    } else {
+                        enhanced
+                    }
+
                     var offset = 0
                     while (offset < finalPcm.size) {
                         if (isStopped.get() || !isActive) {
                             return@withContext
                         }
-                        val length = Math.min(bufferChunkSize, finalPcm.size - offset)
+                        val length = minOf(bufferChunkSize, finalPcm.size - offset)
                         callback.audioAvailable(finalPcm, offset, length)
                         offset += length
                     }
@@ -443,11 +468,17 @@ class TtsSynthesizer(private val context: Context) {
             }
 
             callback.done()
-            configDataStore.log("合成任务 [$sessionId] 完成全部 ${segments.size} 句推流")
+            val totalCost = System.currentTimeMillis() - reqStartTime
+            configDataStore.logStructured(
+                level = LogLevel.METRIC,
+                tag = "TTS_SERVICE",
+                title = "合成任务全部完成",
+                details = "共完成 ${segments.size} 段推流, 总耗时 ${totalCost}ms"
+            )
         } catch (e: CancellationException) {
-            configDataStore.log("合成已被取消 [$sessionId]")
+            configDataStore.logStructured(LogLevel.WARN, "TTS_SERVICE", "合成已被取消", "会话=[$sessionId]")
         } catch (e: Exception) {
-            configDataStore.log("合成过程发生异常: ${e.message}")
+            configDataStore.logStructured(LogLevel.ERROR, "TTS_SERVICE", "合成发生异常", e.message ?: "未知错误")
             try {
                 callback.error()
             } catch (ce: Exception) {

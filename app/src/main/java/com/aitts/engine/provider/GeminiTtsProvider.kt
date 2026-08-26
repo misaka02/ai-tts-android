@@ -246,6 +246,182 @@ class GeminiTtsProvider(
         }
     }
 
+    override suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> = withContext(Dispatchers.IO) {
+        try {
+            val apiKey = config.apiKey.trim()
+            if (apiKey.isBlank()) {
+                return@withContext Result.failure(IOException("请先在「模型」界面填写 Google Gemini API Key"))
+            }
+
+            var baseUrl = config.baseUrl.trim()
+            if (baseUrl.isBlank()) {
+                baseUrl = "https://generativelanguage.googleapis.com/v1beta"
+            }
+            if (baseUrl.endsWith("/")) {
+                baseUrl = baseUrl.dropLast(1)
+            }
+
+            val modelName = config.modelName.ifBlank { "gemini-2.5-flash-preview-tts" }
+            val voiceName = config.voiceId.ifBlank { "Puck" }
+
+            val targetUrl = when {
+                baseUrl.contains("streamGenerateContent") -> if (baseUrl.contains("alt=sse")) baseUrl else "$baseUrl&alt=sse"
+                baseUrl.contains("generateContent") -> baseUrl.replace("generateContent", "streamGenerateContent") + (if (baseUrl.contains("?")) "&alt=sse" else "?alt=sse")
+                baseUrl.contains("/models/") -> "$baseUrl:streamGenerateContent?alt=sse&key=$apiKey"
+                else -> "$baseUrl/models/$modelName:streamGenerateContent?alt=sse&key=$apiKey"
+            }
+
+            val promptPrefix = buildGeminiPrompt(config)
+            val fullPromptText = if (promptPrefix.isNotBlank()) {
+                "$promptPrefix\n\n$text"
+            } else {
+                text
+            }
+
+            val payload = buildJsonObject {
+                put("contents", buildJsonArray {
+                    add(buildJsonObject {
+                        put("parts", buildJsonArray {
+                            add(buildJsonObject {
+                                put("text", fullPromptText)
+                            })
+                        })
+                    })
+                })
+                put("generationConfig", buildJsonObject {
+                    put("responseModalities", buildJsonArray {
+                        add(kotlinx.serialization.json.JsonPrimitive("AUDIO"))
+                    })
+                    put("speechConfig", buildJsonObject {
+                        put("voiceConfig", buildJsonObject {
+                            put("prebuiltVoiceConfig", buildJsonObject {
+                                put("voiceName", voiceName)
+                            })
+                        })
+                    })
+                })
+            }.toString()
+
+            val configDataStore = try {
+                com.aitts.engine.data.ConfigDataStore.getInstance(com.aitts.engine.AiTtsApp.instance)
+            } catch (e: Throwable) {
+                null
+            }
+            val startReqTime = System.currentTimeMillis()
+            configDataStore?.logStructured(
+                level = com.aitts.engine.data.LogLevel.INFO,
+                tag = "GEMINI",
+                title = "发起实时 SSE 流式推流",
+                details = "模型=$modelName, 音色=$voiceName, 长度=${text.length}字"
+            )
+
+            val request = Request.Builder()
+                .url(targetUrl)
+                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "text/event-stream")
+                .addHeader("x-goog-api-key", apiKey)
+                .build()
+
+            val response = client.newCall(request).execute()
+            val responseBody = response.body
+                ?: return@withContext Result.failure(IOException("Gemini 流式返回空响应体"))
+
+            if (!response.isSuccessful) {
+                val errStr = responseBody.string()
+                configDataStore?.logStructured(
+                    level = com.aitts.engine.data.LogLevel.ERROR,
+                    tag = "GEMINI",
+                    title = "流式 HTTP 异常 (${response.code})",
+                    details = errStr.take(200)
+                )
+                return@withContext Result.failure(
+                    IOException("Gemini 流式请求失败 HTTP ${response.code}: $errStr")
+                )
+            }
+
+            val audioOutputStream = java.io.ByteArrayOutputStream()
+            var isSseStreamDetected = false
+            var firstChunkReceived = false
+
+            responseBody.byteStream().bufferedReader(Charsets.UTF_8).use { reader ->
+                for (line in reader.lineSequence()) {
+                    val trimmed = line.trim()
+                    if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
+                    if (trimmed == "data: [DONE]" || trimmed == "[DONE]") {
+                        isSseStreamDetected = true
+                        break
+                    }
+
+                    if (trimmed.startsWith("data:")) {
+                        isSseStreamDetected = true
+                        val jsonStr = trimmed.substring(5).trim()
+                        if (jsonStr.isNotBlank() && jsonStr != "[DONE]") {
+                            try {
+                                val chunkObj = json.decodeFromString<JsonObject>(jsonStr)
+                                val candidates = chunkObj["candidates"]?.jsonArray
+                                if (candidates != null && candidates.isNotEmpty()) {
+                                    val firstCandidate = candidates[0].jsonObject
+                                    val contentObj = firstCandidate["content"]?.jsonObject
+                                    val parts = contentObj?.get("parts")?.jsonArray
+                                    if (parts != null && parts.isNotEmpty()) {
+                                        for (partElem in parts) {
+                                            val partObj = partElem.jsonObject
+                                            val inlineData = partObj["inlineData"]?.jsonObject ?: partObj["inline_data"]?.jsonObject
+                                            val b64Data = inlineData?.get("data")?.jsonPrimitive?.content
+                                            if (!b64Data.isNullOrBlank()) {
+                                                val pcmBytes = Base64.decode(b64Data, Base64.DEFAULT)
+                                                if (pcmBytes.isNotEmpty()) {
+                                                    if (!firstChunkReceived) {
+                                                        firstChunkReceived = true
+                                                        val latency = System.currentTimeMillis() - startReqTime
+                                                        configDataStore?.logStructured(
+                                                            level = com.aitts.engine.data.LogLevel.METRIC,
+                                                            tag = "GEMINI",
+                                                            title = "流式首包已就绪",
+                                                            details = "TTFB=${latency}ms, 正在推流..."
+                                                        )
+                                                    }
+                                                    audioOutputStream.write(pcmBytes)
+                                                    onAudioChunk(pcmBytes)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // 忽略单帧异常
+                            }
+                        }
+                    }
+                }
+            }
+
+            val collectedBytes = audioOutputStream.toByteArray()
+            if (isSseStreamDetected && collectedBytes.isNotEmpty()) {
+                val totalTime = System.currentTimeMillis() - startReqTime
+                configDataStore?.logStructured(
+                    level = com.aitts.engine.data.LogLevel.SUCCESS,
+                    tag = "GEMINI",
+                    title = "流式传输完成",
+                    details = "累计获取 ${collectedBytes.size} 字节, 耗时 ${totalTime}ms"
+                )
+                Result.success(collectedBytes)
+            } else {
+                // 兜底回退
+                synthesize(text, config).also { fallbackRes ->
+                    fallbackRes.getOrNull()?.let { onAudioChunk(it) }
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun buildGeminiPrompt(config: TtsProviderConfig): String {
         val userPrompt = config.promptInstruction.trim()
         val speed = config.speed
@@ -256,15 +432,8 @@ class GeminiTtsProvider(
             instructions.add(userPrompt)
         }
 
-        if (speed <= 0.7f) {
-            instructions.add("Speak very slowly and deliberately")
-        } else if (speed <= 0.85f) {
-            instructions.add("Speak at a slightly slower, calm pace")
-        } else if (speed >= 1.35f) {
-            instructions.add("Speak quickly and fluently")
-        } else if (speed >= 1.15f) {
-            instructions.add("Speak at a slightly brisk, lively pace")
-        }
+        val speedInstruction = getSpeedInstruction(speed)
+        instructions.add(speedInstruction)
 
         if (pitch <= 0.85f) {
             instructions.add("Use a lower, deeper tone of voice")
@@ -276,6 +445,18 @@ class GeminiTtsProvider(
             "Instruction: ${instructions.joinToString(", ")}."
         } else {
             ""
+        }
+    }
+
+    companion object {
+        fun getSpeedInstruction(speed: Float): String = when {
+            speed <= 0.65f -> "Speak at an extremely slow, calm and gentle pace with prolonged, soothing syllables."
+            speed <= 0.80f -> "Speak at a slower, measured and steady pace with a composed tone."
+            speed <= 0.95f -> "Speak at a slightly relaxed and unhurried pace, smooth and natural."
+            speed <= 1.10f -> "Speak at a standard, natural and fluent reading pace with moderate cadence."
+            speed <= 1.30f -> "Speak at a slightly brisk and lively pace, crisp and energetic."
+            speed <= 1.60f -> "Speak at a fast, tight and continuous pace with prompt and decisive delivery."
+            else -> "Speak at a very rapid, fluent and agile pace, flowing seamlessly without hesitation."
         }
     }
 
