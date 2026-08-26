@@ -893,8 +893,8 @@ fun PulseProviderConfigScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("📦 离线神经网络语音库", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
-                                        Text("顶级大模型 / 微软全系列 / Sherpa-ONNX", fontSize = 11.sp, color = PulseTokens.TextSecondary)
+                                        Text("离线神经网络语音库", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
+                                        Text("端侧神经大模型 / 微软离线系列 / Sherpa-ONNX", fontSize = 11.sp, color = PulseTokens.TextSecondary)
                                     }
 
                                     OutlinedButton(
@@ -1059,7 +1059,7 @@ fun PulseProviderConfigScreen(
                                                                             }
                                                                         } else {
                                                                             runtimeStatusText = "下载失败，请检查网络"
-                                                                            Toast.makeText(context, "拓展组件下载失败，请稍后重试", Toast.LENGTH_LONG).show()
+                                                                            Toast.makeText(context, "拓展组件下载失败，请稍后重试", Toast.LENGTH_SHORT).show()
                                                                         }
                                                                     }
                                                                 } catch (e: Throwable) {
@@ -1078,7 +1078,7 @@ fun PulseProviderConfigScreen(
                                                         ),
                                                         border = BorderStroke(1.dp, PulseTokens.AmberWarm.copy(alpha = 0.5f))
                                                     ) {
-                                                        Text("📥 一键下载安装拓展组件 (8.3MB)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        Text("下载安装离线运行时组件 (8.3MB)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                                     }
 
                                                     Surface(
@@ -1087,7 +1087,7 @@ fun PulseProviderConfigScreen(
                                                             .clickable {
                                                                 isRuntimeInstalled = com.aitts.engine.provider.OfflineTtsProvider.isEngineInstalled(context)
                                                                 if (isRuntimeInstalled) {
-                                                                    Toast.makeText(context, "✅ 离线推理环境已成功就绪！", Toast.LENGTH_SHORT).show()
+                                                                    Toast.makeText(context, "离线推理环境已就绪", Toast.LENGTH_SHORT).show()
                                                                 } else {
                                                                     Toast.makeText(context, "未检测到已安装的拓展组件", Toast.LENGTH_SHORT).show()
                                                                 }
@@ -1112,30 +1112,28 @@ fun PulseProviderConfigScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(10.dp),
                                     color = PulseTokens.SurfaceDark,
-                                    border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.35f))
+                                    border = PulseTokens.BorderSubtle
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text("📁 离线模型存放目录 (本地专属路径):", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
-                                            Text(storageDir, fontSize = 10.sp, color = PulseTokens.TextSecondary, maxLines = 1)
+                                            Text("模型存储目录:", fontSize = 10.5.sp, color = PulseTokens.TextTertiary)
+                                            Text(storageDir, fontSize = 11.sp, color = PulseTokens.TextSecondary, maxLines = 1)
                                         }
-                                        Surface(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .clickable {
-                                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("model_dir", storageDir))
-                                                    Toast.makeText(context, "已复制存储路径到剪贴板", Toast.LENGTH_SHORT).show()
-                                                },
+                                        OutlinedButton(
+                                            onClick = {
+                                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Model Directory", storageDir))
+                                                Toast.makeText(context, "目录已复制", Toast.LENGTH_SHORT).show()
+                                            },
                                             shape = RoundedCornerShape(6.dp),
-                                            color = PulseTokens.CyanElectric.copy(alpha = 0.15f),
-                                            border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.5f))
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            modifier = Modifier.height(28.dp)
                                         ) {
-                                            Text("复制路径", fontSize = 10.5.sp, color = PulseTokens.CyanElectric, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                                            Text("复制路径", fontSize = 10.5.sp, color = PulseTokens.CyanElectric)
                                         }
                                     }
                                 }
@@ -1158,7 +1156,7 @@ fun PulseProviderConfigScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Text("🗣️ 选定模型发音人 · ${currentPack.name}:", fontSize = 11.sp, color = PulseTokens.TextTertiary)
+                                                Text("选定模型发音人 · ${currentPack.name}:", fontSize = 11.sp, color = PulseTokens.TextTertiary)
                                                 val currentSpkName = currentPack.speakers.find { it.startsWith(voiceId) } ?: voiceId.ifBlank { currentPack.defaultVoiceId }
                                                 Text(currentSpkName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
                                             }
@@ -1207,7 +1205,7 @@ fun PulseProviderConfigScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    val cats = listOf("全部", "🔥 极速13MB", "大模型及前沿", "微软经典自然", "ACG 动漫音色", "官方多发音人")
+                                    val cats = listOf("全部", "轻量量化 (13MB)", "大模型及前沿", "微软经典自然", "ACG 角色音色", "官方多发音人")
                                     items(cats.size) { idx ->
                                         val cat = cats[idx]
                                         val isSel = selectedOfflineCategory == cat

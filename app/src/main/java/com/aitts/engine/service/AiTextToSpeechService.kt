@@ -76,7 +76,7 @@ class AiTextToSpeechService : TextToSpeechService() {
         } catch (e: Exception) {
             // ignore
         }
-        configDataStore.log("AiTextToSpeechService v2.0.0 系统服务已启动并就绪")
+        configDataStore.log("AiTextToSpeechService v${com.aitts.engine.BuildConfig.VERSION_NAME} 系统服务已启动并就绪")
     }
 
     override fun onDestroy() {

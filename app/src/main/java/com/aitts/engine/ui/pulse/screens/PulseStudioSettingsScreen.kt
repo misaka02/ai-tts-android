@@ -934,8 +934,8 @@ fun PulseStudioSettingsScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Column {
-                                                    Text("关于软件与开源生态", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PulseTokens.CyanElectric)
-                                                    Text("轻量极致 · 拟真多模态 · 流体交互 AI-TTS", fontSize = 11.5.sp, color = PulseTokens.TextSecondary)
+                                                    Text("关于软件与开源致谢", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PulseTokens.CyanElectric)
+                                                    Text("系统级语音大模型与离线神经网络 TTS 引擎", fontSize = 11.5.sp, color = PulseTokens.TextSecondary)
                                                 }
                                                 Surface(
                                                     shape = RoundedCornerShape(6.dp),
@@ -979,6 +979,21 @@ fun PulseStudioSettingsScreen(
                                                         Text("GitHub 官方主页", fontSize = 12.sp, color = PulseTokens.TextSecondary)
                                                         Text("misaka02/ai-tts-android", fontSize = 12.sp, color = PulseTokens.CyanElectric, fontWeight = FontWeight.Medium)
                                                     }
+                                                }
+                                            }
+
+                                            PulseCard(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                backgroundColor = PulseTokens.SurfaceDark,
+                                                border = PulseTokens.BorderSubtle,
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(12.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text("开源项目与技术致谢 (Credits)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
+                                                    Text("• Sonic (Bill Cox) - 本地变频变速算法 (Apache-2.0)\n• Sherpa-ONNX (k2-fsa) - 端侧神经网络推理引擎 (Apache-2.0)\n• Commons Compress (Apache) - 离线解包组件 (Apache-2.0)\n• OkHttp & Okio (Square) - 高性能流式通信 (Apache-2.0)\n• 神经声学模型: Piper, MeloTTS, Matcha, Kokoro, ChatTTS, CosyVoice, GPT-SoVITS\n• 听书生态: 开源阅读 (Legado), 静读天下 (Moon+ Reader)", fontSize = 10.5.sp, color = PulseTokens.TextSecondary, lineHeight = 16.sp)
                                                 }
                                             }
 
