@@ -577,73 +577,50 @@ object PresetConfigs {
                 audioFormat = "wav"
             ),
             // 12. 离线神经网络引擎 (Sherpa-ONNX / VITS)
-            // 12. 微软离线自然语音 (Microsoft Natural Offline)
-            TtsProviderConfig(
-                id = "offline_ms_xiaoxiao",
-                type = ProviderType.OFFLINE_VITS,
-                name = "微软离线自然语音 (晓晓 - ONNX 本地包)",
-                enabled = false,
-                modelName = "ms-offline-xiaoxiao",
-                voiceId = "zh-CN-XiaoxiaoOffline",
-                sampleRate = 24000,
-                audioFormat = "wav",
-                tags = listOf("微软离线", "高拟真女声", "零流量")
-            ),
-            TtsProviderConfig(
-                id = "offline_ms_yunxi",
-                type = ProviderType.OFFLINE_VITS,
-                name = "微软离线自然语音 (云希 - ONNX 本地包)",
-                enabled = false,
-                modelName = "ms-offline-yunxi",
-                voiceId = "zh-CN-YunxiOffline",
-                sampleRate = 24000,
-                audioFormat = "wav",
-                tags = listOf("微软离线", "沉浸男声", "零流量")
-            ),
-            TtsProviderConfig(
-                id = "offline_ms_yunyang",
-                type = ProviderType.OFFLINE_VITS,
-                name = "微软离线自然语音 (云扬 - ONNX 本地包)",
-                enabled = false,
-                modelName = "ms-offline-yunyang",
-                voiceId = "zh-CN-YunyangOffline",
-                sampleRate = 24000,
-                audioFormat = "wav",
-                tags = listOf("微软离线", "专业播音", "零流量")
-            ),
-            // 13. Sherpa-ONNX / VITS 中文离线模型
+            // 12. Sherpa-ONNX 官方真实离线神经模型 (100% 本地运算·零流量)
             TtsProviderConfig(
                 id = "offline_vits_aishell3",
                 type = ProviderType.OFFLINE_VITS,
-                name = "Sherpa-ONNX 离线模型 (Aishell3 多发音人)",
+                name = "AISHELL-3 中文标准 (174发音人)",
                 enabled = false,
-                modelName = "vits-zh-aishell3",
-                voiceId = "aishell3_female_01",
+                modelName = "vits-icefall-zh-aishell3",
+                voiceId = "aishell3_spk_0",
                 sampleRate = 22050,
                 audioFormat = "wav",
-                tags = listOf("Sherpa-ONNX", "多发音人", "零流量")
+                tags = listOf("官方推荐", "174发音人", "多角色")
             ),
             TtsProviderConfig(
-                id = "offline_vits_piper",
+                id = "offline_piper_huayan",
                 type = ProviderType.OFFLINE_VITS,
-                name = "Piper-Zh 超轻量离线语音模型",
+                name = "Piper-Huayan 华言自然中文女声",
                 enabled = false,
-                modelName = "vits-piper-zh",
-                voiceId = "piper_zh_female",
+                modelName = "vits-piper-zh_CN-huayan-medium",
+                voiceId = "piper_huayan_female",
                 sampleRate = 22050,
                 audioFormat = "wav",
-                tags = listOf("Piper", "超轻量", "低延迟")
+                tags = listOf("轻量低功耗", "清脆女声", "听书推荐")
             ),
             TtsProviderConfig(
                 id = "offline_melo_tts",
                 type = ProviderType.OFFLINE_VITS,
-                name = "MeloTTS 中英自然双语离线模型",
+                name = "MeloTTS 中英双语自然朗读",
                 enabled = false,
-                modelName = "melo-tts-zh-en",
+                modelName = "vits-melo-tts-zh_en",
                 voiceId = "melo_zh_default",
                 sampleRate = 24000,
                 audioFormat = "wav",
-                tags = listOf("MeloTTS", "中英双语", "高保真")
+                tags = listOf("中英双语", "混读拟真", "高质量")
+            ),
+            TtsProviderConfig(
+                id = "offline_matcha_baker",
+                type = ProviderType.OFFLINE_VITS,
+                name = "Matcha-Baker 标贝标准播音女声",
+                enabled = false,
+                modelName = "matcha-icefall-zh-baker",
+                voiceId = "baker_female",
+                sampleRate = 22050,
+                audioFormat = "wav",
+                tags = listOf("FlowMatching", "标贝标准", "端庄播音")
             )
         )
     }

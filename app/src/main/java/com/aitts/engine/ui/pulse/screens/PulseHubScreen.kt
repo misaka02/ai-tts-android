@@ -254,9 +254,11 @@ fun PulseHubScreen(
                         configDataStore.log("✅ 收到音频数据: ${audioData.size} 字节, 总耗时=${costMs}ms, 采样率=${provider.sampleRate}Hz")
                         configDataStore.log("🔊 内存音频直出播放开始, 启动 32 频段 STFT 示波分析")
 
+                        // 仅当流式传输且服务端未按提示词变速时由播放器执行时间缩放；非流式音频已在合成期原生注入语速，播放器以 1.0x 原声保真直出，杜绝二次减速/加速
+                        val playbackSpeed = if (provider.isStreamingEnabled) effectiveSpeed else 1.0f
                         audioPlayer.playAudioBytes(
                             audioBytes = audioData,
-                            speed = effectiveSpeed,
+                            speed = playbackSpeed,
                             onCompletion = {
                                 isPlaying = false
                                 configDataStore.log("⏹️ 朗读播放完成")

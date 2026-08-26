@@ -4,10 +4,7 @@ import android.content.Context
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
 import com.aitts.engine.offline.OfflineModelManager
-import com.k2fsa.sherpa.onnx.OfflineTts
-import com.k2fsa.sherpa.onnx.OfflineTtsConfig
-import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
-import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
+import com.k2fsa.sherpa.onnx.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -56,6 +53,7 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
                 val nativeLibDir = packageInfo.applicationInfo.nativeLibraryDir
                 val soFile = File(nativeLibDir, "libsherpa-onnx-jni.so")
                 if (soFile.exists()) {
+                    injectNativeLibDir(context, File(nativeLibDir))
                     System.load(soFile.absolutePath)
                     isLibraryLoaded = true
                     true
@@ -64,6 +62,49 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
                 }
             } catch (e: Throwable) {
                 false
+            }
+        }
+
+        private fun injectNativeLibDir(context: Context, dir: File) {
+            try {
+                val classLoader = context.classLoader as? dalvik.system.BaseDexClassLoader ?: return
+                val pathListField = dalvik.system.BaseDexClassLoader::class.java.getDeclaredField("pathList")
+                pathListField.isAccessible = true
+                val pathList = pathListField.get(classLoader) ?: return
+
+                val nativeDirsField = pathList.javaClass.getDeclaredField("nativeLibraryDirectories")
+                nativeDirsField.isAccessible = true
+                val nativeDirs = nativeDirsField.get(pathList) as? MutableList<File>
+                if (nativeDirs != null && !nativeDirs.contains(dir)) {
+                    nativeDirs.add(0, dir)
+                }
+
+                val elementsField = pathList.javaClass.getDeclaredField("nativeLibraryPathElements")
+                elementsField.isAccessible = true
+                val oldElements = elementsField.get(pathList) as? Array<*> ?: return
+
+                val makeElementsMethod = try {
+                    pathList.javaClass.getDeclaredMethod("makePathElements", List::class.java)
+                } catch (e: NoSuchMethodException) {
+                    null
+                }
+
+                val newElementArray = if (makeElementsMethod != null) {
+                    makeElementsMethod.isAccessible = true
+                    makeElementsMethod.invoke(null, listOf(dir)) as? Array<*>
+                } else null
+
+                if (newElementArray != null && newElementArray.isNotEmpty()) {
+                    val combined = java.lang.reflect.Array.newInstance(
+                        oldElements.javaClass.componentType!!,
+                        oldElements.size + newElementArray.size
+                    ) as Array<Any?>
+                    System.arraycopy(newElementArray, 0, combined, 0, newElementArray.size)
+                    System.arraycopy(oldElements, 0, combined, newElementArray.size, oldElements.size)
+                    elementsField.set(pathList, combined)
+                }
+            } catch (t: Throwable) {
+                android.util.Log.w("OfflineTtsProvider", "injectNativeLibDir error: ${t.message}")
             }
         }
     }
@@ -115,26 +156,56 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
             val dictDir = allFiles.firstOrNull { it.isDirectory && it.name.equals("dict", ignoreCase = true) }
             val espeakDir = allFiles.firstOrNull { it.isDirectory && it.name.equals("espeak-ng-data", ignoreCase = true) }
 
-            val vitsConfig = OfflineTtsVitsModelConfig(
-                model = onnxFile.absolutePath,
-                lexicon = lexiconFile?.absolutePath ?: "",
-                tokens = tokensFile.absolutePath,
-                dataDir = espeakDir?.absolutePath ?: "",
-                dictDir = dictDir?.absolutePath ?: "",
-                noiseScale = 0.667f,
-                noiseScaleW = 0.8f,
-                lengthScale = 1.0f
-            )
-
-            val modelConfig = OfflineTtsModelConfig(
-                vits = vitsConfig,
-                numThreads = 2,
-                debug = false,
-                provider = "cpu"
-            )
+            val isMatcha = modelId.contains("matcha", ignoreCase = true)
+            val modelConfig = if (isMatcha) {
+                val acousticModel = allFiles.firstOrNull { it.name.contains("model", ignoreCase = true) && it.extension.equals("onnx", ignoreCase = true) }
+                    ?: onnxFile
+                val vocoder = allFiles.firstOrNull { it.name.contains("vocoder", ignoreCase = true) || it.name.contains("hifi", ignoreCase = true) }
+                    ?: onnxFile
+                val matchaConfig = OfflineTtsMatchaModelConfig(
+                    acousticModel = acousticModel.absolutePath,
+                    vocoder = vocoder.absolutePath,
+                    lexicon = lexiconFile?.absolutePath ?: "",
+                    tokens = tokensFile.absolutePath,
+                    dataDir = espeakDir?.absolutePath ?: "",
+                    dictDir = dictDir?.absolutePath ?: "",
+                    noiseScale = 0.667f,
+                    lengthScale = 1.0f
+                )
+                OfflineTtsModelConfig(
+                    vits = OfflineTtsVitsModelConfig(),
+                    matcha = matchaConfig,
+                    kokoro = OfflineTtsKokoroModelConfig(),
+                    zipvoice = OfflineTtsZipVoiceModelConfig(),
+                    kitten = OfflineTtsKittenModelConfig(),
+                    pocket = OfflineTtsPocketModelConfig(),
+                    supertonic = OfflineTtsSupertonicModelConfig(),
+                    numThreads = 2,
+                    debug = false,
+                    provider = "cpu"
+                )
+            } else {
+                val vitsConfig = OfflineTtsVitsModelConfig(
+                    model = onnxFile.absolutePath,
+                    lexicon = lexiconFile?.absolutePath ?: "",
+                    tokens = tokensFile.absolutePath,
+                    dataDir = espeakDir?.absolutePath ?: "",
+                    dictDir = dictDir?.absolutePath ?: "",
+                    noiseScale = 0.667f,
+                    noiseScaleW = 0.8f,
+                    lengthScale = 1.0f
+                )
+                OfflineTtsModelConfig(
+                    vits = vitsConfig,
+                    numThreads = 2,
+                    debug = false,
+                    provider = "cpu"
+                )
+            }
 
             val ttsConfig = OfflineTtsConfig(model = modelConfig)
-            val tts = OfflineTts(context.assets, ttsConfig)
+            // 严禁传入 context.assets！传入 null 时底层 C++ 将调用 newFromFile 正确读取磁盘中的神经网络模型
+            val tts = OfflineTts(null, ttsConfig)
 
             currentTts = tts
             loadedModelId = modelId

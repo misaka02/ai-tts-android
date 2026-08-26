@@ -283,10 +283,10 @@ fun PulseProviderConfigScreen(
                 audioFormat = "mp3"
             }
             ProviderType.OFFLINE_VITS -> {
-                name = "微软离线自然语音 (晓晓)"
-                modelName = "ms-offline-xiaoxiao"
-                voiceId = "zh-CN-XiaoxiaoOffline"
-                sampleRate = "24000"
+                name = "Sherpa-ONNX 离线神经模型"
+                modelName = "vits-icefall-zh-aishell3"
+                voiceId = "aishell3_spk_0"
+                sampleRate = "22050"
                 audioFormat = "wav"
             }
             else -> {
