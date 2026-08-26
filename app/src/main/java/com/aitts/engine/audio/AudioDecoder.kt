@@ -43,14 +43,36 @@ object AudioDecoder {
             }
         }
 
-        // 2. 如果是 MP3/AAC/OGG 等压缩音频，使用 MediaCodec 原生 100% 纯内存解码
-        return try {
-            decodeWithInMemoryMediaCodec(audioData, fallbackSampleRate)
-        } catch (e: Exception) {
-            Log.e(TAG, "MediaCodec 纯内存解码失败，尝试降级: ${e.message}", e)
-            // 降级：如果本身就是 raw PCM，直接返回
-            DecodedAudio(audioData, fallbackSampleRate, 1)
+        // 2. 如果包含明确的 MP3/AAC/OGG/FLAC 文件头，使用 MediaCodec 原生 100% 纯内存解码
+        if (isCompressedAudio(audioData)) {
+            return try {
+                decodeWithInMemoryMediaCodec(audioData, fallbackSampleRate)
+            } catch (e: Exception) {
+                Log.e(TAG, "MediaCodec 纯内存解码失败，尝试降级: ${e.message}", e)
+                DecodedAudio(audioData, fallbackSampleRate, 1)
+            }
         }
+
+        // 3. 非压缩格式，本身即为纯净原生 PCM16 裸流，直接返回（0 开销，0 损耗，彻底消除误解码电音）
+        return DecodedAudio(audioData, fallbackSampleRate, 1)
+    }
+
+    /**
+     * 判断是否为 MP3/AAC/OGG/FLAC 等压缩音频格式
+     */
+    private fun isCompressedAudio(data: ByteArray): Boolean {
+        if (data.size < 4) return false
+        // ID3v2 tag (MP3)
+        if (data[0] == 'I'.code.toByte() && data[1] == 'D'.code.toByte() && data[2] == '3'.code.toByte()) return true
+        // OggS container
+        if (data[0] == 'O'.code.toByte() && data[1] == 'g'.code.toByte() && data[2] == 'g'.code.toByte() && data[3] == 'S'.code.toByte()) return true
+        // fLaC
+        if (data[0] == 'f'.code.toByte() && data[1] == 'L'.code.toByte() && data[2] == 'a'.code.toByte() && data[3] == 'C'.code.toByte()) return true
+        // MP3 / AAC frame sync header
+        val firstTwo = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
+        if ((firstTwo and 0xFFE0) == 0xFFE0) return true
+        if ((firstTwo and 0xFFF0) == 0xFFF0) return true
+        return false
     }
 
     /**

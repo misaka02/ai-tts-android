@@ -183,6 +183,7 @@ fun TestBenchScreen(
                             val playDone = CompletableDeferred<Unit>()
                             audioPlayer.playAudioBytes(
                                 audioBytes = rawBytes,
+                                speed = currentConfig.speed,
                                 onCompletion = {
                                     playDone.complete(Unit)
                                 },

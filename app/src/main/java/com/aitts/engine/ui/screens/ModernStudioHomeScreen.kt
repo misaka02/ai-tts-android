@@ -233,7 +233,7 @@ fun ModernStudioHomeScreen(
                         lastSynthesizedProviderName = provider.name
                         isSynthesizing = false
                         isPlaying = true
-                        audioPlayer.playAudioBytes(bytes, onCompletion = {
+                        audioPlayer.playAudioBytes(audioBytes = bytes, speed = effectiveSpeed, onCompletion = {
                             isPlaying = false
                             currentTestingProviderId = null
                         })

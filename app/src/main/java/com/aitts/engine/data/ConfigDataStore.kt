@@ -344,6 +344,13 @@ class ConfigDataStore(private val context: Context) {
         }
     }
 
+    fun resetToDefaults() {
+        updateSettings(GlobalSettings())
+        saveProviders(PresetConfigs.createDefaultProviders())
+        saveRules(PresetConfigs.defaultRules)
+        log("已重置所有配置为官方默认值")
+    }
+
     companion object {
         private const val KEY_SETTINGS = "global_settings"
         private const val KEY_PROVIDERS = "tts_providers"

@@ -62,6 +62,11 @@ enum class ProviderType(val displayName: String, val description: String, val re
         displayName = "自定义 HTTP 模板引擎",
         description = "支持 GPT-SoVITS、CosyVoice-v2、F5-TTS、VITS 等私有部署节点",
         requiresApiKey = false
+    ),
+    OFFLINE_VITS(
+        displayName = "离线神经网络引擎 (Sherpa-ONNX / VITS)",
+        description = "本地端侧神经网络离线合成，零流量、零延迟，断网可用，支持自主下载离线模型包",
+        requiresApiKey = false
     )
 }
 
@@ -111,6 +116,7 @@ data class TtsProviderConfig(
     val enabled: Boolean = true,
     val baseUrl: String = "",
     val apiKey: String = "",
+    val secondaryApiKey: String = "", // 第二 API Key (用于并发预加载时自动轮询分流，避免触发服务商速率上限)
     val modelName: String = "",
     val voiceId: String = "",
     val dialogueVoiceId: String = "", // 智能双角色：小说对话专属音色
@@ -125,6 +131,7 @@ data class TtsProviderConfig(
     val responseAudioPath: String = "", // 为空表示整个 body 为二进制流，若为 json 路径如 "data.audio_base64" 则自动 Base64 解码
     val promptInstruction: String = "", // 大模型导演指令 / 提示词 (用于 MiMo、CosyVoice 等大模型调整情感、语速、音调及语境)
     val fallbackProviderId: String? = null, // 专属备用引擎（当主力接口遇到 429/503/超时时无缝自动降级）
+    val isStreamingEnabled: Boolean = false, // 是否开启流式合成传输 (开启后低延迟边生成边推流；关闭后接收完整无损音频包)
     val maleVoiceId: String = "", // 多角色剧场：男主专属音色
     val femaleVoiceId: String = "", // 多角色剧场：女主专属音色
     val elderVoiceId: String = "", // 多角色剧场：长者/反派音色
@@ -159,7 +166,8 @@ data class ReplacementRule(
     val isRegex: Boolean = true,
     val isCaseSensitive: Boolean = false,
     val enabled: Boolean = true,
-    val description: String = ""
+    val description: String = "",
+    val category: String = "COMMON" // POLYPHONE (多音字纠错), CLEANUP (符号净化), WATERMARK (防盗去水印), SPECIAL (专有名词/数字), COMMON (通用规则), CUSTOM (自定义规则)
 )
 
 /**
@@ -169,7 +177,14 @@ data class ReplacementRule(
 @Serializable
 data class GlobalSettings(
     val activeProviderId: String = "edge_tts_default",
-    val isSentenceSplittingEnabled: Boolean = true,
+    val isSentenceSplittingEnabled: Boolean = true, // 文本分段总开关 (默认 true: 自动按段落切分并开启流水线并发预加载，消除段落等待)
+    val textSegmentationMode: String = "PARAGRAPH", // 分段策略模式: "PARAGRAPH" (按换行自然段落划分), "PUNCTUATION" (按标点断句划分), "SMART_HYBRID" (智能对白与段落混合划分)
+    val mergeShortParagraphs: Boolean = false, // 短段落自动合并开关 (将相邻极短段落合并发给引擎)
+    val minMergeParagraphLength: Int = 30, // 短段落合并字数阈值 (低于此字数的段落与后文合并)
+    val splitLongParagraphs: Boolean = false, // 超长段落强制拆分开关 (避免单段过长导致引擎超时)
+    val maxSegmentLength: Int = 200, // 超长段落拆分字数阈值 (以句号等句末标点为切分节点)
+    val enableSegmentPreload: Boolean = true, // 分段提前请求预加载开关 (按分段规则提前准备接下来一两段音频)
+    val preloadAheadCount: Int = 2, // 预加载分段前瞻深度 (1 ~ 4 块)
     val maxSentenceLength: Int = 80,
     val isAudioCacheEnabled: Boolean = true,
     val maxCacheSizeMb: Int = 500,
@@ -187,6 +202,7 @@ data class GlobalSettings(
     val appThemeMode: String = "SYSTEM", // SYSTEM / DARK / LIGHT
     val appThemePalette: String = "OCEAN_AZURE", // OCEAN_AZURE, EMERALD_JADE, TITANIUM_SLATE, SUNSET_AMBER, MORANDI_GRAPHITE...
     val isAmoledPureBlack: Boolean = false, // A屏纯黑极夜模式 (在深色模式下所有配色统一强制绝对纯黑 #000000)
+    val isProviderCardAccentColorEnabled: Boolean = true, // 模型卡片厂商专属印象色点缀 (开启时按 MiMo/MiniMax/OpenAI 品牌色专属微光点缀，关闭时统一主题色)
     val sentencePauseMs: Int = 200, // 标点分句后注入静音停顿毫秒数，大幅提升小说听感自然度
     val fallbackProviderId: String = "edge_tts_default", // 主引擎异常时全局自动故障转移备用引擎
     val autoFallbackOnFailure: Boolean = true, // 启用自动故障降级
@@ -200,7 +216,8 @@ data class GlobalSettings(
     val voiceClarityBoostEnabled: Boolean = false, // 人声清晰度增强滤镜 (Clear Voice EQ)
     val loudnessGainFactor: Float = 1.0f, // 软件级响度增益与动态均衡 (1.0x ~ 2.0x)
     val sleepTimerMinutes: Int = 0, // 听书睡眠定时器 (分钟，0为关闭)
-    val appUiStyle: String = "BENTO", // 界面设计风格 (BENTO: 未来全息声球工作台, STUDIO: DAW专业调音台, VINYL: 黑胶沉浸阅览舱, PULSE: 极光灵动·微胶囊流体中枢)
+    val appUiStyle: String = "PULSE", // 界面设计风格 (PULSE: 极光灵动微胶囊中枢, BENTO: 全景网格矩阵工作台, STUDIO: DAW专业调音台, VINYL: 复古黑胶阅览舱)
+    val acousticCoreStyle: Int = 0, // 核心球视觉风格 (0: 极光光晕, 1: 物理点阵, 2: 引力轨道)
     val isFloatingDockEnabled: Boolean = true, // 是否启用全局悬浮主控坞
     val floatingDockMode: String = "EXPANDED_HORIZONTAL", // 悬浮主控坞形态 (EXPANDED_HORIZONTAL, SIDEBAR_VERTICAL, PIE_RADIAL, EDGE_STASHED)
     val floatingDockX: Float = 0f, // 悬浮坞持久化 X 坐标
@@ -228,126 +245,144 @@ object PresetConfigs {
             pattern = "[…]{2,}|[\\.]{3,}",
             replacement = "，",
             isRegex = true,
-            description = "将过长的省略号替换为自然逗号停顿"
+            description = "将过长的省略号替换为自然逗号停顿",
+            category = "CLEANUP"
         ),
         ReplacementRule(
             id = "rule_bracket_cleanup",
             pattern = "[【】〖〗「」『』\\[\\]]",
             replacement = " ",
             isRegex = true,
-            description = "去除小说中常见的特殊书名或角色对话括号"
+            description = "去除小说中常见的特殊书名或角色对话括号",
+            category = "CLEANUP"
         ),
         ReplacementRule(
             id = "rule_watermark_clean",
             pattern = "(?:www\\.[a-zA-Z0-9\\.]+\\.(?:com|cn|net|org)|最新章节请访问|首发更新)",
             replacement = "",
             isRegex = true,
-            description = "过滤小说盗版与水印防盗后缀"
+            description = "过滤小说盗版与水印防盗后缀",
+            category = "WATERMARK"
         ),
         ReplacementRule(
             id = "rule_chong_qing",
             pattern = "重庆",
             replacement = "崇庆",
             isRegex = false,
-            description = "修正多音字：重庆 (chóng -> chóng)"
+            description = "修正多音字：重庆 (chóng -> chóng)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_yin_hang",
             pattern = "银行",
             replacement = "银航",
             isRegex = false,
-            description = "修正多音字：银行 (háng)"
+            description = "修正多音字：银行 (háng)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_can_ci",
             pattern = "参差",
             replacement = "涔呲",
             isRegex = false,
-            description = "修正多音字：参差 (cēn cī)"
+            description = "修正多音字：参差 (cēn cī)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_chai_qian",
             pattern = "差遣",
             replacement = "拆遣",
             isRegex = false,
-            description = "修正多音字：差遣 (chāi)"
+            description = "修正多音字：差遣 (chāi)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_bian_yi",
             pattern = "便宜行事",
             replacement = "便移形事",
             isRegex = false,
-            description = "修正多音字成语：便宜行事 (biàn yí)"
+            description = "修正多音字成语：便宜行事 (biàn yí)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_guan_qia",
             pattern = "关卡",
             replacement = "关恰",
             isRegex = false,
-            description = "修正多音字：关卡 (qiǎ)"
+            description = "修正多音字：关卡 (qiǎ)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_xue_ruo",
             pattern = "削弱",
             replacement = "薛弱",
             isRegex = false,
-            description = "修正多音字：削弱 (xuē)"
+            description = "修正多音字：削弱 (xuē)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_mo_sha",
             pattern = "抹杀",
             replacement = "莫杀",
             isRegex = false,
-            description = "修正多音字：抹杀 (mǒ)"
+            description = "修正多音字：抹杀 (mǒ)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_bi_lu",
             pattern = "秘鲁",
             replacement = "必鲁",
             isRegex = false,
-            description = "修正地名多音字：秘鲁 (bì)"
+            description = "修正地名多音字：秘鲁 (bì)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_qiu_ci",
             pattern = "龟兹",
             replacement = "丘慈",
             isRegex = false,
-            description = "修正古地名多音字：龟兹 (qiū cí)"
+            description = "修正古地名多音字：龟兹 (qiū cí)",
+            category = "POLYPHONE"
         ),
         ReplacementRule(
             id = "rule_html_entities",
             pattern = "&(?:nbsp|gt|lt|amp|quot);",
             replacement = " ",
             isRegex = true,
-            description = "过滤小说网页导入残留的 HTML 转义符号"
+            description = "过滤小说网页导入残留的 HTML 转义符号",
+            category = "CLEANUP"
         ),
         ReplacementRule(
             id = "rule_novel_chapter_end",
             pattern = "(?:\\(本章完\\)|（本章完）|PS[:：].*|求月票|求推荐票|求追读|作者有话说.*)",
             replacement = "",
             isRegex = true,
-            description = "过滤章节末尾防盗广告与作者求月票打扰语"
+            description = "过滤章节末尾防盗广告与作者求月票打扰语",
+            category = "WATERMARK"
         ),
         ReplacementRule(
             id = "rule_repeat_symbols",
             pattern = "[\\~\\-_=\\+]{3,}",
             replacement = "，",
             isRegex = true,
-            description = "将小说中连续波浪线或横线转为自然停顿"
+            description = "将小说中连续波浪线或横线转为自然停顿",
+            category = "CLEANUP"
         ),
         ReplacementRule(
             id = "rule_yyds",
             pattern = "\\byyds\\b",
             replacement = "永远的神",
             isRegex = true,
-            description = "网络缩写纠正：yyds ➔ 永远的神"
+            description = "网络缩写纠正：yyds ➔ 永远的神",
+            category = "SPECIAL"
         ),
         ReplacementRule(
             id = "rule_u1s1",
             pattern = "\\bu1s1\\b",
             replacement = "有一说一",
             isRegex = true,
-            description = "网络缩写纠正：u1s1 ➔ 有一说一"
+            description = "网络缩写纠正：u1s1 ➔ 有一说一",
+            category = "SPECIAL"
         )
     )
 
@@ -540,6 +575,75 @@ object PresetConfigs {
                 customPayloadTemplate = "{\n  \"text\": \"\${text}\",\n  \"text_lang\": \"zh\",\n  \"speed\": \${speed}\n}",
                 sampleRate = 32000,
                 audioFormat = "wav"
+            ),
+            // 12. 离线神经网络引擎 (Sherpa-ONNX / VITS)
+            // 12. 微软离线自然语音 (Microsoft Natural Offline)
+            TtsProviderConfig(
+                id = "offline_ms_xiaoxiao",
+                type = ProviderType.OFFLINE_VITS,
+                name = "微软离线自然语音 (晓晓 - ONNX 本地包)",
+                enabled = false,
+                modelName = "ms-offline-xiaoxiao",
+                voiceId = "zh-CN-XiaoxiaoOffline",
+                sampleRate = 24000,
+                audioFormat = "wav",
+                tags = listOf("微软离线", "高拟真女声", "零流量")
+            ),
+            TtsProviderConfig(
+                id = "offline_ms_yunxi",
+                type = ProviderType.OFFLINE_VITS,
+                name = "微软离线自然语音 (云希 - ONNX 本地包)",
+                enabled = false,
+                modelName = "ms-offline-yunxi",
+                voiceId = "zh-CN-YunxiOffline",
+                sampleRate = 24000,
+                audioFormat = "wav",
+                tags = listOf("微软离线", "沉浸男声", "零流量")
+            ),
+            TtsProviderConfig(
+                id = "offline_ms_yunyang",
+                type = ProviderType.OFFLINE_VITS,
+                name = "微软离线自然语音 (云扬 - ONNX 本地包)",
+                enabled = false,
+                modelName = "ms-offline-yunyang",
+                voiceId = "zh-CN-YunyangOffline",
+                sampleRate = 24000,
+                audioFormat = "wav",
+                tags = listOf("微软离线", "专业播音", "零流量")
+            ),
+            // 13. Sherpa-ONNX / VITS 中文离线模型
+            TtsProviderConfig(
+                id = "offline_vits_aishell3",
+                type = ProviderType.OFFLINE_VITS,
+                name = "Sherpa-ONNX 离线模型 (Aishell3 多发音人)",
+                enabled = false,
+                modelName = "vits-zh-aishell3",
+                voiceId = "aishell3_female_01",
+                sampleRate = 22050,
+                audioFormat = "wav",
+                tags = listOf("Sherpa-ONNX", "多发音人", "零流量")
+            ),
+            TtsProviderConfig(
+                id = "offline_vits_piper",
+                type = ProviderType.OFFLINE_VITS,
+                name = "Piper-Zh 超轻量离线语音模型",
+                enabled = false,
+                modelName = "vits-piper-zh",
+                voiceId = "piper_zh_female",
+                sampleRate = 22050,
+                audioFormat = "wav",
+                tags = listOf("Piper", "超轻量", "低延迟")
+            ),
+            TtsProviderConfig(
+                id = "offline_melo_tts",
+                type = ProviderType.OFFLINE_VITS,
+                name = "MeloTTS 中英自然双语离线模型",
+                enabled = false,
+                modelName = "melo-tts-zh-en",
+                voiceId = "melo_zh_default",
+                sampleRate = 24000,
+                audioFormat = "wav",
+                tags = listOf("MeloTTS", "中英双语", "高保真")
             )
         )
     }

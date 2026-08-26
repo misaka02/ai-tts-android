@@ -115,4 +115,23 @@ object AudioResampler {
         ByteBuffer.wrap(outBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(outSamples)
         return outBytes
     }
+
+    /**
+     * 带语速时间伸缩与重采样的复合处理
+     */
+    fun resampleWithSpeed(
+        pcmData: ByteArray,
+        sourceSampleRate: Int,
+        sourceChannels: Int = 1,
+        targetSampleRate: Int = 24000,
+        targetChannels: Int = 1,
+        speed: Float = 1.0f
+    ): ByteArray {
+        val effectiveSpeed = speed.coerceIn(0.25f, 3.0f)
+        if (effectiveSpeed == 1.0f) {
+            return resample(pcmData, sourceSampleRate, sourceChannels, targetSampleRate, targetChannels)
+        }
+        val virtualSourceSampleRate = (sourceSampleRate * effectiveSpeed).toInt()
+        return resample(pcmData, virtualSourceSampleRate, sourceChannels, targetSampleRate, targetChannels)
+    }
 }

@@ -280,6 +280,13 @@ fun ProviderConfigScreen(
                 sampleRate = "32000"
                 audioFormat = "wav"
             }
+            ProviderType.OFFLINE_VITS -> {
+                name = "微软离线自然语音 (晓晓)"
+                modelName = "ms-offline-xiaoxiao"
+                voiceId = "zh-CN-XiaoxiaoOffline"
+                sampleRate = "24000"
+                audioFormat = "wav"
+            }
         }
         Toast.makeText(context, "已套用 ${type.displayName} 标准模板", Toast.LENGTH_SHORT).show()
     }

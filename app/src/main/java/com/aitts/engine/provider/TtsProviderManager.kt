@@ -26,6 +26,7 @@ class TtsProviderManager {
         providers[ProviderType.AZURE] = AzureTtsProvider(client)
         providers[ProviderType.GEMINI] = GeminiTtsProvider(client)
         providers[ProviderType.CUSTOM_HTTP] = CustomHttpTtsProvider(client)
+        providers[ProviderType.OFFLINE_VITS] = CustomHttpTtsProvider(client)
     }
 
     fun getProvider(type: ProviderType): TtsProvider {
@@ -48,6 +49,15 @@ class TtsProviderManager {
         }
 
         return result
+    }
+
+    suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> {
+        val provider = getProvider(config.type)
+        return provider.synthesizeStreaming(text, config, onAudioChunk)
     }
 
     suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> {

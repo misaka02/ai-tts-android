@@ -75,11 +75,36 @@ class MimoTtsProvider(
         officialVoices
     }
 
-    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
-        "mimo-v2.5-tts",
-        "mimo-v2-tts",
-        "mimo-v1-tts"
-    )
+    override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = withContext(Dispatchers.IO) {
+        val staticModels = listOf("mimo-v2.5-tts", "mimo-v2-tts", "mimo-v1-tts")
+        if (config.apiKey.isNotBlank()) {
+            try {
+                val apiKey = config.apiKey.trim()
+                val baseUrl = if (config.baseUrl.isNotBlank()) config.baseUrl.trim() else "https://api.xiaomimimo.com/v1"
+                val cleanUrl = if (baseUrl.endsWith("/chat/completions")) baseUrl.substringBefore("/chat/completions") else baseUrl
+                val modelsUrl = if (cleanUrl.endsWith("/")) "${cleanUrl}models" else "$cleanUrl/models"
+                val req = Request.Builder()
+                    .url(modelsUrl)
+                    .addHeader("Authorization", "Bearer $apiKey")
+                    .addHeader("api-key", apiKey)
+                    .build()
+                val resp = client.newCall(req).execute()
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    val root = json.decodeFromString<JsonObject>(body)
+                    val data = root["data"]?.jsonArray
+                    if (data != null && data.isNotEmpty()) {
+                        val models = data.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.content }
+                            .filter { it.contains("mimo", ignoreCase = true) || it.contains("tts", ignoreCase = true) }
+                        if (models.isNotEmpty()) return@withContext models
+                    }
+                }
+            } catch (e: Exception) {
+                // fallback
+            }
+        }
+        staticModels
+    }
 
     override suspend fun synthesize(
         text: String,
@@ -99,9 +124,9 @@ class MimoTtsProvider(
 
             val modelName = config.modelName.ifBlank { "mimo-v2.5-tts" }
             val voiceName = config.voiceId.ifBlank { "茉莉" }
-            val formatStr = if (config.audioFormat.contains("wav")) "wav" else if (config.audioFormat.contains("pcm")) "pcm16" else "mp3"
+            val isStreaming = config.isStreamingEnabled
+            val formatStr = if (isStreaming) "pcm16" else (if (config.audioFormat.contains("wav")) "wav" else "mp3")
 
-            // 依据官方导演模式规范，在 user role 中根据提示词、语速、音调动态组装指导指令
             val directorInstruction = buildDirectorPrompt(config)
 
             val payload = buildJsonObject {
@@ -119,67 +144,230 @@ class MimoTtsProvider(
                 put("audio", buildJsonObject {
                     put("format", formatStr)
                     put("voice", voiceName)
+                    put("speed", config.speed)
                 })
-                put("stream", false)
+                put("stream", isStreaming)
             }.toString()
 
             val requestBuilder = Request.Builder()
                 .url(url)
                 .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", if (isStreaming) "text/event-stream, application/json" else "application/json")
                 .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
                 .addHeader("api-key", config.apiKey.trim())
 
             val response = client.newCall(requestBuilder.build()).execute()
-            val bodyBytes = response.body?.bytes() ?: ByteArray(0)
-            val bodyString = String(bodyBytes, Charsets.UTF_8)
+            val responseBody = response.body
+                ?: return@withContext Result.failure(IOException("MiMo API 返回空响应体"))
 
             if (!response.isSuccessful) {
+                val errStr = responseBody.string()
                 return@withContext Result.failure(
-                    IOException("小米 MiMo 请求失败 HTTP ${response.code}: $bodyString")
+                    IOException("小米 MiMo 请求失败 HTTP ${response.code}: $errStr")
                 )
             }
 
-            try {
-                val root = json.decodeFromString<JsonObject>(bodyString)
+            if (isStreaming) {
+                // 流式模式：逐行解析 SSE 实时 PCM16 裸流，无二次编解码损失，彻底根除电音与断续
+                val audioOutputStream = java.io.ByteArrayOutputStream()
+                var isSseStreamDetected = false
 
-                if (root.containsKey("error")) {
-                    val errMsg = root["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content
-                        ?: root["error"]?.toString() ?: "未知错误"
-                    return@withContext Result.failure(IOException("MiMo API 返回错误: $errMsg"))
-                }
+                responseBody.byteStream().bufferedReader(Charsets.UTF_8).use { reader ->
+                    for (line in reader.lineSequence()) {
+                        val trimmed = line.trim()
+                        if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
+                        if (trimmed == "data: [DONE]" || trimmed == "[DONE]") {
+                            isSseStreamDetected = true
+                            break
+                        }
 
-                val choices = root["choices"]?.jsonArray
-                if (choices != null && choices.isNotEmpty()) {
-                    val firstChoice = choices[0].jsonObject
-                    val message = firstChoice["message"]?.jsonObject
-                    val audioObj = message?.get("audio")?.jsonObject
-                    val audioData = audioObj?.get("data")?.jsonPrimitive?.content
-
-                    if (!audioData.isNullOrBlank()) {
-                        val decodedBytes = Base64.decode(audioData, Base64.DEFAULT)
-                        return@withContext Result.success(decodedBytes)
+                        if (trimmed.startsWith("data:")) {
+                            isSseStreamDetected = true
+                            val jsonStr = trimmed.substring(5).trim()
+                            if (jsonStr.isNotBlank() && jsonStr != "[DONE]") {
+                                try {
+                                    val chunkObj = json.decodeFromString<JsonObject>(jsonStr)
+                                    val choices = chunkObj["choices"]?.jsonArray
+                                    if (choices != null && choices.isNotEmpty()) {
+                                        val delta = choices[0].jsonObject["delta"]?.jsonObject
+                                        val audioObj = delta?.get("audio")?.jsonObject
+                                        val b64Data = audioObj?.get("data")?.jsonPrimitive?.content
+                                        if (!b64Data.isNullOrBlank()) {
+                                            val chunkBytes = Base64.decode(b64Data, Base64.DEFAULT)
+                                            audioOutputStream.write(chunkBytes)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    // 忽略单帧解析警告
+                                }
+                            }
+                        }
                     }
                 }
 
-                val directData = root["data"]?.jsonPrimitive?.content
-                    ?: root["audio"]?.jsonPrimitive?.content
-                if (!directData.isNullOrBlank()) {
-                    val decodedBytes = Base64.decode(directData, Base64.DEFAULT)
-                    return@withContext Result.success(decodedBytes)
+                val collectedBytes = audioOutputStream.toByteArray()
+                if (isSseStreamDetected && collectedBytes.isNotEmpty()) {
+                    return@withContext Result.success(collectedBytes)
                 }
+            } else {
+                // 非流式模式：直接解析完整 JSON 响应包
+                val bodyString = responseBody.string()
+                if (bodyString.isNotBlank()) {
+                    try {
+                        val root = json.decodeFromString<JsonObject>(bodyString)
 
-                if (bodyBytes.isNotEmpty() && !bodyString.startsWith("{")) {
-                    return@withContext Result.success(bodyBytes)
-                }
+                        if (root.containsKey("error")) {
+                            val errMsg = root["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content
+                                ?: root["error"]?.toString() ?: "未知错误"
+                            return@withContext Result.failure(IOException("MiMo API 返回错误: $errMsg"))
+                        }
 
-                Result.failure(IOException("MiMo 响应中未找到 choices[0].message.audio.data 音频数据: $bodyString"))
-            } catch (e: Exception) {
-                if (bodyBytes.isNotEmpty() && !bodyString.startsWith("{")) {
-                    Result.success(bodyBytes)
-                } else {
-                    Result.failure(IOException("解析 MiMo 音频数据失败: ${e.message}, 原始响应: $bodyString"))
+                        val choices = root["choices"]?.jsonArray
+                        if (choices != null && choices.isNotEmpty()) {
+                            val firstChoice = choices[0].jsonObject
+                            val message = firstChoice["message"]?.jsonObject
+                            val audioObj = message?.get("audio")?.jsonObject
+                            val audioData = audioObj?.get("data")?.jsonPrimitive?.content
+
+                            if (!audioData.isNullOrBlank()) {
+                                val decodedBytes = Base64.decode(audioData, Base64.DEFAULT)
+                                return@withContext Result.success(decodedBytes)
+                            }
+                        }
+
+                        val directData = root["data"]?.jsonPrimitive?.content
+                            ?: root["audio"]?.jsonPrimitive?.content
+                        if (!directData.isNullOrBlank()) {
+                            return@withContext Result.success(Base64.decode(directData, Base64.DEFAULT))
+                        }
+                    } catch (e: Exception) {
+                        // ignore and fallback
+                    }
                 }
+            }
+
+            Result.failure(IOException("未能从 MiMo API 解析到有效音频流或数据"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> = withContext(Dispatchers.IO) {
+        if (!config.isStreamingEnabled) {
+            val fullResult = synthesize(text, config)
+            if (fullResult.isSuccess) {
+                val fullBytes = fullResult.getOrNull() ?: ByteArray(0)
+                if (fullBytes.isNotEmpty()) {
+                    onAudioChunk(fullBytes)
+                }
+            }
+            return@withContext fullResult
+        }
+
+        try {
+            if (config.apiKey.isBlank()) {
+                return@withContext Result.failure(IOException("请先在「模型」界面填写小米 MiMo API Key"))
+            }
+
+            var url = config.baseUrl.trim()
+            if (url.isBlank()) {
+                url = "https://api.xiaomimimo.com/v1/chat/completions"
+            } else if (!url.endsWith("/chat/completions") && !url.contains("/tts")) {
+                url = if (url.endsWith("/")) "${url}chat/completions" else "$url/chat/completions"
+            }
+
+            val modelName = config.modelName.ifBlank { "mimo-v2.5-tts" }
+            val voiceName = config.voiceId.ifBlank { "茉莉" }
+            val directorInstruction = buildDirectorPrompt(config)
+
+            val payload = buildJsonObject {
+                put("model", modelName)
+                put("messages", buildJsonArray {
+                    add(buildJsonObject {
+                        put("role", "user")
+                        put("content", directorInstruction)
+                    })
+                    add(buildJsonObject {
+                        put("role", "assistant")
+                        put("content", text)
+                    })
+                })
+                put("audio", buildJsonObject {
+                    put("format", "pcm16")
+                    put("voice", voiceName)
+                    put("speed", config.speed)
+                })
+                put("stream", true)
+            }.toString()
+
+            val requestBuilder = Request.Builder()
+                .url(url)
+                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "text/event-stream, application/json")
+                .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
+                .addHeader("api-key", config.apiKey.trim())
+
+            val response = client.newCall(requestBuilder.build()).execute()
+            val responseBody = response.body
+                ?: return@withContext Result.failure(IOException("MiMo API 返回空响应体"))
+
+            if (!response.isSuccessful) {
+                val errStr = responseBody.string()
+                return@withContext Result.failure(
+                    IOException("小米 MiMo 请求失败 HTTP ${response.code}: $errStr")
+                )
+            }
+
+            val audioOutputStream = java.io.ByteArrayOutputStream()
+            var isSseStreamDetected = false
+
+            responseBody.byteStream().bufferedReader(Charsets.UTF_8).use { reader ->
+                for (line in reader.lineSequence()) {
+                    val trimmed = line.trim()
+                    if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
+                    if (trimmed == "data: [DONE]" || trimmed == "[DONE]") {
+                        isSseStreamDetected = true
+                        break
+                    }
+
+                    if (trimmed.startsWith("data:")) {
+                        isSseStreamDetected = true
+                        val jsonStr = trimmed.substring(5).trim()
+                        if (jsonStr.isNotBlank() && jsonStr != "[DONE]") {
+                            try {
+                                val chunkObj = json.decodeFromString<JsonObject>(jsonStr)
+                                val choices = chunkObj["choices"]?.jsonArray
+                                if (choices != null && choices.isNotEmpty()) {
+                                    val delta = choices[0].jsonObject["delta"]?.jsonObject
+                                    val audioObj = delta?.get("audio")?.jsonObject
+                                    val b64Data = audioObj?.get("data")?.jsonPrimitive?.content
+                                    if (!b64Data.isNullOrBlank()) {
+                                        val chunkBytes = Base64.decode(b64Data, Base64.DEFAULT)
+                                        if (chunkBytes.isNotEmpty()) {
+                                            audioOutputStream.write(chunkBytes)
+                                            onAudioChunk(chunkBytes)
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // 忽略单帧异常
+                            }
+                        }
+                    }
+                }
+            }
+
+            val collectedBytes = audioOutputStream.toByteArray()
+            if (isSseStreamDetected && collectedBytes.isNotEmpty()) {
+                Result.success(collectedBytes)
+            } else {
+                Result.failure(IOException("MiMo 流式未接收到有效音频分块"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -188,41 +376,33 @@ class MimoTtsProvider(
 
     /**
      * 构建小米 MiMo 导演模式指令
-     * 将滑动条设定的语速、音调以及用户自定义的情感/场景提示词综合编译为高质量自然语言导演指令
+     * 遵循小米官方 MiMo-V2.5-TTS 预训练指令规范，直接生成强指令提示词
      */
     private fun buildDirectorPrompt(config: TtsProviderConfig): String {
         val userPrompt = config.promptInstruction.trim()
         val speed = config.speed
         val pitch = config.pitch
 
-        val instructions = mutableListOf<String>()
-
-        if (userPrompt.isNotBlank()) {
-            instructions.add(userPrompt)
+        val speedClause = when {
+            speed <= 0.65f -> "请用极慢的语速，极其缓慢、一字一顿地朗读这段文字"
+            speed <= 0.85f -> "请用缓慢、从容舒缓的语调朗读这段文字"
+            speed in 0.86f..1.14f -> "请用标准自然、流畅的语速朗读这段文字"
+            speed <= 1.35f -> "请用较快的语速朗读，保持紧凑轻快的节奏"
+            speed <= 1.75f -> "请用快速的语速朗读，极速流畅，明显加快发音速度"
+            else -> "请用极快的超快语速朗读，非常急促快速，大幅度加快发音速度"
         }
 
-        // 语速自然语言映射
-        if (speed <= 0.7f) {
-            instructions.add("语速极慢，从容徐缓，字正腔圆")
-        } else if (speed <= 0.85f) {
-            instructions.add("语速稍慢，沉稳从容")
-        } else if (speed >= 1.35f) {
-            instructions.add("语速较快，紧凑流畅")
-        } else if (speed >= 1.15f) {
-            instructions.add("语速稍快，轻快生动")
+        val pitchClause = when {
+            pitch <= 0.85f -> "声音偏低沉浑厚，富含磁性"
+            pitch >= 1.15f -> "声音偏清脆明亮，高昂悦耳"
+            else -> ""
         }
 
-        // 音调自然语言映射
-        if (pitch <= 0.85f) {
-            instructions.add("音调偏低沉浑厚，带磁性")
-        } else if (pitch >= 1.15f) {
-            instructions.add("音调偏清脆明亮，高昂悦耳")
-        }
+        val clauses = mutableListOf<String>()
+        clauses.add(speedClause)
+        if (pitchClause.isNotBlank()) clauses.add(pitchClause)
+        if (userPrompt.isNotBlank()) clauses.add(userPrompt)
 
-        return if (instructions.isEmpty()) {
-            "请用自然生动的语气朗读以下内容"
-        } else {
-            "请按照以下导演要求朗读：${instructions.joinToString("，")}。"
-        }
+        return clauses.joinToString("，") + "。"
     }
 }

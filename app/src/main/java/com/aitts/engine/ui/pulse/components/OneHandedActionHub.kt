@@ -47,12 +47,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.aitts.engine.ui.pulse.theme.PulseTokens
 
 data class ActionHubItem(
     val label: String,
     val icon: ImageVector,
-    val color: Color = PulseTokens.CyanElectric,
+    val color: Color = PulseTokens.DefaultCyanElectric,
     val isLoading: Boolean = false,
     val onClick: () -> Unit
 )
@@ -77,7 +78,7 @@ fun UniversalActionHub(
     )
 
     Box(
-        modifier = modifier,
+        modifier = modifier.zIndex(100f),
         contentAlignment = Alignment.BottomEnd
     ) {
         // 展开的动作列表
@@ -88,7 +89,7 @@ fun UniversalActionHub(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(bottom = 54.dp, end = 2.dp),
+                    .padding(bottom = 56.dp, end = 2.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.End
             ) {
@@ -108,22 +109,22 @@ fun UniversalActionHub(
             }
         }
 
-        // 常驻悬浮触发按钮
+        // 常驻悬浮触发按钮 (标准 48dp 大拇指盲操人体工学触控区)
         Surface(
             modifier = Modifier
                 .alpha(hubAlpha)
-                .size(if (isExpanded) 48.dp else 44.dp)
+                .size(48.dp)
                 .clip(CircleShape)
                 .clickable { isExpanded = !isExpanded },
             shape = CircleShape,
             color = if (isExpanded) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceDark.copy(alpha = 0.92f),
             border = BorderStroke(
-                1.2.dp,
-                if (isExpanded) PulseTokens.CyanElectric else if (isHighlighted) PulseTokens.CyanElectric.copy(alpha = 0.8f) else PulseTokens.CyanElectric.copy(alpha = 0.45f)
+                1.5.dp,
+                if (isExpanded) PulseTokens.CyanElectric else if (isHighlighted) PulseTokens.CyanElectric.copy(alpha = 0.85f) else PulseTokens.CyanElectric.copy(alpha = 0.5f)
             ),
-            shadowElevation = if (isExpanded) 10.dp else 4.dp
+            shadowElevation = if (isExpanded) 12.dp else 6.dp
         ) {
-            Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                 if (isExpanded) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -158,6 +159,7 @@ fun OneHandedActionHub(
     onOpenModelSelector: () -> Unit = {},
     onOpenModelConfig: () -> Unit = {}
 ) {
+    val shortModelName = if (activeModelName.length > 8) activeModelName.take(7) + "…" else activeModelName
     val items = listOf(
         ActionHubItem(
             label = "更换句子",
@@ -166,7 +168,7 @@ fun OneHandedActionHub(
             onClick = onChangeText
         ),
         ActionHubItem(
-            label = if (activeModelName.isNotBlank()) "切换模型 ($activeModelName)" else "切换模型",
+            label = if (shortModelName.isNotBlank()) "切换模型 ($shortModelName)" else "切换模型",
             icon = Icons.Default.SwapHoriz,
             color = PulseTokens.CyanElectric,
             onClick = onOpenModelSelector
@@ -203,8 +205,9 @@ private fun ThumbActionButton(
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = PulseTokens.SurfaceDark.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.45f)),
+        color = PulseTokens.SurfaceCardActive.copy(alpha = 0.98f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.55f)),
+        shadowElevation = 8.dp,
         modifier = Modifier.clickable { onClick() }
     ) {
         Row(
@@ -216,7 +219,8 @@ private fun ThumbActionButton(
                 text = label,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = PulseTokens.TextPrimary
+                color = PulseTokens.TextPrimary,
+                maxLines = 1
             )
             Box(
                 modifier = Modifier

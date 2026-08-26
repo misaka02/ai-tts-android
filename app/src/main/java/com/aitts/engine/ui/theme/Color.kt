@@ -8,7 +8,7 @@ import com.aitts.engine.data.ProviderType
 enum class AppPaletteTheme(val key: String, val title: String, val primaryColor: Color, val previewColor: Color) {
     OCEAN_AZURE("OCEAN_AZURE", "深海曜蓝", Color(0xFF0EA5E9), Color(0xFF0284C7)),
     EMERALD_JADE("EMERALD_JADE", "极客翡翠", Color(0xFF10B981), Color(0xFF059669)),
-    TITANIUM_SLATE("TITANIUM_SLATE", "钛金极简", Color(0xFF64748B), Color(0xFF475569)),
+    TITANIUM_SLATE("TITANIUM_SLATE", "钛金岩灰", Color(0xFF64748B), Color(0xFF475569)),
     SUNSET_AMBER("SUNSET_AMBER", "落日暖金", Color(0xFFF59E0B), Color(0xFFD97706)),
     MORANDI_GRAPHITE("MORANDI_GRAPHITE", "莫兰迪灰", Color(0xFF546E7A), Color(0xFF37474F)),
     NEON_CYBERPUNK("NEON_CYBERPUNK", "赛博霓虹", Color(0xFFD946EF), Color(0xFFC026D3)),

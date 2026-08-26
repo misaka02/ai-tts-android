@@ -31,6 +31,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -46,19 +49,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aitts.engine.data.ConfigDataStore
+import com.aitts.engine.ui.pulse.screens.BentoHubScreen
 import com.aitts.engine.ui.pulse.screens.PulseDeckScreen
 import com.aitts.engine.ui.pulse.screens.PulseHubScreen
 import com.aitts.engine.ui.pulse.screens.PulsePipelineScreen
 import com.aitts.engine.ui.pulse.screens.PulseProviderConfigScreen
 import com.aitts.engine.ui.pulse.screens.PulseStudioSettingsScreen
+import com.aitts.engine.ui.pulse.screens.StudioHubScreen
+import com.aitts.engine.ui.pulse.screens.VinylHubScreen
+import com.aitts.engine.ui.pulse.theme.LocalPulseColors
 import com.aitts.engine.ui.pulse.theme.PulseTokens
 import kotlinx.coroutines.launch
 
 /**
- * ⚡ Pulse 第四主题全局流体容器 (Pulse App Shell & Fluid Dock)
- * 1. 托管 4 大流体分舱：中枢、模型、规则、设置；
+ * ⚡ 全局流体容器 (Pulse App Shell & Fluid Dock)
+ * 1. 托管 4 大流体分舱：主页工作台、模型矩阵、规则流水线、工作室设置；
  * 2. 左右手势自由滑动（HorizontalPager）与底部中心胶囊导航坞双向联动；
- * 3. 悬浮底栏严格处于大拇指落点舒适区，与右下角 Action Hub 层次分明。
+ * 3. 完美承载 Bento、Studio、Vinyl、Pulse 4 大主题的全景专属重构工作台。
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -69,52 +76,115 @@ fun PulseAppShell(
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 4 })
 
-    var editingProviderId by remember { mutableStateOf<String?>(null) }
-
-    BackHandler(enabled = editingProviderId != null) {
-        editingProviderId = null
+    val settings by configDataStore.settingsFlow.collectAsState()
+    val dynamicColors = remember(settings.appThemePalette, settings.isAmoledPureBlack, settings.appThemeMode) {
+        PulseTokens.resolveDynamicColors(settings.appThemePalette, settings.isAmoledPureBlack, settings.appThemeMode)
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(PulseTokens.CanvasDeep)
-    ) {
-        if (editingProviderId != null) {
-            PulseProviderConfigScreen(
-                providerId = editingProviderId!!,
-                configDataStore = configDataStore,
-                onNavigateBack = { editingProviderId = null }
-            )
-        } else {
-            // 4 大主工作台手势滑动容器
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                when (page) {
-                    0 -> PulseHubScreen(
-                        configDataStore = configDataStore,
-                        onNavigateToEditProvider = { editingProviderId = it },
-                        onOpenDeck = {
-                            scope.launch { pagerState.animateScrollToPage(1) }
-                        }
-                    )
-                    1 -> PulseDeckScreen(
-                        configDataStore = configDataStore,
-                        onNavigateToEditProvider = { editingProviderId = it },
-                        onAddNewProvider = {
-                            editingProviderId = "new_${System.currentTimeMillis() % 10000}"
-                        }
-                    )
-                    2 -> PulsePipelineScreen(
-                        configDataStore = configDataStore
-                    )
-                    3 -> PulseStudioSettingsScreen(
-                        configDataStore = configDataStore
-                    )
+    var editingProviderId by remember { mutableStateOf<String?>(null) }
+    var backPressedOnce by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+
+    BackHandler(enabled = true) {
+        focusManager.clearFocus()
+        when {
+            editingProviderId != null -> {
+                editingProviderId = null
+            }
+            pagerState.currentPage != 0 -> {
+                scope.launch { pagerState.animateScrollToPage(0) }
+            }
+            else -> {
+                if (backPressedOnce) {
+                    (context as? android.app.Activity)?.finish()
+                } else {
+                    backPressedOnce = true
+                    android.widget.Toast.makeText(context, "再按一次退出 AI-TTS", android.widget.Toast.LENGTH_SHORT).show()
+                    scope.launch {
+                        kotlinx.coroutines.delay(2000)
+                        backPressedOnce = false
+                    }
                 }
             }
+        }
+    }
+
+    CompositionLocalProvider(LocalPulseColors provides dynamicColors) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(PulseTokens.CanvasDeep)
+        ) {
+            if (editingProviderId != null) {
+                PulseProviderConfigScreen(
+                    providerId = editingProviderId!!,
+                    configDataStore = configDataStore,
+                    onNavigateBack = { editingProviderId = null }
+                )
+            } else {
+                // 4 大主工作台手势滑动容器
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clipToBounds()
+                ) { page ->
+                    when (page) {
+                        0 -> {
+                            when (settings.appUiStyle) {
+                                "BENTO" -> BentoHubScreen(
+                                    configDataStore = configDataStore,
+                                    onNavigateToEditProvider = { editingProviderId = it },
+                                    onOpenDeck = {
+                                        scope.launch { pagerState.animateScrollToPage(1) }
+                                    }
+                                )
+                                "STUDIO" -> StudioHubScreen(
+                                    configDataStore = configDataStore,
+                                    onNavigateToEditProvider = { editingProviderId = it },
+                                    onOpenDeck = {
+                                        scope.launch { pagerState.animateScrollToPage(1) }
+                                    }
+                                )
+                                "VINYL" -> VinylHubScreen(
+                                    configDataStore = configDataStore,
+                                    onNavigateToEditProvider = { editingProviderId = it },
+                                    onOpenDeck = {
+                                        scope.launch { pagerState.animateScrollToPage(1) }
+                                    }
+                                )
+                                else -> PulseHubScreen(
+                                    configDataStore = configDataStore,
+                                    onNavigateToEditProvider = { editingProviderId = it },
+                                    onOpenDeck = {
+                                        scope.launch { pagerState.animateScrollToPage(1) }
+                                    },
+                                    parentPagerState = pagerState
+                                )
+                            }
+                        }
+                        1 -> PulseDeckScreen(
+                            configDataStore = configDataStore,
+                            onNavigateToEditProvider = { editingProviderId = it },
+                            onAddNewProvider = {
+                                editingProviderId = "new_${System.currentTimeMillis() % 10000}"
+                            },
+                            parentPagerState = pagerState
+                        )
+                        2 -> PulsePipelineScreen(
+                            configDataStore = configDataStore,
+                            parentPagerState = pagerState
+                        )
+                        3 -> PulseStudioSettingsScreen(
+                            configDataStore = configDataStore,
+                            parentPagerState = pagerState,
+                            onNavigateBackToRules = {
+                                scope.launch { pagerState.animateScrollToPage(2) }
+                            }
+                        )
+                    }
+                }
 
             // 底部流体微胶囊导航坞（居中悬浮在大拇指舒适区）
             Surface(
@@ -176,6 +246,7 @@ fun PulseAppShell(
             }
         }
     }
+}
 }
 
 private data class TabItem(val title: String, val icon: ImageVector)

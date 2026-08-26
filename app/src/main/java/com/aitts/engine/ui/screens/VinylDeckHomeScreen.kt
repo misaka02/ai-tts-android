@@ -263,6 +263,7 @@ fun VinylDeckHomeScreen(
 
                         audioPlayer.playAudioBytes(
                             audioBytes = rawBytes,
+                            speed = provider.speed,
                             onCompletion = {
                                 isPlaying = false
                                 currentTestingProviderId = null

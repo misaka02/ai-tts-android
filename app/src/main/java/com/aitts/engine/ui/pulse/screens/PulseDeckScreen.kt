@@ -4,10 +4,15 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +28,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -59,6 +66,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -72,7 +80,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -83,12 +93,14 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.zIndex
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.ui.pulse.theme.PulseCard
 import com.aitts.engine.ui.pulse.theme.PulseTokens
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -99,12 +111,13 @@ import kotlin.math.roundToInt
  * 3. 毫秒级网络延迟并发测速与快速置顶/复制/删除；
  * 4. 底部右下角新增模型悬浮 FAB。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PulseDeckScreen(
     configDataStore: ConfigDataStore,
     onNavigateToEditProvider: (String) -> Unit,
-    onAddNewProvider: () -> Unit = {}
+    onAddNewProvider: () -> Unit = {},
+    parentPagerState: androidx.compose.foundation.pager.PagerState? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -114,20 +127,55 @@ fun PulseDeckScreen(
     val providers by configDataStore.providersFlow.collectAsState()
 
     var localProviders by remember(providers) { mutableStateOf(providers) }
-    val currentProvidersState by rememberUpdatedState(localProviders)
+    var draggedProviderId by remember { mutableStateOf<String?>(null) }
+    var dragStartIndex by remember { mutableStateOf(-1) }
+    var dragTargetIndex by remember { mutableStateOf(-1) }
+    var totalDragOffsetY by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(providers) {
+        if (draggedProviderId == null) {
+            localProviders = providers
+        }
+    }
 
     val latencyMap = remember { mutableStateMapOf<String, Long>() }
     val testingMap = remember { mutableStateMapOf<String, Boolean>() }
 
     var showAddPresetDialog by remember { mutableStateOf(false) }
     var showImportTokenDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var providerToDelete by remember { mutableStateOf<TtsProviderConfig?>(null) }
     var importTokenInput by remember { mutableStateOf("") }
 
     var selectedDeckTab by remember { mutableStateOf(0) }
     val density = LocalDensity.current
-    val itemHeightPx = with(density) { 92.dp.toPx() }
-    var draggedProviderId by remember { mutableStateOf<String?>(null) }
-    var dragDeltaY by remember { mutableFloatStateOf(0f) }
+    val itemHeightPx = with(density) { 96.dp.toPx() }
+
+    fun moveProviderToTop(provider: TtsProviderConfig) {
+        val curList = localProviders.toMutableList()
+        val curIdx = curList.indexOfFirst { it.id == provider.id }
+        if (curIdx > 0) {
+            val item = curList.removeAt(curIdx)
+            curList.add(0, item)
+            localProviders = curList
+            configDataStore.saveProviders(curList)
+            Toast.makeText(context, "已将【${provider.name}】置顶", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun moveProviderStep(provider: TtsProviderConfig, step: Int) {
+        val curList = localProviders.toMutableList()
+        val curIdx = curList.indexOfFirst { it.id == provider.id }
+        if (curIdx != -1) {
+            val targetIdx = (curIdx + step).coerceIn(0, curList.size - 1)
+            if (targetIdx != curIdx) {
+                val item = curList.removeAt(curIdx)
+                curList.add(targetIdx, item)
+                localProviders = curList
+                configDataStore.saveProviders(curList)
+            }
+        }
+    }
 
     fun testLatency(provider: TtsProviderConfig) {
         testingMap[provider.id] = true
@@ -153,12 +201,38 @@ fun PulseDeckScreen(
         localProviders.forEach { testLatency(it) }
     }
 
+    val lazyListState = rememberLazyListState()
+
+    LaunchedEffect(draggedProviderId) {
+        if (draggedProviderId != null) {
+            while (true) {
+                val y = totalDragOffsetY
+                val layoutInfo = lazyListState.layoutInfo
+                val viewportEnd = layoutInfo.viewportEndOffset.toFloat()
+                if (y != 0f && viewportEnd > 300f) {
+                    val topThreshold = 120f
+                    val bottomThreshold = viewportEnd - 120f
+                    val scrollDelta = when {
+                        y < topThreshold -> -((topThreshold - y) / topThreshold * 22f).coerceAtLeast(4f)
+                        y > bottomThreshold -> ((y - bottomThreshold) / 120f * 22f).coerceAtLeast(4f)
+                        else -> 0f
+                    }
+                    if (scrollDelta != 0f) {
+                        lazyListState.scrollBy(scrollDelta)
+                    }
+                }
+                delay(16)
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(PulseTokens.CanvasDeep)
     ) {
         LazyColumn(
+            state = lazyListState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 28.dp, bottom = 140.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -180,7 +254,7 @@ fun PulseDeckScreen(
                             color = PulseTokens.TextPrimary
                         )
                         Text(
-                            text = "共 ${providers.size} 个大模型语音引擎 · 单手极简掌控",
+                            text = "共 ${providers.size} 个模型引擎 · 长按手柄拖拽排序",
                             fontSize = 11.sp,
                             color = PulseTokens.CyanElectric,
                             modifier = Modifier.padding(top = 2.dp)
@@ -246,31 +320,83 @@ fun PulseDeckScreen(
                 else -> localProviders
             }
 
-            itemsIndexed(displayedProviders, key = { _, item -> item.id }) { index, provider ->
+            items(displayedProviders, key = { it.id }) { provider ->
                 val isSelected = provider.id == settings.activeProviderId
                 val isBeingDragged = draggedProviderId == provider.id
                 val latency = latencyMap[provider.id]
                 val isTesting = testingMap[provider.id] == true
 
-                val itemModifier = Modifier
-                    .fillMaxWidth()
-                    .zIndex(if (isBeingDragged) 10f else 1f)
-                    .offset {
-                        if (isBeingDragged) IntOffset(0, dragDeltaY.roundToInt()) else IntOffset.Zero
+                val itemIndex = localProviders.indexOfFirst { it.id == provider.id }
+
+                val brandColor = if (settings.isProviderCardAccentColorEnabled) {
+                    when (provider.type) {
+                        ProviderType.EDGE_TTS -> Color(0xFF0078D4)
+                        ProviderType.AZURE -> Color(0xFF0089D6)
+                        ProviderType.MIMO -> Color(0xFFFF6A00)
+                        ProviderType.MINIMAX -> Color(0xFF8B5CF6)
+                        ProviderType.DOUBAO -> Color(0xFF3B82F6)
+                        ProviderType.STEPFUN -> Color(0xFF06B6D4)
+                        ProviderType.OPENAI -> Color(0xFF10A37F)
+                        ProviderType.SILICONFLOW -> Color(0xFF6366F1)
+                        ProviderType.FISH_AUDIO -> Color(0xFFEC4899)
+                        ProviderType.GEMINI -> Color(0xFF9333EA)
+                        ProviderType.CUSTOM_HTTP -> Color(0xFFF59E0B)
+                        ProviderType.OFFLINE_VITS -> Color(0xFF10B981)
                     }
-                    .scale(if (isBeingDragged) 1.03f else 1f)
+                } else {
+                    PulseTokens.CyanElectric
+                }
+
+                // 悬浮非侵入式动态位移计算
+                val visualShiftY = remember(draggedProviderId, dragStartIndex, dragTargetIndex, itemIndex) {
+                    if (draggedProviderId == null || isBeingDragged || dragStartIndex == -1 || dragTargetIndex == -1 || itemIndex == -1) {
+                        0f
+                    } else if (dragStartIndex < dragTargetIndex && itemIndex in (dragStartIndex + 1)..dragTargetIndex) {
+                        -itemHeightPx
+                    } else if (dragStartIndex > dragTargetIndex && itemIndex in dragTargetIndex until dragStartIndex) {
+                        itemHeightPx
+                    } else {
+                        0f
+                    }
+                }
+                val animatedShiftY by animateFloatAsState(
+                    targetValue = visualShiftY,
+                    animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+                    label = "item_shift"
+                )
+
+                val cardModifier = if (isBeingDragged) {
+                    Modifier
+                        .fillMaxWidth()
+                        .zIndex(99f)
+                        .graphicsLayer {
+                            translationY = totalDragOffsetY
+                            scaleX = 1.035f
+                            scaleY = 1.035f
+                            shadowElevation = 24f
+                        }
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .zIndex(1f)
+                        .graphicsLayer {
+                            translationY = animatedShiftY
+                        }
+                }
+
+                val surfaceElevatedColor = PulseTokens.SurfaceElevated
 
                 PulseCard(
-                    modifier = itemModifier,
+                    modifier = cardModifier,
                     shape = RoundedCornerShape(16.dp),
                     backgroundColor = when {
-                        isBeingDragged -> PulseTokens.SurfaceElevated
+                        isBeingDragged -> surfaceElevatedColor
                         isSelected -> PulseTokens.SurfaceCardActive
                         else -> PulseTokens.SurfaceCard
                     },
                     border = when {
-                        isBeingDragged -> BorderStroke(2.dp, PulseTokens.CyanElectric)
-                        isSelected -> PulseTokens.BorderActive
+                        isBeingDragged -> BorderStroke(2.dp, brandColor)
+                        isSelected -> BorderStroke(1.5.dp, brandColor)
                         else -> PulseTokens.BorderSubtle
                     }
                 ) {
@@ -298,7 +424,8 @@ fun PulseDeckScreen(
                                     modifier = Modifier
                                         .size(10.dp)
                                         .clip(CircleShape)
-                                        .background(if (isSelected) PulseTokens.CyanElectric else PulseTokens.TextTertiary)
+                                        .background(color = if (isSelected) brandColor else PulseTokens.TextTertiary)
+                                        .then(if (isSelected) Modifier.shadow(4.dp, CircleShape) else Modifier)
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
@@ -307,14 +434,14 @@ fun PulseDeckScreen(
                                             text = provider.name,
                                             fontSize = 14.5.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            color = if (isSelected) PulseTokens.CyanElectric else PulseTokens.TextPrimary
+                                            color = if (isSelected) brandColor else PulseTokens.TextPrimary
                                         )
                                         if (isSelected) {
                                             Surface(
                                                 shape = RoundedCornerShape(4.dp),
-                                                color = PulseTokens.CyanElectric.copy(alpha = 0.2f)
+                                                color = brandColor.copy(alpha = 0.2f)
                                             ) {
-                                                Text("主力", fontSize = 9.sp, color = PulseTokens.CyanElectric, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), fontWeight = FontWeight.Bold)
+                                                Text("主力", fontSize = 9.sp, color = brandColor, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
@@ -326,51 +453,55 @@ fun PulseDeckScreen(
                                 }
                             }
 
-                            // 拖拽手柄
+                            // 专属长按自由悬浮拖拽手柄
+                            val providerId = provider.id
                             Box(
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .pointerInput(provider.id) {
+                                    .clip(CircleShape)
+                                    .background(color = if (isBeingDragged) brandColor.copy(alpha = 0.2f) else surfaceElevatedColor)
+                                    .pointerInput(providerId) {
                                         detectDragGesturesAfterLongPress(
                                             onDragStart = {
-                                                draggedProviderId = provider.id
-                                                dragDeltaY = 0f
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                val idx = localProviders.indexOfFirst { it.id == providerId }
+                                                if (idx != -1) {
+                                                    draggedProviderId = providerId
+                                                    dragStartIndex = idx
+                                                    dragTargetIndex = idx
+                                                    totalDragOffsetY = 0f
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                }
                                             },
                                             onDrag = { change, dragAmount ->
                                                 change.consume()
-                                                dragDeltaY += dragAmount.y
-                                                val threshold = itemHeightPx * 0.65f
-                                                val list: List<TtsProviderConfig> = currentProvidersState
-                                                val cur = list.indexOfFirst { it.id == provider.id }
-                                                if (cur != -1) {
-                                                    if (dragDeltaY > threshold && cur < list.size - 1) {
-                                                        val targetIdx = cur + 1
-                                                        val mutable = list.toMutableList()
-                                                        val item = mutable.removeAt(cur)
-                                                        mutable.add(targetIdx, item)
-                                                        localProviders = mutable
-                                                        dragDeltaY -= itemHeightPx
-                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    } else if (dragDeltaY < -threshold && cur > 0) {
-                                                        val targetIdx = cur - 1
-                                                        val mutable = list.toMutableList()
-                                                        val item = mutable.removeAt(cur)
-                                                        mutable.add(targetIdx, item)
-                                                        localProviders = mutable
-                                                        dragDeltaY += itemHeightPx
-                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    }
+                                                totalDragOffsetY += dragAmount.y
+                                                val offsetSteps = (totalDragOffsetY / itemHeightPx).roundToInt()
+                                                val newTarget = (dragStartIndex + offsetSteps).coerceIn(0, localProviders.size - 1)
+                                                if (newTarget != dragTargetIndex) {
+                                                    dragTargetIndex = newTarget
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 }
                                             },
                                             onDragEnd = {
-                                                configDataStore.saveProviders(currentProvidersState)
+                                                if (dragStartIndex != -1 && dragTargetIndex != -1 && dragStartIndex != dragTargetIndex) {
+                                                    val mutable = localProviders.toMutableList()
+                                                    val item = mutable.removeAt(dragStartIndex)
+                                                    mutable.add(dragTargetIndex, item)
+                                                    localProviders = mutable
+                                                    configDataStore.saveProviders(mutable)
+                                                    Toast.makeText(context, "已调整排列顺序", Toast.LENGTH_SHORT).show()
+                                                }
                                                 draggedProviderId = null
-                                                dragDeltaY = 0f
+                                                dragStartIndex = -1
+                                                dragTargetIndex = -1
+                                                totalDragOffsetY = 0f
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             },
                                             onDragCancel = {
                                                 draggedProviderId = null
-                                                dragDeltaY = 0f
+                                                dragStartIndex = -1
+                                                dragTargetIndex = -1
+                                                totalDragOffsetY = 0f
                                             }
                                         )
                                     },
@@ -379,13 +510,13 @@ fun PulseDeckScreen(
                                 Icon(
                                     imageVector = Icons.Default.DragHandle,
                                     contentDescription = "长按拖拽排序",
-                                    tint = if (isBeingDragged) PulseTokens.CyanElectric else PulseTokens.TextTertiary,
+                                    tint = if (isBeingDragged) brandColor else PulseTokens.TextSecondary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
 
-                        // 状态与快捷操作栏
+                        // 状态与快捷操作栏 (含一键置顶、上移、下移快捷键)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -424,7 +555,31 @@ fun PulseDeckScreen(
                                 }
                             }
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                                // 快捷微调按钮：置顶
+                                IconButton(
+                                    onClick = { moveProviderToTop(provider) },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Default.PushPin, contentDescription = "一键置顶", tint = PulseTokens.TextTertiary, modifier = Modifier.size(15.dp))
+                                }
+
+                                // 快捷微调按钮：上移
+                                IconButton(
+                                    onClick = { moveProviderStep(provider, -1) },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Default.ArrowUpward, contentDescription = "上移", tint = PulseTokens.TextTertiary, modifier = Modifier.size(15.dp))
+                                }
+
+                                // 快捷微调按钮：下移
+                                IconButton(
+                                    onClick = { moveProviderStep(provider, 1) },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(Icons.Default.ArrowDownward, contentDescription = "下移", tint = PulseTokens.TextTertiary, modifier = Modifier.size(15.dp))
+                                }
+
                                 IconButton(
                                     onClick = {
                                         val token = configDataStore.exportProviderToken(provider)
@@ -432,74 +587,26 @@ fun PulseDeckScreen(
                                         clipboard.setPrimaryClip(ClipData.newPlainText("AI-TTS-Model-Token", token))
                                         Toast.makeText(context, "已复制「${provider.name}」模型口令", Toast.LENGTH_SHORT).show()
                                     },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(30.dp)
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "复制口令", tint = PulseTokens.TextTertiary, modifier = Modifier.size(16.dp))
-                                }
-
-                                IconButton(
-                                    onClick = { configDataStore.pinProviderToTop(provider.id) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.PushPin, contentDescription = "置顶", tint = PulseTokens.TextTertiary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "复制口令", tint = PulseTokens.TextTertiary, modifier = Modifier.size(15.dp))
                                 }
 
                                 IconButton(
                                     onClick = { onNavigateToEditProvider(provider.id) },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(30.dp)
                                 ) {
-                                    Icon(Icons.Default.Edit, contentDescription = "配置", tint = PulseTokens.CyanElectric, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Edit, contentDescription = "配置", tint = PulseTokens.CyanElectric, modifier = Modifier.size(15.dp))
                                 }
 
                                 IconButton(
                                     onClick = {
-                                        configDataStore.deleteProvider(provider.id)
-                                        Toast.makeText(context, "已删除模型: ${provider.name}", Toast.LENGTH_SHORT).show()
+                                        providerToDelete = provider
+                                        showDeleteConfirmDialog = true
                                     },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(30.dp)
                                 ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = PulseTokens.MagentaLaser, modifier = Modifier.size(16.dp))
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .pointerInput(provider.id) {
-                                            detectDragGesturesAfterLongPress(
-                                                onDragStart = {
-                                                    draggedProviderId = provider.id
-                                                    dragDeltaY = 0f
-                                                },
-                                                onDrag = { change, dragAmount ->
-                                                    change.consume()
-                                                    dragDeltaY += dragAmount.y
-                                                    val currentIndex = localProviders.indexOfFirst { it.id == provider.id }
-                                                    if (currentIndex != -1) {
-                                                        val offsetSteps = (dragDeltaY / itemHeightPx).toInt()
-                                                        val targetIndex = (currentIndex + offsetSteps).coerceIn(0, localProviders.size - 1)
-                                                        if (targetIndex != currentIndex) {
-                                                            val mutable = localProviders.toMutableList()
-                                                            val item = mutable.removeAt(currentIndex)
-                                                            mutable.add(targetIndex, item)
-                                                            localProviders = mutable
-                                                            dragDeltaY -= (targetIndex - currentIndex) * itemHeightPx
-                                                        }
-                                                    }
-                                                },
-                                                onDragEnd = {
-                                                    draggedProviderId = null
-                                                    dragDeltaY = 0f
-                                                    configDataStore.saveProviders(localProviders)
-                                                },
-                                                onDragCancel = {
-                                                    draggedProviderId = null
-                                                    dragDeltaY = 0f
-                                                }
-                                            )
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.DragHandle, contentDescription = "拖动排序", tint = if (isBeingDragged) PulseTokens.CyanElectric else PulseTokens.TextTertiary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = PulseTokens.MagentaLaser, modifier = Modifier.size(15.dp))
                                 }
                             }
                         }
@@ -508,47 +615,49 @@ fun PulseDeckScreen(
             }
         }
 
-        // 右下角大拇指悬浮收纳岛 (模型矩阵专属动作组)
-        UniversalActionHub(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 80.dp),
-            items = listOf(
-                ActionHubItem(
-                    label = "新增模型预设",
-                    icon = Icons.Default.Add,
-                    color = PulseTokens.CyanElectric,
-                    onClick = { showAddPresetDialog = true }
-                ),
-                ActionHubItem(
-                    label = "全矩阵并发测速",
-                    icon = Icons.Default.Speed,
-                    color = PulseTokens.SonicBlue,
-                    onClick = { testAllLatencies() }
-                ),
-                ActionHubItem(
-                    label = "导入单模型口令",
-                    icon = Icons.Default.ContentPaste,
-                    color = PulseTokens.AmberWarm,
-                    onClick = { showImportTokenDialog = true }
-                ),
-                ActionHubItem(
-                    label = "复制当前主力口令",
-                    icon = Icons.Default.ContentCopy,
-                    color = PulseTokens.MagentaLaser,
-                    onClick = {
-                        val active = localProviders.find { it.id == settings.activeProviderId } ?: localProviders.firstOrNull()
-                        if (active != null) {
-                            val token = configDataStore.exportProviderToken(active)
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("ai_tts_provider", token))
-                            Toast.makeText(context, "已复制【${active.name}】口令到剪贴板", Toast.LENGTH_SHORT).show()
+        // 右下角大拇指悬浮收纳岛 (模型卡片全景动作组 - 仅在当前页面活跃时渲染)
+        if (parentPagerState == null || parentPagerState.currentPage == 1) {
+            UniversalActionHub(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 80.dp),
+                items = listOf(
+                    ActionHubItem(
+                        label = "新增模型预设",
+                        icon = Icons.Default.Add,
+                        color = PulseTokens.CyanElectric,
+                        onClick = { showAddPresetDialog = true }
+                    ),
+                    ActionHubItem(
+                        label = "全矩阵并发测速",
+                        icon = Icons.Default.Speed,
+                        color = PulseTokens.SonicBlue,
+                        onClick = { testAllLatencies() }
+                    ),
+                    ActionHubItem(
+                        label = "导入单模型口令",
+                        icon = Icons.Default.ContentPaste,
+                        color = PulseTokens.AmberWarm,
+                        onClick = { showImportTokenDialog = true }
+                    ),
+                    ActionHubItem(
+                        label = "复制当前主力口令",
+                        icon = Icons.Default.ContentCopy,
+                        color = PulseTokens.MagentaLaser,
+                        onClick = {
+                            val active = localProviders.find { it.id == settings.activeProviderId } ?: localProviders.firstOrNull()
+                            if (active != null) {
+                                val token = configDataStore.exportProviderToken(active)
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("ai_tts_provider", token))
+                                Toast.makeText(context, "已复制【${active.name}】口令到剪贴板", Toast.LENGTH_SHORT).show()
+                            }
                         }
-                    }
-                )
-            ),
-            icon = Icons.Default.Tune
-        )
+                    )
+                ),
+                icon = Icons.Default.Tune
+            )
+        }
 
         if (showAddPresetDialog) {
             AlertDialog(
@@ -633,6 +742,45 @@ fun PulseDeckScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showImportTokenDialog = false }) {
+                        Text("取消")
+                    }
+                }
+            )
+        }
+
+        if (showDeleteConfirmDialog && providerToDelete != null) {
+            val target = providerToDelete!!
+            AlertDialog(
+                onDismissRequest = {
+                    showDeleteConfirmDialog = false
+                    providerToDelete = null
+                },
+                title = { Text("⚠️ 确认删除模型", fontWeight = FontWeight.Bold, color = PulseTokens.MagentaLaser) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("确定要删除以下模型配置吗？此操作无法撤销。", fontSize = 13.sp, color = PulseTokens.TextPrimary)
+                        Text("• 名称: ${target.name}", fontSize = 12.sp, color = PulseTokens.CyanElectric, fontWeight = FontWeight.Bold)
+                        Text("• 厂商: ${target.type.displayName}", fontSize = 12.sp, color = PulseTokens.TextSecondary)
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            configDataStore.deleteProvider(target.id)
+                            showDeleteConfirmDialog = false
+                            providerToDelete = null
+                            Toast.makeText(context, "已删除模型: ${target.name}", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PulseTokens.MagentaLaser, contentColor = Color.White)
+                    ) {
+                        Text("确定删除", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showDeleteConfirmDialog = false
+                        providerToDelete = null
+                    }) {
                         Text("取消")
                     }
                 }

@@ -143,7 +143,7 @@ fun BentoConsoleHomeScreen(
     onNavigateToEditProvider: (String) -> Unit,
     onNavigateToTestBench: () -> Unit,
     onSwitchUiStyle: (String) -> Unit,
-    testText: String = "欢迎体验 AI TTS 全新 Bento 全息声球工作台！真实物理频域示波器正在实时捕获声学能量。",
+    testText: String = "欢迎使用 AI TTS 系统语音引擎！当前正在通过大模型发音引擎为您朗读文本。",
     onTestTextChange: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -235,7 +235,7 @@ fun BentoConsoleHomeScreen(
                         lastSynthesizedProviderName = provider.name
                         isSynthesizing = false
                         isPlaying = true
-                        audioPlayer.playAudioBytes(bytes, onCompletion = {
+                        audioPlayer.playAudioBytes(audioBytes = bytes, speed = effectiveSpeed, onCompletion = {
                             isPlaying = false
                             currentTestingProviderId = null
                         })
@@ -514,7 +514,7 @@ fun BentoConsoleHomeScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = if (isSynthesizing) "大模型音频生成中..." else if (isPlaying) "正在播放实时物理声学音频 (轻触声球停止)" else "轻触全息声球试听",
+                        text = if (isSynthesizing) "大模型音频合成中..." else if (isPlaying) "正在播放声学音频 (轻触停止)" else "轻触声学球试听",
                         fontSize = 11.5.sp,
                         color = if (isPlaying) activeBrandColor else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal

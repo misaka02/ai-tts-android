@@ -112,6 +112,9 @@ class FishAudioTtsProvider(
                 put("reference_id", voiceId)
                 put("format", if (config.audioFormat.contains("wav")) "wav" else "mp3")
                 put("latency", "balanced")
+                put("prosody", buildJsonObject {
+                    put("speed", config.speed.coerceIn(0.5f, 2.0f))
+                })
                 put("streaming", false)
             }.toString()
 

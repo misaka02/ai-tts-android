@@ -81,23 +81,35 @@ class TtsSynthesizer(private val context: Context) {
         val matchedProvider = if (!requestedVoice.isNullOrBlank()) {
             configDataStore.providersFlow.value.find {
                 it.name.equals(requestedVoice, ignoreCase = true) ||
-                it.id.equals(requestedVoice, ignoreCase = true) ||
-                it.voiceId.equals(requestedVoice, ignoreCase = true)
+                it.id.equals(requestedVoice, ignoreCase = true)
             }
         } else null
         val providerConfig = matchedProvider ?: configDataStore.getActiveProvider()
         val rules = configDataStore.rulesFlow.value
 
-        // 适配系统传入的语速与音调参数（100 为标准 1.0）
-        val systemSpeed = if (request.speechRate > 0) request.speechRate / 100.0f else 1.0f
-        val systemPitch = if (request.pitch > 0) request.pitch / 100.0f else 1.0f
-        val effectiveSpeed = (providerConfig.speed * systemSpeed * settings.globalSpeed).coerceIn(0.2f, 3.0f)
-        val effectivePitch = (providerConfig.pitch * systemPitch * settings.globalPitch).coerceIn(0.2f, 2.0f)
+        // 适配系统与阅读器传入的语速与音调参数 (智能适配静读天下/阅读 1~30 刻度与标准 Android 100 刻度)
+        val systemSpeed = when {
+            request.speechRate <= 0 -> 1.0f
+            request.speechRate in 1..30 -> (request.speechRate / 10.0f).coerceIn(0.25f, 3.0f)
+            else -> (request.speechRate / 100.0f).coerceIn(0.25f, 3.0f)
+        }
+
+        val systemPitch = when {
+            request.pitch <= 0 -> 1.0f
+            request.pitch in 1..30 -> (request.pitch / 10.0f).coerceIn(0.5f, 2.0f)
+            else -> (request.pitch / 100.0f).coerceIn(0.5f, 2.0f)
+        }
+
+        val effectiveSpeed = (providerConfig.speed * systemSpeed * settings.globalSpeed).coerceIn(0.25f, 3.0f)
+        val effectivePitch = (providerConfig.pitch * systemPitch * settings.globalPitch).coerceIn(0.5f, 2.0f)
 
         val mergedConfig = providerConfig.copy(
             speed = effectiveSpeed,
             pitch = effectivePitch
         )
+
+        configDataStore.log("📥 [阅读器调用] 收到朗读请求 [$sessionId] (文本共 ${rawText.length} 字, 换行符 ${rawText.count { it == '\n' }} 个, 语速: ${request.speechRate}(${systemSpeed}x), 音调: ${request.pitch}(${systemPitch}x), 引擎: [${mergedConfig.name}])")
+        configDataStore.log("📄 [阅读器文本预览] \"${rawText.take(150).replace("\r", "").replace("\n", " ↵ ")}${if (rawText.length > 150) "..." else ""}\"")
 
         // 1. 文本预处理与网页/Markdown/手机号/缩写/数字清洗
         val preprocessedText = TextPreprocessor.process(rawText, rules, settings.isNumberNormalizationEnabled)
@@ -113,18 +125,21 @@ class TtsSynthesizer(private val context: Context) {
             return@withContext
         }
 
-        // 2. 智能多角色长句/自然段落切分 (启用分句时按标点与多角色拆分；关闭分句时按自然换行段落拆分，保留整段语义并并发流水线预取)
-        val segments: List<SentenceSegment> = if (settings.isSentenceSplittingEnabled) {
-            SentenceSplitter.splitTextWithRoles(finalInputText, settings.maxSentenceLength, settings.ultraLowLatencyMode)
+        // 2. 文本分段规则控制流水线 (关闭切分时 100% 保持阅读器原文本整篇透传；开启时严格按分段/合并/长段拆分规则处理)
+        val segments: List<SentenceSegment> = if (!settings.isSentenceSplittingEnabled) {
+            // 用户未启用切分：阅读器传入什么就向引擎发送什么，整段完整发送，不做任何切分
+            listOf(SentenceSegment(finalInputText, SegmentRole.NARRATOR))
         } else {
-            val paragraphs = finalInputText.split(Regex("[\r\n]+"))
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-            if (paragraphs.isEmpty()) {
-                listOf(SentenceSegment(finalInputText, SegmentRole.NARRATOR))
-            } else {
-                paragraphs.map { SentenceSegment(it, SegmentRole.NARRATOR) }
-            }
+            // 启用切分控制：严格按分段模式、短段落合并与句号长段拆分规则执行
+            SentenceSplitter.splitTextWithFineRules(
+                text = finalInputText,
+                mode = settings.textSegmentationMode,
+                mergeShort = settings.mergeShortParagraphs,
+                minMergeLen = settings.minMergeParagraphLength,
+                splitLong = settings.splitLongParagraphs,
+                maxLen = settings.maxSegmentLength,
+                ultraLowLatency = settings.ultraLowLatencyMode
+            )
         }
 
         if (segments.isEmpty()) {
@@ -133,7 +148,12 @@ class TtsSynthesizer(private val context: Context) {
             return@withContext
         }
 
-        configDataStore.log("开始合成任务 [$sessionId] [${mergedConfig.name}]: ${segments.size} 句, 首句: \"${segments.first().text.take(20)}...\"")
+        configDataStore.log("⚡ [分段流水线: ${if (settings.isSentenceSplittingEnabled) "已开启 · " + settings.textSegmentationMode else "未开启 · 原文整篇直通"}] 共切分出 ${segments.size} 个分段")
+        if (segments.size > 1) {
+            segments.forEachIndexed { idx, seg ->
+                configDataStore.log("   ├─ 分段 ${idx + 1}/${segments.size} (${seg.text.length}字): \"${seg.text.take(32).replace("\n", " ")}...\"")
+            }
+        }
 
         // 统一在任务开始时初始化一次 callback
         val startStatus = callback.start(targetSampleRate, AudioFormat.ENCODING_PCM_16BIT, 1)
@@ -143,10 +163,10 @@ class TtsSynthesizer(private val context: Context) {
 
         val bufferChunkSize = 2048 // 2KB 极速小块推流，首包延迟进入 Sub-50ms
 
-        // 本次合成会话专属内存预取缓存
+        // 本次合成会话专属内存预取缓存 (以分段规则切出的分块为基准单元)
         val sessionCache = ConcurrentHashMap<Int, Deferred<Result<ByteArray>>>()
 
-        fun getConfigForSegment(segment: SentenceSegment): TtsProviderConfig {
+        fun getConfigForSegment(segment: SentenceSegment, segmentIndex: Int = 0): TtsProviderConfig {
             var cfg = if (!mergedConfig.isDualRoleEnabled) {
                 mergedConfig
             } else {
@@ -170,6 +190,14 @@ class TtsSynthesizer(private val context: Context) {
                 }
             }
 
+            // 双 API Key 智能轮询分流 (Dual-Key Round-Robin & Concurrency Multiplier)
+            if (mergedConfig.secondaryApiKey.isNotBlank()) {
+                val useSecondary = (segmentIndex % 2 != 0)
+                cfg = cfg.copy(
+                    apiKey = if (useSecondary) mergedConfig.secondaryApiKey else mergedConfig.apiKey
+                )
+            }
+
             // 注入大模型智能情感语气导演指令 (8 大微情绪)
             if (settings.isEmotionProsodyEnabled && segment.emotion.promptInstruction.isNotBlank()) {
                 val base = cfg.promptInstruction.trim()
@@ -182,14 +210,27 @@ class TtsSynthesizer(private val context: Context) {
         }
 
         try {
-            val prefetchWindow = 4
+            // 预加载前瞻窗口深度 (当开启预加载时提前准备接下来 1~2 块分段音频，避免等待；关闭预加载时单块串行)
+            val prefetchWindow = if (settings.enableSegmentPreload && segments.size > 1) {
+                settings.preloadAheadCount.coerceIn(1, 4)
+            } else {
+                1
+            }
 
-            // 预先启动前 4 句的并发预拉取，彻底消除段落与句子间的网络等待
-            for (lookAhead in 0 until minOf(prefetchWindow, segments.size)) {
+            // 预先启动前方分段的并发预拉取 (若首段开启流式，则首段无需预取，直接进入实时推流)
+            val startPrefetchIdx = if (mergedConfig.isStreamingEnabled) 1 else 0
+            for (lookAhead in startPrefetchIdx until minOf(prefetchWindow + startPrefetchIdx, segments.size)) {
                 val seg = segments[lookAhead]
-                val segConfig = getConfigForSegment(seg)
+                val segConfig = getConfigForSegment(seg, lookAhead)
+                configDataStore.log("🚀 [后台预取] 提前启动第 ${lookAhead + 1}/${segments.size} 段并发合成...")
                 sessionCache[lookAhead] = async(Dispatchers.IO) {
-                    fetchOrSynthesizeAudio(seg.text, segConfig, settings)
+                    val startFetch = System.currentTimeMillis()
+                    val res = fetchOrSynthesizeAudio(seg.text, segConfig, settings)
+                    val costFetch = System.currentTimeMillis() - startFetch
+                    if (res.isSuccess) {
+                        configDataStore.log("✅ [预取就绪] 第 ${lookAhead + 1}/${segments.size} 段预加载完成 (耗时 ${costFetch}ms, 大小: ${res.getOrNull()?.size ?: 0} 字节)")
+                    }
+                    res
                 }
             }
 
@@ -209,78 +250,116 @@ class TtsSynthesizer(private val context: Context) {
                     )
                 }
 
-                // 随着进度推进，自动向前并发预拉取前方 4 句
-                for (ahead in 1..prefetchWindow) {
-                    val nextPrefetchIndex = i + ahead
-                    if (nextPrefetchIndex < segments.size && !sessionCache.containsKey(nextPrefetchIndex)) {
-                        val nextSeg = segments[nextPrefetchIndex]
-                        val nextSegConfig = getConfigForSegment(nextSeg)
-                        sessionCache[nextPrefetchIndex] = async(Dispatchers.IO) {
-                            fetchOrSynthesizeAudio(nextSeg.text, nextSegConfig, settings)
+                // 随着播放进度推进，按照分段规则自动提前异步预拉取前方分块音频
+                if (settings.enableSegmentPreload) {
+                    for (ahead in 1..prefetchWindow) {
+                        val nextPrefetchIndex = i + ahead
+                        if (nextPrefetchIndex < segments.size && !sessionCache.containsKey(nextPrefetchIndex)) {
+                            val nextSeg = segments[nextPrefetchIndex]
+                            val nextSegConfig = getConfigForSegment(nextSeg, nextPrefetchIndex)
+                            configDataStore.log("🚀 [后台预取] 提前启动第 ${nextPrefetchIndex + 1}/${segments.size} 段并发合成...")
+                            sessionCache[nextPrefetchIndex] = async(Dispatchers.IO) {
+                                val startFetch = System.currentTimeMillis()
+                                val res = fetchOrSynthesizeAudio(nextSeg.text, nextSegConfig, settings)
+                                val costFetch = System.currentTimeMillis() - startFetch
+                                if (res.isSuccess) {
+                                    configDataStore.log("✅ [预取就绪] 第 ${nextPrefetchIndex + 1}/${segments.size} 段预加载完成 (耗时 ${costFetch}ms, 大小: ${res.getOrNull()?.size ?: 0} 字节)")
+                                }
+                                res
+                            }
                         }
                     }
                 }
 
-                // 取出当前句的异步任务并等待结果
-                val currentDeferred = sessionCache[i] ?: async(Dispatchers.IO) {
-                    val seg = segments[i]
-                    fetchOrSynthesizeAudio(seg.text, getConfigForSegment(seg), settings)
-                }
+                configDataStore.log("🔊 [正在朗读] 第 ${i + 1}/${segments.size} 段开始推流播放...")
 
-                val audioResult = currentDeferred.await()
-
-                if (audioResult.isFailure) {
-                    val err = audioResult.exceptionOrNull()?.message ?: "未知合成错误"
-                    configDataStore.log("第 ${i + 1}/${segments.size} 句合成失败: $err")
-                    continue
-                }
-
-                val rawAudioBytes = audioResult.getOrNull() ?: ByteArray(0)
-                if (rawAudioBytes.isEmpty()) continue
-
-                // 纯内存 PCM 硬件解码
-                val decoded = AudioDecoder.decodeToPcm(rawAudioBytes, mergedConfig.sampleRate)
-                if (decoded.pcmData.isEmpty()) continue
-
-                // 实时高精度 PCM 采样率自适应重采样与单声道混音（对于无服务端音调的大模型，由客户端 DSP 实时变调）
-                val effectiveSourceRate = if (mergedConfig.type == com.aitts.engine.data.ProviderType.EDGE_TTS ||
-                                              mergedConfig.type == com.aitts.engine.data.ProviderType.AZURE ||
-                                              mergedConfig.type == com.aitts.engine.data.ProviderType.DOUBAO ||
-                                              mergedConfig.type == com.aitts.engine.data.ProviderType.MINIMAX ||
-                                              mergedConfig.pitch == 1.0f) {
-                    decoded.sampleRate
-                } else {
-                    (decoded.sampleRate / mergedConfig.pitch.coerceIn(0.5f, 2.0f)).toInt()
-                }
-
-                val resampledPcm = AudioResampler.resample(
-                    pcmData = decoded.pcmData,
-                    sourceSampleRate = effectiveSourceRate,
-                    sourceChannels = decoded.channelCount,
-                    targetSampleRate = targetSampleRate,
-                    targetChannels = 1
-                )
-
-                // 软件级人声增强、VAD 首尾死区切除与睡眠定时音量淡出
+                val seg = segments[i]
+                val segConfig = getConfigForSegment(seg, i)
                 val sleepFadeFactor = SleepTimerManager.getInstance(context).getFadeVolumeFactor()
-                val effectiveGain = (mergedConfig.volume * settings.loudnessGainFactor * sleepFadeFactor).coerceIn(0.0f, 2.5f)
-                val finalPcm = AudioEnhancer.processPcm(
-                    pcmData = resampledPcm,
-                    channels = 1,
-                    enableClarity = settings.voiceClarityBoostEnabled,
-                    gainFactor = effectiveGain,
-                    trimSilence = true
-                )
+                val effectiveGain = (segConfig.volume * settings.loudnessGainFactor * sleepFadeFactor).coerceIn(0.0f, 2.5f)
 
-                // 极速分块向系统音频管道流式写入 PCM
-                var offset = 0
-                while (offset < finalPcm.size) {
-                    if (isStopped.get() || !isActive) {
-                        return@withContext
+                if (segConfig.isStreamingEnabled && !sessionCache.containsKey(i)) {
+                    configDataStore.log("⚡ [流式首包秒开] 第 ${i + 1}/${segments.size} 段开启实时推流播报 (语速: ${segConfig.speed}x)...")
+                    val streamRes = providerManager.synthesizeStreaming(seg.text, segConfig) { rawChunk ->
+                        if (isStopped.get() || !isActive) return@synthesizeStreaming
+                        val resampled = AudioResampler.resampleWithSpeed(
+                            pcmData = rawChunk,
+                            sourceSampleRate = segConfig.sampleRate,
+                            sourceChannels = 1,
+                            targetSampleRate = targetSampleRate,
+                            targetChannels = 1,
+                            speed = segConfig.speed
+                        )
+                        val enhanced = AudioEnhancer.processPcm(
+                            pcmData = resampled,
+                            channels = 1,
+                            enableClarity = settings.voiceClarityBoostEnabled,
+                            gainFactor = effectiveGain,
+                            trimSilence = false
+                        )
+                        var off = 0
+                        while (off < enhanced.size) {
+                            if (isStopped.get() || !isActive) break
+                            val len = minOf(bufferChunkSize, enhanced.size - off)
+                            callback.audioAvailable(enhanced, off, len)
+                            off += len
+                        }
                     }
-                    val length = Math.min(bufferChunkSize, finalPcm.size - offset)
-                    callback.audioAvailable(finalPcm, offset, length)
-                    offset += length
+
+                    if (streamRes.isSuccess && settings.isAudioCacheEnabled) {
+                        val allBytes = streamRes.getOrNull()
+                        if (allBytes != null && allBytes.isNotEmpty()) {
+                            audioCacheManager.saveAudio(seg.text, segConfig, allBytes)
+                        }
+                    }
+                } else {
+                    // 取出当前句的异步任务并等待结果 (全量/预加载/非流式通道)
+                    val currentDeferred = sessionCache[i] ?: async(Dispatchers.IO) {
+                        fetchOrSynthesizeAudio(seg.text, segConfig, settings)
+                    }
+
+                    val audioResult = currentDeferred.await()
+
+                    if (audioResult.isFailure) {
+                        val err = audioResult.exceptionOrNull()?.message ?: "未知合成错误"
+                        configDataStore.log("第 ${i + 1}/${segments.size} 句合成失败: $err")
+                        continue
+                    }
+
+                    val rawAudioBytes = audioResult.getOrNull() ?: ByteArray(0)
+                    if (rawAudioBytes.isEmpty()) continue
+
+                    // 纯内存 PCM 硬件解码
+                    val decoded = AudioDecoder.decodeToPcm(rawAudioBytes, segConfig.sampleRate)
+                    if (decoded.pcmData.isEmpty()) continue
+
+                    // 实时高精度 PCM 采样率自适应重采样与单声道混音
+                    val resampledPcm = AudioResampler.resample(
+                        pcmData = decoded.pcmData,
+                        sourceSampleRate = decoded.sampleRate,
+                        sourceChannels = decoded.channelCount,
+                        targetSampleRate = targetSampleRate,
+                        targetChannels = 1
+                    )
+
+                    val finalPcm = AudioEnhancer.processPcm(
+                        pcmData = resampledPcm,
+                        channels = 1,
+                        enableClarity = settings.voiceClarityBoostEnabled,
+                        gainFactor = effectiveGain,
+                        trimSilence = true
+                    )
+
+                    // 极速分块向系统音频管道流式写入 PCM
+                    var offset = 0
+                    while (offset < finalPcm.size) {
+                        if (isStopped.get() || !isActive) {
+                            return@withContext
+                        }
+                        val length = Math.min(bufferChunkSize, finalPcm.size - offset)
+                        callback.audioAvailable(finalPcm, offset, length)
+                        offset += length
+                    }
                 }
 
                 // 注入小说朗读自然呼吸停顿 (Silence padding)

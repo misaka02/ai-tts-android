@@ -29,6 +29,174 @@ object SentenceSplitter {
     }
 
     /**
+     * 智能精细化规则分段引擎：
+     * 1. 严格支持按换行自然段落 (PARAGRAPH)、按标点断句 (PUNCTUATION)、智能对白角色 (SMART_HYBRID)；
+     * 2. 支持短段落自动合并；
+     * 3. 超长段落严格以句号/问号/感叹号等句末标点为切分节点，绝不生硬截断。
+     */
+    fun splitTextWithFineRules(
+        text: String,
+        mode: String = "PARAGRAPH",
+        mergeShort: Boolean = false,
+        minMergeLen: Int = 30,
+        splitLong: Boolean = false,
+        maxLen: Int = 200,
+        ultraLowLatency: Boolean = true
+    ): List<SentenceSegment> {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return emptyList()
+
+        return when (mode) {
+            "SMART_HYBRID" -> {
+                val segments = splitTextWithRoles(trimmed, if (splitLong) maxLen else 400, ultraLowLatency)
+                if (!mergeShort || segments.size <= 1) {
+                    segments
+                } else {
+                    val merged = mutableListOf<SentenceSegment>()
+                    var currentRole = segments.first().role
+                    var currentEmotion = segments.first().emotion
+                    val buffer = StringBuilder(segments.first().text)
+
+                    for (i in 1 until segments.size) {
+                        val seg = segments[i]
+                        if (seg.role == currentRole && buffer.length < minMergeLen) {
+                            buffer.append(" ").append(seg.text)
+                        } else {
+                            merged.add(SentenceSegment(buffer.toString().trim(), currentRole, currentEmotion))
+                            buffer.clear()
+                            buffer.append(seg.text)
+                            currentRole = seg.role
+                            currentEmotion = seg.emotion
+                        }
+                    }
+                    if (buffer.isNotEmpty()) {
+                        merged.add(SentenceSegment(buffer.toString().trim(), currentRole, currentEmotion))
+                    }
+                    merged
+                }
+            }
+            "PUNCTUATION" -> {
+                val rawSentences = splitBlockIntoSentences(trimmed, if (splitLong) maxLen else 300)
+                if (!mergeShort || rawSentences.size <= 1) {
+                    rawSentences.map { SentenceSegment(it, SegmentRole.NARRATOR) }
+                } else {
+                    val merged = mutableListOf<String>()
+                    val buffer = StringBuilder()
+                    for (s in rawSentences) {
+                        if (buffer.isEmpty()) {
+                            buffer.append(s)
+                        } else if (buffer.length < minMergeLen) {
+                            buffer.append(" ").append(s)
+                        } else {
+                            merged.add(buffer.toString().trim())
+                            buffer.clear()
+                            buffer.append(s)
+                        }
+                    }
+                    if (buffer.isNotEmpty()) {
+                        merged.add(buffer.toString().trim())
+                    }
+                    merged.map { SentenceSegment(it, SegmentRole.NARRATOR) }
+                }
+            }
+            else -> {
+                // 默认 PARAGRAPH: 按自然换行段落划分
+                val rawParagraphs = trimmed.split(Regex("[\r\n]+"))
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+
+                if (rawParagraphs.isEmpty()) {
+                    return listOf(SentenceSegment(trimmed, SegmentRole.NARRATOR))
+                }
+
+                // 阶段 A: 短段落合并处理 (仅合并短段落，不将长段落强行吞入)
+                val afterMerge = if (mergeShort && rawParagraphs.size > 1) {
+                    val merged = mutableListOf<String>()
+                    val buffer = StringBuilder()
+                    for (p in rawParagraphs) {
+                        if (buffer.isEmpty()) {
+                            buffer.append(p)
+                        } else if (p.length < minMergeLen && (buffer.length + p.length) < minMergeLen * 2) {
+                            buffer.append("\n").append(p)
+                        } else if (buffer.length < minMergeLen && p.length < minMergeLen) {
+                            buffer.append("\n").append(p)
+                        } else {
+                            merged.add(buffer.toString().trim())
+                            buffer.clear()
+                            buffer.append(p)
+                        }
+                    }
+                    if (buffer.isNotEmpty()) {
+                        merged.add(buffer.toString().trim())
+                    }
+                    merged
+                } else {
+                    rawParagraphs
+                }
+
+                // 阶段 B: 超长段落以句末标点（句号/感叹号/问号）为节点进行拆分
+                val finalBlocks = if (splitLong) {
+                    val result = mutableListOf<String>()
+                    for (block in afterMerge) {
+                        if (block.length > maxLen) {
+                            val subSentences = splitBlockIntoSentencesByPunctuation(block, maxLen)
+                            result.addAll(subSentences)
+                        } else {
+                            result.add(block)
+                        }
+                    }
+                    result
+                } else {
+                    afterMerge
+                }
+
+                finalBlocks.map { SentenceSegment(it, SegmentRole.NARRATOR) }
+            }
+        }
+    }
+
+    /**
+     * 严格以句末标点（。！？!?…）为节点切分超长段落，绝不生硬截断
+     */
+    fun splitBlockIntoSentencesByPunctuation(text: String, targetMaxLength: Int): List<String> {
+        val result = mutableListOf<String>()
+        val currentChunk = StringBuilder()
+
+        var i = 0
+        while (i < text.length) {
+            val c = text[i]
+            currentChunk.append(c)
+
+            val isPrimaryEnd = c in SENTENCE_END_PUNCTUATIONS
+            val isSecondaryEnd = c in SECONDARY_PUNCTUATIONS && currentChunk.length >= targetMaxLength
+            val isForceEnd = currentChunk.length >= (targetMaxLength * 1.5).toInt() && (c in SECONDARY_PUNCTUATIONS || c == ' ')
+
+            if ((isPrimaryEnd && currentChunk.length >= targetMaxLength / 2) || isSecondaryEnd || isForceEnd) {
+                while (i + 1 < text.length && isClosingQuote(text[i + 1])) {
+                    i++
+                    currentChunk.append(text[i])
+                }
+
+                val sentence = currentChunk.toString().trim()
+                if (sentence.isNotEmpty()) {
+                    result.add(sentence)
+                }
+                currentChunk.clear()
+            }
+            i++
+        }
+
+        if (currentChunk.isNotEmpty()) {
+            val remaining = currentChunk.toString().trim()
+            if (remaining.isNotEmpty()) {
+                result.add(remaining)
+            }
+        }
+
+        return if (result.isEmpty()) listOf(text) else result
+    }
+
+    /**
      * 智能多角色切分：将文本拆分为携带角色（旁白 / 男主 / 女主 / 长者）的切片列表
      */
     fun splitTextWithRoles(
