@@ -941,7 +941,7 @@ fun PulseStudioSettingsScreen(
                                                     shape = RoundedCornerShape(6.dp),
                                                     color = PulseTokens.CyanElectric.copy(alpha = 0.15f)
                                                 ) {
-                                                    Text("v3.7.0", fontSize = 11.sp, color = PulseTokens.CyanElectric, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), fontWeight = FontWeight.Bold)
+                                                    Text("v${com.aitts.engine.BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = PulseTokens.CyanElectric, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), fontWeight = FontWeight.Bold)
                                                 }
                                             }
 

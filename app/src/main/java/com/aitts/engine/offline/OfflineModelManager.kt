@@ -474,7 +474,7 @@ object OfflineModelManager {
                     onProgress(5, "正在连接高速下载镜像 (${idx + 1}/${candidateUrls.size})...")
                     val request = Request.Builder()
                         .url(downloadUrl)
-                        .addHeader("User-Agent", "Mozilla/5.0 AI-TTS-Engine/3.7.0")
+                        .addHeader("User-Agent", "Mozilla/5.0 AI-TTS-Engine/${com.aitts.engine.BuildConfig.VERSION_NAME}")
                         .build()
 
                     val response = client.newCall(request).execute()

@@ -7,7 +7,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0%2B-purple.svg)](https://kotlinlang.org/)
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-blueviolet.svg)](https://developer.android.com/jetpack/compose)
-[![Latest Release](https://img.shields.io/badge/Release-v3.7.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
+[![Latest Release](https://img.shields.io/badge/Release-v3.8.0-brightgreen.svg)](https://github.com/misaka02/ai-tts-android/releases)
 [![APK Size](https://img.shields.io/badge/APK_Size-2.07MB-blue.svg)](https://github.com/misaka02/ai-tts-android/releases)
 
 <br/>
@@ -20,7 +20,7 @@
 **AI TTS Android Engine** 是一款基于 Android 标准 `TextToSpeechService` 构建的系统级语音引擎。
 无缝桥接云端主流 AI 语音大模型与端侧 Sherpa-ONNX 离线神经网络，为「开源阅读 (Legado)」、「静读天下」及系统无障碍读屏提供自然流畅的听书体验。
 
-[下载最新正式版 (v3.7.0)](#安装包下载)
+[下载最新正式版 (v3.8.0)](#安装包下载)
 
 </div>
 
@@ -46,8 +46,8 @@
 
 | 资源名称 | 版本说明 | 下载渠道 (国内高速) | 下载渠道 (官方直连) |
 | :--- | :--- | :--- | :--- |
-| **AI-TTS Engine 主程序** | **v3.7.0 正式版** (2.07MB) | [高速镜像下载](https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/v3.7.0/ai-tts-engine-v3.7.0.apk) | [GitHub Releases](https://github.com/misaka02/ai-tts-android/releases/download/v3.7.0/ai-tts-engine-v3.7.0.apk) |
-| **离线 JNI 运行时组件** | **ARM64 架构** (8.3MB，使用离线模型时需安装) | [高速镜像下载](https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/v3.7.0/ai-tts-offline-runtime-arm64.apk) | [GitHub Releases](https://github.com/misaka02/ai-tts-android/releases/download/v3.7.0/ai-tts-offline-runtime-arm64.apk) |
+| **AI-TTS Engine 主程序** | **v3.8.0 正式版** (2.07MB) | [高速镜像下载](https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/v3.8.0/ai-tts-engine-v3.8.0.apk) | [GitHub Releases](https://github.com/misaka02/ai-tts-android/releases/download/v3.8.0/ai-tts-engine-v3.8.0.apk) |
+| **离线 JNI 运行时组件** | **ARM64 架构** (8.3MB，使用离线模型时需安装) | [高速镜像下载](https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/v3.8.0/ai-tts-offline-runtime-arm64.apk) | [GitHub Releases](https://github.com/misaka02/ai-tts-android/releases/download/v3.8.0/ai-tts-offline-runtime-arm64.apk) |
 
 > *注：若使用离线模型，可在应用内点击「下载独立离线组件」自动下载安装，也可直接下载上述运行时组件安装。*
 

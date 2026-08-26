@@ -308,7 +308,7 @@ fun VinylHubScreen(
                                 border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.4f))
                             ) {
                                 Text(
-                                    text = "v3.7.0",
+                                    text = "v${com.aitts.engine.BuildConfig.VERSION_NAME}",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = PulseTokens.CyanElectric,
