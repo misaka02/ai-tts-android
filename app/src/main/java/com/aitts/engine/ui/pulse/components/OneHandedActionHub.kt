@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.activity.compose.BackHandler
 import com.aitts.engine.ui.pulse.theme.PulseTokens
 
 data class ActionHubItem(
@@ -55,6 +56,7 @@ data class ActionHubItem(
     val icon: ImageVector,
     val color: Color = PulseTokens.DefaultCyanElectric,
     val isLoading: Boolean = false,
+    val autoDismiss: Boolean = true,
     val onClick: () -> Unit
 )
 
@@ -70,6 +72,11 @@ fun UniversalActionHub(
     icon: ImageVector = Icons.Default.Tune
 ) {
     var isExpanded by remember { mutableStateOf(false) }
+
+    // 物理/手势返回键拦截：大拇指菜单展开时优先收起菜单
+    BackHandler(enabled = isExpanded) {
+        isExpanded = false
+    }
 
     val hubAlpha by animateFloatAsState(
         targetValue = if (isExpanded) 1.0f else 0.88f,
@@ -101,7 +108,9 @@ fun UniversalActionHub(
                         isLoading = item.isLoading,
                         onClick = {
                             item.onClick()
-                            isExpanded = false
+                            if (item.autoDismiss) {
+                                isExpanded = false
+                            }
                         }
                     )
                 }

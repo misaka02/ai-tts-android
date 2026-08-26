@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -159,7 +160,8 @@ fun StudioHubScreen(
     var lastLatencyMs by remember { mutableStateOf<Long?>(null) }
     var testText by remember { mutableStateOf("欢迎使用 Modern Studio 专业声学调音台！实时 VU 表与 TTS 韵律引擎已就绪。") }
     var quoteSourceDesc by remember { mutableStateOf<String?>("《文心雕龙》 · 刘勰") }
-    var quoteButtonText by remember { mutableStateOf("一言金句") }
+    var quoteButtonText by remember { mutableStateOf("在线语料") }
+    var showClearCacheConfirmDialog by remember { mutableStateOf(false) }
 
     var showVoicePickerDialog by remember { mutableStateOf(false) }
     var showPromptDialog by remember { mutableStateOf(false) }
@@ -687,8 +689,7 @@ fun StudioHubScreen(
                 icon = Icons.Default.CleaningServices,
                 color = PulseTokens.MagentaLaser,
                 onClick = {
-                    audioCacheManager.clearAll()
-                    Toast.makeText(context, "音频缓存已全部清空", Toast.LENGTH_SHORT).show()
+                    showClearCacheConfirmDialog = true
                 }
             ),
             ActionHubItem(
@@ -1193,6 +1194,46 @@ fun StudioHubScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
+        }
+
+        // 清理缓存二次确认弹窗
+        if (showClearCacheConfirmDialog) {
+            val (cacheCount, cacheSizeMb) = remember(isPlaying) { audioCacheManager.getStats() }
+            val formattedCacheSize = when {
+                cacheSizeMb <= 0.05f -> "0 MB"
+                cacheSizeMb < 10f -> String.format(java.util.Locale.US, "%.1f MB", cacheSizeMb)
+                else -> String.format(java.util.Locale.US, "%.0f MB", cacheSizeMb)
+            }
+            AlertDialog(
+                onDismissRequest = { showClearCacheConfirmDialog = false },
+                title = { Text("确认清空音频缓存？", fontWeight = FontWeight.Bold, color = PulseTokens.MagentaLaser) },
+                text = {
+                    Text(
+                        text = "当前已缓存 ${cacheCount} 个音频分块（共 $formattedCacheSize）。\n\n清空后将释放本地存储空间，下次朗读或试听需重新联网或离线推理生成。确定清空吗？",
+                        fontSize = 13.sp,
+                        color = PulseTokens.TextSecondary,
+                        lineHeight = 18.sp
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            audioCacheManager.clearAll()
+                            showClearCacheConfirmDialog = false
+                            Toast.makeText(context, "已释放本地音频缓存 ($formattedCacheSize)", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PulseTokens.MagentaLaser, contentColor = Color.White)
+                    ) {
+                        Text("确定清空", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearCacheConfirmDialog = false }) {
+                        Text("取消", color = PulseTokens.TextSecondary)
+                    }
+                },
+                containerColor = PulseTokens.SurfaceElevated
+            )
         }
     }
 }

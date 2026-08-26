@@ -20,7 +20,7 @@
 **AI TTS Android Engine** 是一款基于 Android 标准 `TextToSpeechService` 构建的系统级语音引擎。
 无缝桥接云端主流 AI 语音大模型与端侧 Sherpa-ONNX 离线神经网络，为「开源阅读 (Legado)」、「静读天下」及系统无障碍读屏提供自然流畅的听书体验。
 
-[下载最新正式版 (v3.8.0)](#安装包下载)
+[下载最新正式版 (v3.8.0)](#安装包下载) · [体验最新开发测试预览版 (Round 43)](https://github.com/misaka02/ai-tts-android/releases/tag/previous)
 
 </div>
 
@@ -46,6 +46,7 @@
 
 | 资源名称 | 版本说明 | 下载渠道 (国内高速) | 下载渠道 (官方直连) |
 | :--- | :--- | :--- | :--- |
+| **🚀 开发测试预览版 (Preview)** | **Round 43 预览版** (2.19MB，先行体验最新交互特性) | [高速镜像下载](https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/previous/ai-tts-engine-v3.8.0-pulse-round43.apk) | [GitHub Previous 专区](https://github.com/misaka02/ai-tts-android/releases/tag/previous) |
 | **AI-TTS Engine 主程序** | **v3.8.0 正式版** (2.07MB) | [高速镜像下载](https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/v3.8.0/ai-tts-engine-v3.8.0.apk) | [GitHub Releases](https://github.com/misaka02/ai-tts-android/releases/download/v3.8.0/ai-tts-engine-v3.8.0.apk) |
 | **离线 JNI 运行时组件** | **ARM64 架构** (8.3MB，使用离线模型时需安装) | [高速镜像下载](https://ghfast.top/https://github.com/misaka02/ai-tts-android/releases/download/v3.8.0/ai-tts-offline-runtime-arm64.apk) | [GitHub Releases](https://github.com/misaka02/ai-tts-android/releases/download/v3.8.0/ai-tts-offline-runtime-arm64.apk) |
 

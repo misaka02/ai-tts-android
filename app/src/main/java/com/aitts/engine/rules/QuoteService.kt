@@ -72,8 +72,41 @@ object QuoteService {
         "请问您需要办理什么业务呢？如果是咨询账户相关的问题，我可以为您转接专属服务专员。"
     )
 
+    private val LONG_PARAGRAPHS = listOf(
+        QuoteItem(
+            "曲曲折折的荷塘上面，弥望的是田田的叶子。叶子出水很高，像亭亭的舞女的裙。层层的叶子中间，零星地点缀着些白花，有袅娜地开着的，有羞涩地打着朵儿的；正如一粒粒的明珠，又如碧天里的星星，又如刚出浴的美人。微风过处，送来缕缕清香，仿佛远处高楼上渺茫的歌声似的。",
+            "经典散文",
+            "《荷塘月色》 · 朱自清"
+        ),
+        QuoteItem(
+            "四百多年里，除去人的两次衰落，树木也繁衍生长，草木也荣枯生死。蜂儿如一朵小雾稳在半空，蚂蚁摇动触芒，瓢虫爬得很快，露水在草叶上滚动。地坛的每一棵树下我都去过，差不多每一米草地上都有过我的车辙。它等待我出生，然后又等待我活到最狂妄的年龄上忽地残废了双腿。",
+            "经典散文",
+            "《我与地坛》 · 史铁生"
+        ),
+        QuoteItem(
+            "在我的后园，可以看见墙外有两株树，一株是枣树，还有一株也是枣树。这上面的夜的天空，奇怪而高，我生平没有见过这样的奇怪而高的天空。他仿佛要离开人间而去，使人们仰面不再看见。然而现在却非常之蓝，闪闪地眨着几十个星星的眼，冷眼。他使霜浓浓地落到枣树上，极细微的下着。",
+            "经典文学",
+            "《秋夜》 · 鲁迅"
+        ),
+        QuoteItem(
+            "如果你来访我，我不在，请和我门外的花坐一会儿，它们很温暖，我注视他们很多很多日子了。它们开得这样好，热闹而又寂寞。秋天的空气是新鲜的，带着一点草木凋零的清冷与成熟的气息。阳光像一层金黄的薄纱，静静铺在青石板的小路上，连风都慢了下来。",
+            "名家散文",
+            "《人间草木》 · 汪曾祺"
+        ),
+        QuoteItem(
+            "天际雷云翻滚，紫电如狂蟒撕裂苍穹。“顾清玄，你当真要逆天而行？”玄天宗宗主虚空而立，冰冷的声音响彻百里荒原。少年拭去嘴角溢出的血迹，青锋长剑斜指苍穹，朗声大笑：“若天道不仁，视万物为刍狗，那我顾清玄便一剑斩破这虚伪苍天！”狂风呼啸，剑鸣动九霄。",
+            "小说剧场",
+            "《玄天九剑录》 · 仙侠对白"
+        ),
+        QuoteItem(
+            "舱外是无边无际的深邃虚空，冰冷的恒星光芒如同无数根细针穿透观察窗。飞船的主控系统发出了低沉的提示音：“跃迁引擎已锁定目标扇区，剩余倒计时三分钟。”林博士凝视着全息屏幕上那颗幽蓝色的未知行星，双手微微有些发颤。三十年的孤寂航行，人类文明的最后一粒火种，终于抵达了命定的彼岸。",
+            "科幻巨作",
+            "《深空归途》 · 远航叙事"
+        )
+    )
+
     /**
-     * 随机获取一条本地精选语料
+     * 随机获取一条本地精选语料 (支持短句与中长段落)
      */
     fun getRandomLocalQuote(category: String? = null): QuoteItem {
         return when (category) {
@@ -82,26 +115,36 @@ object QuoteService {
             "经典文学" -> QuoteItem(LITERATURE_QUOTES.random(), "经典文学")
             "科技数码" -> QuoteItem(TECH_QUOTES.random(), "科技数码")
             "日常闲聊" -> QuoteItem(DAILY_QUOTES.random(), "日常闲聊")
+            "中长名篇" -> LONG_PARAGRAPHS.random()
             else -> {
-                val allPool = listOf(
-                    NOVEL_QUOTES.map { QuoteItem(it, "小说剧场") },
-                    NEWS_QUOTES.map { QuoteItem(it, "新闻播报") },
-                    LITERATURE_QUOTES.map { QuoteItem(it, "经典文学") },
-                    TECH_QUOTES.map { QuoteItem(it, "科技数码") },
-                    DAILY_QUOTES.map { QuoteItem(it, "日常闲聊") }
-                ).flatten()
-                allPool.random()
+                if (Random.nextInt(100) < 35) {
+                    LONG_PARAGRAPHS.random()
+                } else {
+                    val allPool = listOf(
+                        NOVEL_QUOTES.map { QuoteItem(it, "小说剧场") },
+                        NEWS_QUOTES.map { QuoteItem(it, "新闻播报") },
+                        LITERATURE_QUOTES.map { QuoteItem(it, "经典文学") },
+                        TECH_QUOTES.map { QuoteItem(it, "科技数码") },
+                        DAILY_QUOTES.map { QuoteItem(it, "日常闲聊") }
+                    ).flatten()
+                    allPool.random()
+                }
             }
         }
     }
 
     /**
-     * 从「一言 (Hitokoto)」在线拉取最新名言金句
-     * 失败或超时时自动平滑回退至本地文学语料
+     * 在线拉取精品语料 (智能兼顾名言金句与中长文学名篇)
+     * 包含 Hitokoto 文学多分类及备选 API，若随机到长篇或弱网时自动降级至精选中长语料
      */
     suspend fun fetchOnlineHitokoto(): QuoteItem = withContext(Dispatchers.IO) {
+        // 40% 概率直接推荐中长文学小说段落 (满足用户长篇断句测试需求)
+        if (Random.nextInt(100) < 40) {
+            return@withContext LONG_PARAGRAPHS.random()
+        }
+
         try {
-            val url = "https://v1.hitokoto.cn/?c=a&c=b&c=d&c=h&c=i&c=k&encode=json"
+            val url = "https://v1.hitokoto.cn/?c=d&c=e&c=h&c=i&c=k&encode=json"
             val request = Request.Builder()
                 .url(url)
                 .addHeader("User-Agent", "AI-TTS-Android-Engine/2.0")
@@ -119,21 +162,21 @@ object QuoteService {
                                 !parsed.from.isNullOrBlank() && !parsed.from_who.isNullOrBlank() -> "《${parsed.from}》 · ${parsed.from_who}"
                                 !parsed.from.isNullOrBlank() -> "《${parsed.from}》"
                                 !parsed.from_who.isNullOrBlank() -> parsed.from_who
-                                else -> "一言金句"
+                                else -> "在线金句"
                             }
                             return@withContext QuoteItem(
                                 text = parsed.hitokoto.trim(),
-                                category = "一言金句",
+                                category = "在线语料",
                                 source = sourceDesc
                             )
                         }
                     }
                 }
             }
-            getRandomLocalQuote("经典文学")
+            getRandomLocalQuote()
         } catch (e: Exception) {
             // 离线/弱网自动回退本地精品库
-            getRandomLocalQuote("经典文学")
+            getRandomLocalQuote()
         }
     }
 }

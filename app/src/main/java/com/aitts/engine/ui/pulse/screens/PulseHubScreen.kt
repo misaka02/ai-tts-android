@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Palette
@@ -129,6 +130,16 @@ import kotlin.math.roundToInt
  * 4. 底部抽屉式模型快速切换（长按防抖平滑拖拽排序）；
  * 5. 右下角单手单拇指悬浮收纳岛。
  */
+private data class RequestLogSession(
+    val sessionId: String,
+    val startTime: String,
+    val summaryTitle: String,
+    val details: String?,
+    val isComplete: Boolean,
+    val isError: Boolean,
+    val entries: List<AppLogEntry>
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PulseHubScreen(
@@ -176,6 +187,9 @@ fun PulseHubScreen(
     var showAcousticDialog by remember { mutableStateOf(false) }
     var showBottomSheetModelPicker by remember { mutableStateOf(false) }
     var showLiveLogsDialog by remember { mutableStateOf(false) }
+    var showClearCacheConfirmDialog by remember { mutableStateOf(false) }
+    var showClearLogsConfirmDialog by remember { mutableStateOf(false) }
+    var logViewMode by remember { mutableStateOf(0) }
 
     val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -211,14 +225,16 @@ fun PulseHubScreen(
         isSynthesizing = true
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
+        val trialSessionId = "trial-" + java.util.UUID.randomUUID().toString().take(6)
+
         scope.launch {
             try {
                 val effectiveSpeed = (provider.speed * settings.globalSpeed).coerceIn(0.2f, 3.0f)
                 val effectivePitch = (provider.pitch * settings.globalPitch).coerceIn(0.2f, 2.0f)
                 val testConfig = provider.copy(speed = effectiveSpeed, pitch = effectivePitch)
 
-                configDataStore.log("🚀 发起语音合成: 模型=【${provider.name}】(${provider.type.displayName}), 音色=${provider.voiceId.ifBlank { "默认" }}, 文本=“${testText.take(28)}...”")
-                configDataStore.log("🌐 正在连接服务端端点: ${provider.baseUrl.ifBlank { "官方直接协议" }}")
+                configDataStore.log("🚀 发起语音合成: 模型=【${provider.name}】(${provider.type.displayName}), 音色=${provider.voiceId.ifBlank { "默认" }}, 文本=“${testText.take(28)}...”", sessionId = trialSessionId)
+                configDataStore.log("🌐 正在连接服务端端点: ${provider.baseUrl.ifBlank { "官方直接协议" }}", sessionId = trialSessionId)
 
                 val startTime = System.currentTimeMillis()
                 var firstChunkReceived = false
@@ -231,7 +247,7 @@ fun PulseHubScreen(
                             lastLatencyMs = System.currentTimeMillis() - startTime
                             isSynthesizing = false
                             isPlaying = true
-                            configDataStore.log("⚡ [流式首包秒开] 首包到达耗时: ${lastLatencyMs}ms (边推边播启动)")
+                            configDataStore.log("⚡ [流式首包秒开] 首包到达耗时: ${lastLatencyMs}ms (边推边播启动)", sessionId = trialSessionId)
                         }
                         streamBuffer.write(chunk)
                     }
@@ -255,8 +271,8 @@ fun PulseHubScreen(
                         isSynthesizing = false
                         isPlaying = true
 
-                        configDataStore.log("✅ 收到音频数据: ${audioData.size} 字节, 总耗时=${costMs}ms, 采样率=${provider.sampleRate}Hz")
-                        configDataStore.log("🔊 内存音频直出播放开始, 启动 32 频段 STFT 示波分析")
+                        configDataStore.log("✅ 收到音频数据: ${audioData.size} 字节, 总耗时=${costMs}ms, 采样率=${provider.sampleRate}Hz", sessionId = trialSessionId)
+                        configDataStore.log("🔊 内存音频直出播放开始, 启动 32 频段 STFT 示波分析", sessionId = trialSessionId)
 
                         // 仅当流式传输且服务端未按提示词变速时由播放器执行时间缩放；非流式音频已在合成期原生注入语速，播放器以 1.0x 原声保真直出，杜绝二次减速/加速
                         val playbackSpeed = if (provider.isStreamingEnabled) effectiveSpeed else 1.0f
@@ -265,24 +281,24 @@ fun PulseHubScreen(
                             speed = playbackSpeed,
                             onCompletion = {
                                 isPlaying = false
-                                configDataStore.log("⏹️ 朗读播放完成")
+                                configDataStore.log("⏹️ 朗读播放完成", sessionId = trialSessionId)
                             },
                             onError = { err ->
                                 isPlaying = false
-                                configDataStore.log("⚠️ 播放器异常: $err")
+                                configDataStore.log("⚠️ 播放器异常: $err", sessionId = trialSessionId)
                             }
                         )
                     } else {
                         isSynthesizing = false
                         isPlaying = false
-                        configDataStore.log("⚠️ 合成音频流为空 (0 字节)")
+                        configDataStore.log("⚠️ 合成音频流为空 (0 字节)", sessionId = trialSessionId)
                         Toast.makeText(context, "合成音频流为空", Toast.LENGTH_SHORT).show()
                     }
                 } else {
                     isSynthesizing = false
                     isPlaying = false
                     val err = result.exceptionOrNull()?.message ?: "未知异常"
-                    configDataStore.log("❌ 合成失败: $err")
+                    configDataStore.log("❌ 合成失败: $err", sessionId = trialSessionId)
                     Toast.makeText(context, "合成失败: $err", Toast.LENGTH_LONG).show()
                 }
             } catch (t: Throwable) {
@@ -635,27 +651,30 @@ fun PulseHubScreen(
                                 }
                             }
 
-                            // 卡片 4: 缓存空间与一键清理 (支持即时归零响应)
+                            // 卡片 4: 缓存空间与一键清理 (支持紧凑显示与二次确认拦截)
                             var cacheStatsVersion by remember { mutableStateOf(0) }
                             val (cacheCount, cacheSizeMb) = remember(isPlaying, cacheStatsVersion) { audioCacheManager.getStats() }
+                            val formattedCacheSize = when {
+                                cacheSizeMb <= 0.05f -> "0 MB"
+                                cacheSizeMb < 10f -> String.format(java.util.Locale.US, "%.1f MB", cacheSizeMb)
+                                else -> String.format(java.util.Locale.US, "%.0f MB", cacheSizeMb)
+                            }
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable {
-                                        audioCacheManager.clearAll()
-                                        cacheStatsVersion++
-                                        Toast.makeText(context, "已释放本地音频缓存", Toast.LENGTH_SHORT).show()
+                                        showClearCacheConfirmDialog = true
                                     },
                                 shape = RoundedCornerShape(12.dp),
                                 color = PulseTokens.SurfaceElevated,
                                 border = BorderStroke(1.dp, PulseTokens.MagentaLaser.copy(alpha = 0.25f))
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text("缓存空间", fontSize = 10.sp, color = PulseTokens.TextTertiary)
-                                    Text("${cacheSizeMb}MB", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = PulseTokens.MagentaLaser)
+                                    Text(formattedCacheSize, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseTokens.MagentaLaser, maxLines = 1)
                                     Text("清理 🧹", fontSize = 9.sp, color = PulseTokens.MagentaLaser.copy(alpha = 0.8f))
                                 }
                             }
@@ -723,7 +742,7 @@ fun PulseHubScreen(
                                         Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(14.dp))
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("金句", fontSize = 11.5.sp)
+                                    Text("在线语料", fontSize = 11.5.sp)
                                 }
 
                                 Button(
@@ -735,7 +754,7 @@ fun PulseHubScreen(
                                 ) {
                                     Icon(Icons.Default.Casino, contentDescription = null, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("语料", fontSize = 11.5.sp)
+                                    Text("本地语料", fontSize = 11.5.sp)
                                 }
 
                                 Button(
@@ -774,8 +793,9 @@ fun PulseHubScreen(
             }
         }
 
-        // 浮动单手快捷收纳岛
+        // 浮动单手快捷收纳岛 (功能深度模块化成组 + 核心球形态支持连续连按预览)
         val hubActionItems = listOf(
+            // 组 1: 发音控制核心组 (4大模型音色操作紧密相连)
             ActionHubItem(
                 label = "切换模型",
                 icon = Icons.Default.SwapHoriz,
@@ -797,17 +817,6 @@ fun PulseHubScreen(
                 }
             ),
             ActionHubItem(
-                label = "核心球形态",
-                icon = Icons.Default.GraphicEq,
-                color = PulseTokens.CyanElectric,
-                onClick = {
-                    val nextStyle = (settings.acousticCoreStyle + 1) % 3
-                    configDataStore.updateSettings(settings.copy(acousticCoreStyle = nextStyle))
-                    val styleNames = listOf("极光光晕", "物理点阵", "引力轨道")
-                    Toast.makeText(context, "已切换核心形态为: ${styleNames[nextStyle]}", Toast.LENGTH_SHORT).show()
-                }
-            ),
-            ActionHubItem(
                 label = "模型配置",
                 icon = Icons.Default.Settings,
                 color = PulseTokens.SonicBlue,
@@ -815,13 +824,18 @@ fun PulseHubScreen(
                     onNavigateToEditProvider(activeProvider.id)
                 }
             ),
+            // 组 2: 视觉与试听组 (核心球形态支持连续点按循环预览，autoDismiss = false)
             ActionHubItem(
-                label = "清理缓存",
-                icon = Icons.Default.CleaningServices,
-                color = PulseTokens.MagentaLaser,
+                label = "核心球形态",
+                icon = Icons.Default.GraphicEq,
+                color = PulseTokens.CyanElectric,
+                autoDismiss = false,
                 onClick = {
-                    audioCacheManager.clearAll()
-                    Toast.makeText(context, "音频缓存已全部清空", Toast.LENGTH_SHORT).show()
+                    val nextStyle = (settings.acousticCoreStyle + 1) % 3
+                    configDataStore.updateSettings(settings.copy(acousticCoreStyle = nextStyle))
+                    val styleNames = listOf("极光光晕", "物理点阵", "引力轨道")
+                    Toast.makeText(context, "核心形态: ${styleNames[nextStyle]}", Toast.LENGTH_SHORT).show()
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
             ),
             ActionHubItem(
@@ -830,6 +844,15 @@ fun PulseHubScreen(
                 color = if (isPlaying) PulseTokens.MagentaLaser else PulseTokens.CyanElectric,
                 isLoading = isSynthesizing,
                 onClick = { startSynthesis(activeProvider) }
+            ),
+            // 组 3: 系统维护组 (带安全二次确认)
+            ActionHubItem(
+                label = "清理缓存",
+                icon = Icons.Default.CleaningServices,
+                color = PulseTokens.MagentaLaser,
+                onClick = {
+                    showClearCacheConfirmDialog = true
+                }
             )
         )
 
@@ -1146,6 +1169,54 @@ fun PulseHubScreen(
 
     // ⚡ 实时合成日志与性能诊断台
     if (showLiveLogsDialog) {
+        var expandedSessionIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+        val requestSessions = remember(structuredLogs) {
+            val groups = mutableListOf<RequestLogSession>()
+            var currentId: String? = null
+            var currentEntries = mutableListOf<AppLogEntry>()
+
+            for (entry in structuredLogs) {
+                val sId = entry.sessionId ?: ("sys-" + entry.timestamp.take(5))
+                if (currentId != null && sId != currentId) {
+                    val first = currentEntries.first()
+                    val hasErr = currentEntries.any { it.level == LogLevel.ERROR || it.title.contains("失败") || it.title.contains("异常") }
+                    val hasSuccess = currentEntries.any { it.level == LogLevel.SUCCESS || it.title.contains("完成") || it.title.contains("播放开始") }
+                    groups.add(
+                        RequestLogSession(
+                            sessionId = currentId,
+                            startTime = first.timestamp,
+                            summaryTitle = first.title,
+                            details = currentEntries.find { !it.details.isNullOrBlank() }?.details,
+                            isComplete = hasSuccess,
+                            isError = hasErr,
+                            entries = currentEntries.toList()
+                        )
+                    )
+                    currentEntries = mutableListOf()
+                }
+                currentId = sId
+                currentEntries.add(entry)
+            }
+
+            if (currentEntries.isNotEmpty() && currentId != null) {
+                val first = currentEntries.first()
+                val hasErr = currentEntries.any { it.level == LogLevel.ERROR || it.title.contains("失败") || it.title.contains("异常") }
+                val hasSuccess = currentEntries.any { it.level == LogLevel.SUCCESS || it.title.contains("完成") || it.title.contains("播放开始") }
+                groups.add(
+                    RequestLogSession(
+                        sessionId = currentId,
+                        startTime = first.timestamp,
+                        summaryTitle = first.title,
+                        details = currentEntries.find { !it.details.isNullOrBlank() }?.details,
+                        isComplete = hasSuccess,
+                        isError = hasErr,
+                        entries = currentEntries.toList()
+                    )
+                )
+            }
+            groups.reversed()
+        }
+
         AlertDialog(
             onDismissRequest = { showLiveLogsDialog = false },
             title = {
@@ -1154,53 +1225,263 @@ fun PulseHubScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("⚡ 实时合成日志与流水线诊断", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("⚡ 实时合成日志诊断", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Surface(
                         shape = RoundedCornerShape(6.dp),
                         color = PulseTokens.CyanElectric.copy(alpha = 0.2f)
                     ) {
-                        Text("${logs.size} 条", fontSize = 11.sp, color = PulseTokens.CyanElectric, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (logViewMode == 0) "${requestSessions.size} 批请求" else "${logs.size} 条",
+                            fontSize = 11.sp,
+                            color = PulseTokens.CyanElectric,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    // 顶部控制条: 模式选择 + 复制全部 + 清空
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(
-                            onClick = {
-                                val logText = logs.joinToString("\n")
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("TTS-Logs", logText))
-                                Toast.makeText(context, "已复制全部合成日志", Toast.LENGTH_SHORT).show()
-                            }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("复制全部", fontSize = 12.sp, color = PulseTokens.CyanElectric)
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (logViewMode == 0) PulseTokens.CyanElectric.copy(alpha = 0.25f) else Color.Transparent,
+                                border = if (logViewMode == 0) BorderStroke(1.dp, PulseTokens.CyanElectric) else BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                modifier = Modifier.clickable { logViewMode = 0 }
+                            ) {
+                                Text(
+                                    text = "按请求分组",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (logViewMode == 0) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (logViewMode == 0) PulseTokens.CyanElectric else PulseTokens.TextSecondary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (logViewMode == 1) PulseTokens.CyanElectric.copy(alpha = 0.25f) else Color.Transparent,
+                                border = if (logViewMode == 1) BorderStroke(1.dp, PulseTokens.CyanElectric) else BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                modifier = Modifier.clickable { logViewMode = 1 }
+                            ) {
+                                Text(
+                                    text = "原始流水",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (logViewMode == 1) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (logViewMode == 1) PulseTokens.CyanElectric else PulseTokens.TextSecondary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                )
+                            }
                         }
 
-                        TextButton(
-                            onClick = {
-                                configDataStore.clearLogs()
-                                Toast.makeText(context, "日志已清空", Toast.LENGTH_SHORT).show()
-                            }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("清空日志", fontSize = 12.sp, color = PulseTokens.MagentaLaser)
+                            TextButton(
+                                onClick = {
+                                    val logText = logs.joinToString("\n")
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("TTS-Logs", logText))
+                                    Toast.makeText(context, "已复制全部合成日志", Toast.LENGTH_SHORT).show()
+                                }
+                            ) {
+                                Text("复制全部", fontSize = 11.5.sp, color = PulseTokens.CyanElectric)
+                            }
+
+                            TextButton(
+                                onClick = {
+                                    showClearLogsConfirmDialog = true
+                                }
+                            ) {
+                                Text("清空", fontSize = 11.5.sp, color = PulseTokens.MagentaLaser)
+                            }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     if (logs.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(200.dp),
+                                .height(260.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("暂无合成日志，开始朗读或试听后将在此实时输出毫秒级诊断", fontSize = 12.sp, color = PulseTokens.TextTertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            Text(
+                                "暂无合成日志，开始朗读或试听后将在此实时输出结构化诊断记录",
+                                fontSize = 12.sp,
+                                color = PulseTokens.TextTertiary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    } else if (logViewMode == 0) {
+                        // 按请求会话分组视图
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(320.dp)
+                                .background(Color(0xFF0D1117), RoundedCornerShape(8.dp))
+                                .padding(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(requestSessions) { session ->
+                                val isExpanded = expandedSessionIds.contains(session.sessionId)
+                                val (statusText, statusColor) = when {
+                                    session.isError -> "失败/异常" to PulseTokens.MagentaLaser
+                                    session.isComplete -> "完成" to Color(0xFF34D399)
+                                    else -> "推流中" to PulseTokens.CyanElectric
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF161B22),
+                                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.35f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = statusColor.copy(alpha = 0.2f)
+                                                ) {
+                                                    Text(statusText, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = statusColor, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                                }
+                                                Text(
+                                                    text = "#${session.sessionId}",
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color.LightGray,
+                                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                                )
+                                            }
+                                            Text(session.startTime, fontSize = 9.sp, color = PulseTokens.TextTertiary)
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = session.summaryTitle,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            maxLines = if (isExpanded) 4 else 2
+                                        )
+
+                                        if (!session.details.isNullOrBlank()) {
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = session.details,
+                                                fontSize = 10.sp,
+                                                color = Color(0xFF8B949E),
+                                                maxLines = if (isExpanded) 4 else 1
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        // 单请求控制按钮：复制本条 + 展开/折叠
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = PulseTokens.CyanElectric.copy(alpha = 0.15f),
+                                                border = BorderStroke(0.8.dp, PulseTokens.CyanElectric.copy(alpha = 0.5f)),
+                                                modifier = Modifier.clickable {
+                                                    val sessionText = session.entries.joinToString("\n") { it.formatToString() }
+                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                    clipboard.setPrimaryClip(ClipData.newPlainText("TTS-Request-${session.sessionId}", sessionText))
+                                                    Toast.makeText(context, "已复制单次请求日志 (#${session.sessionId})", Toast.LENGTH_SHORT).show()
+                                                }
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                ) {
+                                                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PulseTokens.CyanElectric, modifier = Modifier.size(11.dp))
+                                                    Text("复制本条请求", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = PulseTokens.CyanElectric)
+                                                }
+                                            }
+
+                                            Text(
+                                                text = if (isExpanded) "收起详细 ▲" else "展开详细 (${session.entries.size}条) ▼",
+                                                fontSize = 10.sp,
+                                                color = PulseTokens.TextSecondary,
+                                                modifier = Modifier
+                                                    .clickable {
+                                                        expandedSessionIds = if (isExpanded) {
+                                                            expandedSessionIds - session.sessionId
+                                                        } else {
+                                                            expandedSessionIds + session.sessionId
+                                                        }
+                                                    }
+                                                    .padding(2.dp)
+                                            )
+                                        }
+
+                                        // 展开后的具体单条事件
+                                        if (isExpanded) {
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(Color(0xFF090D13), RoundedCornerShape(4.dp))
+                                                    .padding(4.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                session.entries.forEach { subEntry ->
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            text = "${subEntry.level.label} [${subEntry.tag}] ${subEntry.title}",
+                                                            fontSize = 10.sp,
+                                                            color = when (subEntry.level) {
+                                                                LogLevel.ERROR -> PulseTokens.MagentaLaser
+                                                                LogLevel.SUCCESS -> Color(0xFF34D399)
+                                                                LogLevel.METRIC -> Color(0xFFA78BFA)
+                                                                LogLevel.WARN -> PulseTokens.AmberWarm
+                                                                else -> Color.White
+                                                            },
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                        Text(subEntry.timestamp, fontSize = 8.5.sp, color = PulseTokens.TextTertiary)
+                                                    }
+                                                    if (!subEntry.details.isNullOrBlank()) {
+                                                        Text(
+                                                            text = subEntry.details,
+                                                            fontSize = 9.sp,
+                                                            color = Color.Gray,
+                                                            modifier = Modifier.padding(start = 6.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     } else {
+                        // 原始流水视图
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1271,6 +1552,80 @@ fun PulseHubScreen(
                     Text("关闭")
                 }
             }
+        )
+    }
+
+    // 清理缓存二次确认弹窗
+    if (showClearCacheConfirmDialog) {
+        val (cacheCount, cacheSizeMb) = remember(isPlaying) { audioCacheManager.getStats() }
+        val formattedCacheSize = when {
+            cacheSizeMb <= 0.05f -> "0 MB"
+            cacheSizeMb < 10f -> String.format(java.util.Locale.US, "%.1f MB", cacheSizeMb)
+            else -> String.format(java.util.Locale.US, "%.0f MB", cacheSizeMb)
+        }
+        AlertDialog(
+            onDismissRequest = { showClearCacheConfirmDialog = false },
+            title = { Text("确认清空音频缓存？", fontWeight = FontWeight.Bold, color = PulseTokens.MagentaLaser) },
+            text = {
+                Text(
+                    text = "当前已缓存 ${cacheCount} 个音频分块（共 $formattedCacheSize）。\n\n清空后将释放本地存储空间，下次朗读或试听需重新联网或离线推理生成。确定清空吗？",
+                    fontSize = 13.sp,
+                    color = PulseTokens.TextSecondary,
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        audioCacheManager.clearAll()
+                        showClearCacheConfirmDialog = false
+                        Toast.makeText(context, "已释放本地音频缓存 ($formattedCacheSize)", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PulseTokens.MagentaLaser, contentColor = Color.White)
+                ) {
+                    Text("确定清空", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCacheConfirmDialog = false }) {
+                    Text("取消", color = PulseTokens.TextSecondary)
+                }
+            },
+            containerColor = PulseTokens.SurfaceElevated
+        )
+    }
+
+    // 清空日志二次确认弹窗
+    if (showClearLogsConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearLogsConfirmDialog = false },
+            title = { Text("确认清空全部合成日志？", fontWeight = FontWeight.Bold, color = PulseTokens.MagentaLaser) },
+            text = {
+                Text(
+                    text = "清空后当前的调试与网络首包/吞吐诊断记录将无法恢复。确定清空吗？",
+                    fontSize = 13.sp,
+                    color = PulseTokens.TextSecondary,
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        configDataStore.clearLogs()
+                        showClearLogsConfirmDialog = false
+                        Toast.makeText(context, "日志已清空", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PulseTokens.MagentaLaser, contentColor = Color.White)
+                ) {
+                    Text("确定清空", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearLogsConfirmDialog = false }) {
+                    Text("取消", color = PulseTokens.TextSecondary)
+                }
+            },
+            containerColor = PulseTokens.SurfaceElevated
         )
     }
 

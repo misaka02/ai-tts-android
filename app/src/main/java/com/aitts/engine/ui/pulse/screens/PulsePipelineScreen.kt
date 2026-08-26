@@ -110,6 +110,7 @@ fun PulsePipelineScreen(
     var isRegex by remember { mutableStateOf(true) }
     var isCaseSensitive by remember { mutableStateOf(false) }
     var showCategorySelectorDialog by remember { mutableStateOf(false) }
+    var rulePendingDelete by remember { mutableStateOf<ReplacementRule?>(null) }
 
     val categoryTabs = listOf(
         "ALL" to "全部 (${rules.size})",
@@ -410,8 +411,7 @@ fun PulsePipelineScreen(
 
                                 IconButton(
                                     onClick = {
-                                        configDataStore.deleteRule(rule.id)
-                                        Toast.makeText(context, "已删除规则", Toast.LENGTH_SHORT).show()
+                                        rulePendingDelete = rule
                                     },
                                     modifier = Modifier.size(30.dp)
                                 ) {
@@ -422,6 +422,40 @@ fun PulsePipelineScreen(
                     }
                 }
             }
+        }
+
+        // 删除规则确认弹窗
+        rulePendingDelete?.let { targetRule ->
+            AlertDialog(
+                onDismissRequest = { rulePendingDelete = null },
+                title = { Text("确认删除发音规则？", fontWeight = FontWeight.Bold, color = PulseTokens.MagentaLaser) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("确定要删除以下发音纠错/替换规则吗？", fontSize = 13.sp, color = PulseTokens.TextSecondary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("• 规则描述: ${targetRule.description.ifBlank { targetRule.pattern }}", fontSize = 12.sp, color = PulseTokens.CyanElectric, fontWeight = FontWeight.Bold)
+                        Text("• 匹配内容: ${targetRule.pattern} → ${targetRule.replacement}", fontSize = 12.sp, color = PulseTokens.TextPrimary)
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            configDataStore.deleteRule(targetRule.id)
+                            rulePendingDelete = null
+                            Toast.makeText(context, "已删除规则: ${targetRule.description.ifBlank { targetRule.pattern }}", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PulseTokens.MagentaLaser, contentColor = Color.White)
+                    ) {
+                        Text("确定删除", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { rulePendingDelete = null }) {
+                        Text("取消", color = PulseTokens.TextSecondary)
+                    }
+                },
+                containerColor = PulseTokens.SurfaceElevated
+            )
         }
 
         // 右下角大拇指悬浮收纳岛 (规则流水线专属动作组 - 仅在当前页面活跃时渲染)

@@ -46,13 +46,14 @@ class ConfigDataStore(private val context: Context) {
     private val _structuredLogsFlow = MutableStateFlow<List<AppLogEntry>>(emptyList())
     val structuredLogsFlow: StateFlow<List<AppLogEntry>> = _structuredLogsFlow.asStateFlow()
 
-    fun log(message: String, level: LogLevel = LogLevel.INFO, tag: String = "TTS") {
+    fun log(message: String, level: LogLevel = LogLevel.INFO, tag: String = "TTS", sessionId: String? = null) {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
         val entry = AppLogEntry(
             timestamp = timestamp,
             level = level,
             tag = tag,
-            title = message
+            title = message,
+            sessionId = sessionId
         )
         val formatted = entry.formatToString()
         android.util.Log.d("AiTtsEngine", formatted)
@@ -71,7 +72,8 @@ class ConfigDataStore(private val context: Context) {
         level: LogLevel,
         tag: String,
         title: String,
-        details: String? = null
+        details: String? = null,
+        sessionId: String? = null
     ) {
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
         val entry = AppLogEntry(
@@ -79,7 +81,8 @@ class ConfigDataStore(private val context: Context) {
             level = level,
             tag = tag,
             title = title,
-            details = details
+            details = details,
+            sessionId = sessionId
         )
         val formatted = entry.formatToString()
         android.util.Log.d("AiTtsEngine", formatted)
@@ -423,7 +426,8 @@ data class AppLogEntry(
     val level: LogLevel,
     val tag: String,
     val title: String,
-    val details: String? = null
+    val details: String? = null,
+    val sessionId: String? = null
 ) {
     fun formatToString(): String {
         val levelTag = when (level) {
@@ -433,10 +437,11 @@ data class AppLogEntry(
             LogLevel.ERROR -> "[ERR]"
             LogLevel.METRIC -> "[PERF]"
         }
+        val sessionTag = if (!sessionId.isNullOrBlank()) " [$sessionId]" else ""
         return if (details.isNullOrBlank()) {
-            "[$timestamp] $levelTag [$tag] $title"
+            "[$timestamp] $levelTag [$tag]$sessionTag $title"
         } else {
-            "[$timestamp] $levelTag [$tag] $title | $details"
+            "[$timestamp] $levelTag [$tag]$sessionTag $title | $details"
         }
     }
 }
