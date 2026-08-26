@@ -289,8 +289,16 @@ class TtsSynthesizer(private val context: Context) {
                             targetSampleRate = targetSampleRate,
                             targetChannels = 1
                         )
+                        // WSOLA 变速不变调处理，严格保持神经网络音调，语速与 aitts 100% 同步
+                        val speedScaled = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
+                            com.aitts.engine.audio.SonicAudioProcessor.process(
+                                pcmData = resampled,
+                                sampleRate = targetSampleRate,
+                                speed = segConfig.speed
+                            )
+                        } else resampled
                         val enhanced = AudioEnhancer.processPcm(
-                            pcmData = resampled,
+                            pcmData = speedScaled,
                             channels = 1,
                             enableClarity = settings.voiceClarityBoostEnabled,
                             gainFactor = effectiveGain,
@@ -341,8 +349,17 @@ class TtsSynthesizer(private val context: Context) {
                         targetChannels = 1
                     )
 
+                    // WSOLA 变速不变调处理，严格保持神经网络音调，语速与 aitts 100% 同步
+                    val speedScaledPcm = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
+                        com.aitts.engine.audio.SonicAudioProcessor.process(
+                            pcmData = resampledPcm,
+                            sampleRate = targetSampleRate,
+                            speed = segConfig.speed
+                        )
+                    } else resampledPcm
+
                     val finalPcm = AudioEnhancer.processPcm(
-                        pcmData = resampledPcm,
+                        pcmData = speedScaledPcm,
                         channels = 1,
                         enableClarity = settings.voiceClarityBoostEnabled,
                         gainFactor = effectiveGain,

@@ -249,18 +249,24 @@ fun PulseAcousticCore(
                         val tickLen = baseLen + dynamicLen
 
                         val tickAlpha = if (isPlaying) {
-                            (baseAlpha + bandMag * 0.55f).coerceIn(0.12f, 0.85f)
+                            (0.35f + bandMag * 0.62f).coerceIn(0.25f, 0.98f)
                         } else {
                             baseAlpha
                         }
 
                         val tickWidth = if (isPlaying) {
-                            baseWidth * (1f + bandMag * 0.40f)
+                            baseWidth * (1.35f + bandMag * 1.65f)
                         } else {
                             baseWidth
                         }
 
-                        val tickColor = Color(0xFF3A6B7C).copy(alpha = tickAlpha)
+                        val baseColor = if (isPlaying) {
+                            androidx.compose.ui.graphics.lerp(Color(0xFF4EE2EC), Color(0xFF7DF9FF), bandMag)
+                        } else {
+                            Color(0xFF3A6B7C)
+                        }
+
+                        val tickColor = baseColor.copy(alpha = tickAlpha)
 
                         val startX = center.x + (tickBaseRadius * cos(angle))
                         val startY = center.y + (tickBaseRadius * sin(angle))

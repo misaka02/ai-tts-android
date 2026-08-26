@@ -176,6 +176,8 @@ fun PulseProviderConfigScreen(
     var selectedOfflineCategory by remember { mutableStateOf("全部") }
     var downloadProgressMap by remember { mutableStateOf<Map<String, Pair<Int, String>>>(emptyMap()) }
     var downloadChannel by remember { mutableStateOf("hf_mirror") }
+    var showOfflineSpeakerDialog by remember { mutableStateOf(false) }
+    var offlineSpeakerSearchQuery by remember { mutableStateOf("") }
 
     val audioPlayer = remember { AndroidAudioPlayer(context) }
     DisposableEffect(Unit) {
@@ -634,21 +636,20 @@ fun PulseProviderConfigScreen(
                                     }
                                 }
                             } else {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedTextField(
-                                        value = modelName,
-                                        onValueChange = { modelName = it },
-                                        label = { Text("离线模型包 ID") },
-                                        modifier = Modifier.weight(1f),
-                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PulseTokens.CyanElectric)
-                                    )
-                                    OutlinedTextField(
-                                        value = voiceId,
-                                        onValueChange = { voiceId = it },
-                                        label = { Text("离线发音人 ID") },
-                                        modifier = Modifier.weight(1f),
-                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PulseTokens.CyanElectric)
-                                    )
+                                val currentPack = offlineCatalog.find { it.id == modelName } ?: offlineCatalog.firstOrNull()
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = PulseTokens.SurfaceDark,
+                                    border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.4f))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text("当前模型: ${currentPack?.name ?: modelName}", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
+                                            Text("🟢 本地离线", fontSize = 10.5.sp, color = PulseTokens.AcidGreen, fontWeight = FontWeight.Bold)
+                                        }
+                                        Text("当前发音人: ${voiceId.ifBlank { currentPack?.defaultVoiceId ?: "默认发音人" }}", fontSize = 11.5.sp, color = PulseTokens.TextSecondary)
+                                    }
                                 }
                             }
 
@@ -676,7 +677,8 @@ fun PulseProviderConfigScreen(
                             val supportsPitch = when (selectedType) {
                                 ProviderType.EDGE_TTS,
                                 ProviderType.AZURE,
-                                ProviderType.CUSTOM_HTTP -> true
+                                ProviderType.CUSTOM_HTTP,
+                                ProviderType.OFFLINE_VITS -> true
                                 else -> false
                             }
 
@@ -726,7 +728,7 @@ fun PulseProviderConfigScreen(
 
                 // 3. AI 语气提示词与系统指令 (System Prompt - 仅针对 AI 引擎展示)
                 val isAiModel = when (selectedType) {
-                    ProviderType.EDGE_TTS, ProviderType.AZURE -> false
+                    ProviderType.EDGE_TTS, ProviderType.AZURE, ProviderType.OFFLINE_VITS -> false
                     else -> true
                 }
                 if (isAiModel) {
@@ -791,53 +793,53 @@ fun PulseProviderConfigScreen(
                     }
                 }
 
-                // 4. 双角色对白分流与高级设置
-                item {
-                    PulseCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            Text("🎭 双角色与高级输出", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
+                // 4. 双角色对白分流与高级设置 (仅在线引擎展示)
+                if (selectedType != ProviderType.OFFLINE_VITS) {
+                    item {
+                        PulseCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Text("🎭 双角色与高级输出", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("启用双角色分流", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PulseTokens.TextPrimary)
-                                    Text("旁白主音色，引呈对白专属音色", fontSize = 11.5.sp, color = PulseTokens.TextSecondary)
-                                }
-                                Switch(
-                                    checked = isDualRoleEnabled,
-                                    onCheckedChange = { isDualRoleEnabled = it },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = PulseTokens.CyanElectric, checkedTrackColor = PulseTokens.SonicBlue)
-                                )
-                            }
-
-                            if (isDualRoleEnabled) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    OutlinedTextField(
-                                        value = dialogueVoiceId,
-                                        onValueChange = { dialogueVoiceId = it },
-                                        label = { Text("对话专属音色 (Voice ID)") },
-                                        modifier = Modifier.weight(1f),
-                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PulseTokens.CyanElectric)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("启用双角色分流", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PulseTokens.TextPrimary)
+                                        Text("旁白主音色，引呈对白专属音色", fontSize = 11.5.sp, color = PulseTokens.TextSecondary)
+                                    }
+                                    Switch(
+                                        checked = isDualRoleEnabled,
+                                        onCheckedChange = { isDualRoleEnabled = it },
+                                        colors = SwitchDefaults.colors(checkedThumbColor = PulseTokens.CyanElectric, checkedTrackColor = PulseTokens.SonicBlue)
                                     )
-                                    OutlinedButton(
-                                        onClick = { isSelectingDialogueVoice = true; fetchOnlineVoices() },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = PulseTokens.SurfaceElevated,
-                                            contentColor = PulseTokens.CyanElectric
-                                        ),
-                                        border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.5f)),
-                                        modifier = Modifier.height(52.dp)
-                                    ) {
-                                        Text("选择", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+
+                                if (isDualRoleEnabled) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        OutlinedTextField(
+                                            value = dialogueVoiceId,
+                                            onValueChange = { dialogueVoiceId = it },
+                                            label = { Text("对话专属音色 (Voice ID)") },
+                                            modifier = Modifier.weight(1f),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PulseTokens.CyanElectric)
+                                        )
+                                        OutlinedButton(
+                                            onClick = { isSelectingDialogueVoice = true; fetchOnlineVoices() },
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                containerColor = PulseTokens.SurfaceElevated,
+                                                contentColor = PulseTokens.CyanElectric
+                                            ),
+                                            border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.5f)),
+                                            modifier = Modifier.height(52.dp)
+                                        ) {
+                                            Text("选择", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                        }
                                     }
                                 }
-                            }
 
-                            if (selectedType != ProviderType.OFFLINE_VITS) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -853,15 +855,15 @@ fun PulseProviderConfigScreen(
                                         colors = SwitchDefaults.colors(checkedThumbColor = PulseTokens.CyanElectric, checkedTrackColor = PulseTokens.SonicBlue)
                                     )
                                 }
-                            }
 
-                            OutlinedTextField(
-                                value = sampleRate,
-                                onValueChange = { sampleRate = it },
-                                label = { Text("采样率 (Hz)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PulseTokens.CyanElectric)
-                            )
+                                OutlinedTextField(
+                                    value = sampleRate,
+                                    onValueChange = { sampleRate = it },
+                                    label = { Text("采样率 (Hz)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PulseTokens.CyanElectric)
+                                )
+                            }
                         }
                     }
                 }
@@ -918,6 +920,73 @@ fun PulseProviderConfigScreen(
                                             Spacer(modifier = Modifier.width(4.dp))
                                         }
                                         Text("刷新最新模型", fontSize = 11.sp, color = PulseTokens.CyanElectric, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+
+                                // 1. 模型本地存储目录展示与复制
+                                val storageDir = com.aitts.engine.offline.OfflineModelManager.getModelsStorageDirectory(context).absolutePath
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = PulseTokens.SurfaceDark,
+                                    border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.35f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("📁 离线模型存放目录 (本地专属路径):", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
+                                            Text(storageDir, fontSize = 10.sp, color = PulseTokens.TextSecondary, maxLines = 1)
+                                        }
+                                        Surface(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .clickable {
+                                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("model_dir", storageDir))
+                                                    Toast.makeText(context, "已复制存储路径到剪贴板", Toast.LENGTH_SHORT).show()
+                                                },
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = PulseTokens.CyanElectric.copy(alpha = 0.15f),
+                                            border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.5f))
+                                        ) {
+                                            Text("复制路径", fontSize = 10.5.sp, color = PulseTokens.CyanElectric, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                                        }
+                                    }
+                                }
+
+                                // 2. 根据选定模型自身特征，专属选择发音人
+                                val currentPack = offlineCatalog.find { it.id == modelName } ?: offlineCatalog.firstOrNull()
+                                if (currentPack != null && currentPack.speakers.isNotEmpty()) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable { showOfflineSpeakerDialog = true },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = PulseTokens.SurfaceDark,
+                                        border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.6f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("🗣️ 选定模型发音人 · ${currentPack.name}:", fontSize = 11.sp, color = PulseTokens.TextTertiary)
+                                                val currentSpkName = currentPack.speakers.find { it.startsWith(voiceId) } ?: voiceId.ifBlank { currentPack.defaultVoiceId }
+                                                Text(currentSpkName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
+                                            }
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = PulseTokens.CyanElectric.copy(alpha = 0.15f),
+                                                border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.4f))
+                                            ) {
+                                                Text("切换发音人 (${currentPack.speakers.size})", fontSize = 10.5.sp, color = PulseTokens.CyanElectric, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                            }
+                                        }
                                     }
                                 }
 
@@ -1043,8 +1112,28 @@ fun PulseProviderConfigScreen(
                                                         Text("⚪ 待下载 (${pack.sizeMb}MB)", fontSize = 11.sp, color = PulseTokens.TextTertiary)
                                                     }
 
-                                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                        if (!isDownloaded) {
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                        if (isDownloaded) {
+                                                            Button(
+                                                                onClick = {
+                                                                    val success = com.aitts.engine.offline.OfflineModelManager.deleteModel(context, pack.id)
+                                                                    if (success) {
+                                                                        offlineCatalog = com.aitts.engine.offline.OfflineModelManager.getCatalog()
+                                                                        Toast.makeText(context, "已删除模型【${pack.name}】，释放本地存储空间", Toast.LENGTH_SHORT).show()
+                                                                    }
+                                                                },
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                                colors = ButtonDefaults.buttonColors(
+                                                                    containerColor = Color(0xFFEF4444).copy(alpha = 0.2f),
+                                                                    contentColor = Color(0xFFFF6B6B)
+                                                                ),
+                                                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                                                modifier = Modifier.height(30.dp)
+                                                            ) {
+                                                                Text("🗑️ 删除", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                            }
+                                                        } else {
                                                             Button(
                                                                 onClick = {
                                                                     scope.launch {
@@ -1490,6 +1579,82 @@ fun PulseProviderConfigScreen(
                 confirmButton = {
                     TextButton(onClick = { showVoiceDialog = false }) { Text("关闭") }
                 }
+            )
+        }
+
+        if (showOfflineSpeakerDialog) {
+            val currentPack = offlineCatalog.find { it.id == modelName } ?: offlineCatalog.firstOrNull()
+            val allSpeakers = currentPack?.speakers ?: emptyList()
+            val filteredSpeakers = allSpeakers.filter {
+                offlineSpeakerSearchQuery.isBlank() || it.contains(offlineSpeakerSearchQuery, ignoreCase = true)
+            }
+
+            AlertDialog(
+                onDismissRequest = { showOfflineSpeakerDialog = false },
+                title = {
+                    Column {
+                        Text("选择发音人 · ${currentPack?.name ?: "离线模型"}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
+                        Text("共 ${allSpeakers.size} 位内置发音人", fontSize = 11.sp, color = PulseTokens.TextSecondary)
+                    }
+                },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = offlineSpeakerSearchQuery,
+                            onValueChange = { offlineSpeakerSearchQuery = it },
+                            placeholder = { Text("搜索发音人姓名或编号...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PulseTokens.CyanElectric)
+                        )
+
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().height(300.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(filteredSpeakers) { spk ->
+                                val spkId = spk.substringBefore(" ")
+                                val isSel = voiceId == spkId || (voiceId.isBlank() && spkId == currentPack?.defaultVoiceId)
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            voiceId = spkId
+                                            showOfflineSpeakerDialog = false
+                                            Toast.makeText(context, "已切换发音人: $spk", Toast.LENGTH_SHORT).show()
+                                        },
+                                    color = if (isSel) PulseTokens.CyanElectric.copy(alpha = 0.2f) else PulseTokens.SurfaceDark,
+                                    border = if (isSel) BorderStroke(1.dp, PulseTokens.CyanElectric) else PulseTokens.BorderSubtle,
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = spk,
+                                            fontSize = 12.5.sp,
+                                            color = if (isSel) PulseTokens.CyanElectric else PulseTokens.TextPrimary,
+                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (isSel) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = PulseTokens.CyanElectric, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showOfflineSpeakerDialog = false }) {
+                        Text("关闭", color = PulseTokens.CyanElectric)
+                    }
+                },
+                containerColor = PulseTokens.SurfaceElevated
             )
         }
     }
