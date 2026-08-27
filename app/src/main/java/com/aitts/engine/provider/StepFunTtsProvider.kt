@@ -67,6 +67,12 @@ class StepFunTtsProvider(
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig
+    ): Result<ByteArray> = synthesize(text, config, "")
+
+    override suspend fun synthesize(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         try {
             if (config.apiKey.isBlank()) {
@@ -89,12 +95,16 @@ class StepFunTtsProvider(
                 put("speed", config.speed)
             }.toString()
 
-            val request = Request.Builder()
+            val requestBuilder = Request.Builder()
                 .url(url)
                 .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
                 .addHeader("Content-Type", "application/json")
-                .build()
+            if (!sessionId.isNullOrBlank()) {
+                requestBuilder.tag(sessionId)
+                requestBuilder.tag(String::class.java, sessionId)
+            }
+            val request = requestBuilder.build()
 
             val response = client.newCall(request).execute()
             val bodyBytes = response.body?.bytes() ?: ByteArray(0)

@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioFormat
 import android.speech.tts.SynthesisCallback
 import android.speech.tts.SynthesisRequest
+import android.speech.tts.TextToSpeech
 import com.aitts.engine.audio.AudioCacheManager
 import com.aitts.engine.audio.AudioDecoder
 import com.aitts.engine.audio.AudioEnhancer
@@ -162,8 +163,9 @@ class TtsSynthesizer(private val context: Context) {
 
         // 统一在任务开始时初始化一次 callback
         val startStatus = callback.start(targetSampleRate, AudioFormat.ENCODING_PCM_16BIT, 1)
-        if (startStatus != 0) {
-            configDataStore.log("SynthesisCallback.start 返回状态: $startStatus", sessionId = sessionId)
+        if (startStatus != TextToSpeech.SUCCESS) {
+            configDataStore.log("⚠️ SynthesisCallback.start 初始化失败 (状态码: $startStatus)，终止合成推流", sessionId = sessionId)
+            return@withContext
         }
 
         val bufferChunkSize = 2048 // 2KB 极速小块推流，首包延迟进入 Sub-50ms
@@ -235,6 +237,9 @@ class TtsSynthesizer(private val context: Context) {
             for (i in segments.indices) {
                 if (isStopped.get() || !isActive) {
                     configDataStore.logStructured(LogLevel.WARN, "TTS_SERVICE", "合成任务已中断", sessionId = sessionId)
+                    if (i > 0) {
+                        try { callback.done() } catch (e: Exception) { /* ignore */ }
+                    }
                     return@withContext
                 }
 

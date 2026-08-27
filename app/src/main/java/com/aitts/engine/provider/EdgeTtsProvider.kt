@@ -102,6 +102,12 @@ class EdgeTtsProvider(
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig
+    ): Result<ByteArray> = synthesize(text, config, "")
+
+    override suspend fun synthesize(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         val requestId = UUID.randomUUID().toString().replace("-", "")
         val deferred = CompletableDeferred<ByteArray>()
@@ -125,7 +131,7 @@ class EdgeTtsProvider(
                 "&Sec-MS-GEC=$secMsGec" +
                 "&Sec-MS-GEC-Version=$secMsGecVersion"
 
-        val request = Request.Builder()
+        val requestBuilder = Request.Builder()
             .url(wssUrl)
             .addHeader("Pragma", "no-cache")
             .addHeader("Cache-Control", "no-cache")
@@ -134,7 +140,11 @@ class EdgeTtsProvider(
             .addHeader("Accept-Encoding", "gzip, deflate, br, zstd")
             .addHeader("Accept-Language", "en-US,en;q=0.9")
             .addHeader("Cookie", "muid=$muid;")
-            .build()
+        if (!sessionId.isNullOrBlank()) {
+            requestBuilder.tag(sessionId)
+            requestBuilder.tag(String::class.java, sessionId)
+        }
+        val request = requestBuilder.build()
 
         var webSocket: WebSocket? = null
 

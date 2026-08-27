@@ -86,6 +86,7 @@ class AudioCacheManager(private val context: Context) {
             val file = File(cacheDir, "$key.bin")
             if (file.exists() && file.length() > 0) {
                 try {
+                    file.setLastModified(System.currentTimeMillis())
                     file.readBytes()
                 } catch (e: Exception) {
                     null

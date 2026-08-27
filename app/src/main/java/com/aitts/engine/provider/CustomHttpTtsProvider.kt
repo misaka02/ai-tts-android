@@ -36,6 +36,12 @@ class CustomHttpTtsProvider(
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig
+    ): Result<ByteArray> = synthesize(text, config, "")
+
+    override suspend fun synthesize(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         try {
             if (config.baseUrl.isBlank()) {
@@ -71,6 +77,11 @@ class CustomHttpTtsProvider(
                 requestBuilder.addHeader("Content-Type", "application/json")
             } else {
                 requestBuilder.get()
+            }
+
+            if (!sessionId.isNullOrBlank()) {
+                requestBuilder.tag(sessionId)
+                requestBuilder.tag(String::class.java, sessionId)
             }
 
             val response = client.newCall(requestBuilder.build()).execute()

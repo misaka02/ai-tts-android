@@ -13,9 +13,13 @@ class InMemoryMediaDataSource(private val data: ByteArray) : MediaDataSource() {
         if (position >= data.size) {
             return -1 // EOF
         }
+        if (position < 0 || size <= 0 || offset < 0 || offset >= buffer.size) {
+            return 0
+        }
 
         val remaining = data.size - position.toInt()
-        val bytesToRead = minOf(size, remaining)
+        val bytesToRead = minOf(size, minOf(remaining, buffer.size - offset))
+        if (bytesToRead <= 0) return 0
         System.arraycopy(data, position.toInt(), buffer, offset, bytesToRead)
         return bytesToRead
     }

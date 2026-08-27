@@ -133,7 +133,7 @@ class AiTextToSpeechService : TextToSpeechService() {
     override fun onSynthesizeText(request: SynthesisRequest?, callback: SynthesisCallback?) {
         if (request == null || callback == null) return
 
-        val text = request.charSequenceText?.toString() ?: ""
+        val text = request.charSequenceText?.toString() ?: request.text ?: ""
         val sessionId = UUID.randomUUID().toString().take(8)
         configDataStore.activeSessionId = sessionId
 

@@ -33,6 +33,12 @@ class AzureTtsProvider(
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig
+    ): Result<ByteArray> = synthesize(text, config, "")
+
+    override suspend fun synthesize(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         try {
             val url = if (config.baseUrl.isNotBlank()) {
@@ -59,13 +65,17 @@ class AzureTtsProvider(
                 "audio-24khz-48kbitrate-mono-mp3"
             }
 
-            val request = Request.Builder()
+            val requestBuilder = Request.Builder()
                 .url(url)
                 .post(ssml.toRequestBody("application/ssml+xml".toMediaType()))
                 .addHeader("Ocp-Apim-Subscription-Key", config.apiKey)
                 .addHeader("X-Microsoft-OutputFormat", outputFormat)
                 .addHeader("User-Agent", "AiTtsEngineAndroid")
-                .build()
+            if (!sessionId.isNullOrBlank()) {
+                requestBuilder.tag(sessionId)
+                requestBuilder.tag(String::class.java, sessionId)
+            }
+            val request = requestBuilder.build()
 
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {

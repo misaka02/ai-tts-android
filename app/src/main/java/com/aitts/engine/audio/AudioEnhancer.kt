@@ -107,7 +107,7 @@ object AudioEnhancer {
                     cur
                 } else sample
 
-                val amplified = filtered * gainFactor
+                val amplified = filtered * effectiveGain
                 val normalized = amplified / 32767.0f
                 val compressed = tanh(normalized.toDouble()).toFloat() * 32767.0f
                 outputBuffer.putShort(compressed.toInt().coerceIn(-32768, 32767).toShort())
@@ -128,8 +128,8 @@ object AudioEnhancer {
                     curR
                 } else sampleR
 
-                val compL = tanh((filteredL * gainFactor / 32767.0f).toDouble()).toFloat() * 32767.0f
-                val compR = tanh((filteredR * gainFactor / 32767.0f).toDouble()).toFloat() * 32767.0f
+                val compL = tanh((filteredL * effectiveGain / 32767.0f).toDouble()).toFloat() * 32767.0f
+                val compR = tanh((filteredR * effectiveGain / 32767.0f).toDouble()).toFloat() * 32767.0f
 
                 outputBuffer.putShort(compL.toInt().coerceIn(-32768, 32767).toShort())
                 outputBuffer.putShort(compR.toInt().coerceIn(-32768, 32767).toShort())

@@ -62,6 +62,12 @@ class MiniMaxTtsProvider(
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig
+    ): Result<ByteArray> = synthesize(text, config, "")
+
+    override suspend fun synthesize(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         try {
             if (config.apiKey.isBlank()) {
@@ -94,12 +100,16 @@ class MiniMaxTtsProvider(
                 })
             }.toString()
 
-            val request = Request.Builder()
+            val requestBuilder = Request.Builder()
                 .url(url)
                 .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
-                .build()
+            if (!sessionId.isNullOrBlank()) {
+                requestBuilder.tag(sessionId)
+                requestBuilder.tag(String::class.java, sessionId)
+            }
+            val request = requestBuilder.build()
 
             val response = client.newCall(request).execute()
             val bodyBytes = response.body?.bytes() ?: ByteArray(0)
@@ -158,6 +168,13 @@ class MiniMaxTtsProvider(
         text: String,
         config: TtsProviderConfig,
         onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> = synthesizeStreaming(text, config, "", onAudioChunk)
+
+    override suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String,
+        onAudioChunk: suspend (ByteArray) -> Unit
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         try {
             if (config.apiKey.isBlank()) {
@@ -200,16 +217,21 @@ class MiniMaxTtsProvider(
                 level = com.aitts.engine.data.LogLevel.INFO,
                 tag = "MINIMAX",
                 title = "发起 SSE 流式推流",
-                details = "模型=$modelName, 音色=$voiceId, 长度=${text.length}字, 语速=${config.speed}x"
+                details = "模型=$modelName, 音色=$voiceId, 长度=${text.length}字, 语速=${config.speed}x",
+                sessionId = sessionId
             )
 
-            val request = Request.Builder()
+            val requestBuilder = Request.Builder()
                 .url(url)
                 .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Accept", "text/event-stream")
                 .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
-                .build()
+            if (!sessionId.isNullOrBlank()) {
+                requestBuilder.tag(sessionId)
+                requestBuilder.tag(String::class.java, sessionId)
+            }
+            val request = requestBuilder.build()
 
             val response = client.newCall(request).execute()
             val responseBody = response.body

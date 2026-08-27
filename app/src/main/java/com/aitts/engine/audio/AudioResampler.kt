@@ -91,15 +91,13 @@ object AudioResampler {
         for (ch in 0 until currentChannels) {
             for (outIdx in 0 until outFrames) {
                 val inPos = outIdx * ratio
-                val inIdx = inPos.toInt()
-                val frac = inPos - inIdx
+                val rawIdx = inPos.toInt()
+                val inIdx = rawIdx.coerceIn(0, inFrames - 1)
+                val frac = (inPos - rawIdx).coerceIn(0.0, 1.0)
 
                 val sample0 = channelConvertedSamples[inIdx * currentChannels + ch].toInt()
-                val sample1 = if (inIdx + 1 < inFrames) {
-                    channelConvertedSamples[(inIdx + 1) * currentChannels + ch].toInt()
-                } else {
-                    sample0
-                }
+                val nextIdx = minOf(inIdx + 1, inFrames - 1)
+                val sample1 = channelConvertedSamples[nextIdx * currentChannels + ch].toInt()
 
                 // 线性插值计算: y = (1 - frac) * s0 + frac * s1
                 val interpolated = (sample0 * (1.0 - frac) + sample1 * frac).toInt()
