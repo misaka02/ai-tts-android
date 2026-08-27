@@ -97,12 +97,20 @@ class GeminiTtsProvider(
 
     override suspend fun getAvailableModels(config: TtsProviderConfig): List<String> = listOf(
         "gemini-2.5-flash-preview-tts",
+        "gemini-2.5-pro-preview-tts",
+        "gemini-2.5-flash",
         "gemini-2.0-flash-exp"
     )
 
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig
+    ): Result<ByteArray> = synthesize(text, config, "")
+
+    override suspend fun synthesize(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         try {
             val apiKey = config.apiKey.trim()
@@ -158,12 +166,15 @@ class GeminiTtsProvider(
                 })
             }.toString()
 
-            val request = Request.Builder()
+            val reqBuilder = Request.Builder()
                 .url(targetUrl)
                 .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .addHeader("Content-Type", "application/json")
                 .addHeader("x-goog-api-key", apiKey)
-                .build()
+            if (sessionId.isNotBlank()) {
+                reqBuilder.tag(sessionId)
+            }
+            val request = reqBuilder.build()
 
             val response = client.newCall(request).execute()
             val bodyBytes = response.body?.bytes() ?: ByteArray(0)
@@ -250,6 +261,13 @@ class GeminiTtsProvider(
         text: String,
         config: TtsProviderConfig,
         onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> = synthesizeStreaming(text, config, "", onAudioChunk)
+
+    override suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String,
+        onAudioChunk: suspend (ByteArray) -> Unit
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         try {
             val apiKey = config.apiKey.trim()
@@ -316,16 +334,20 @@ class GeminiTtsProvider(
                 level = com.aitts.engine.data.LogLevel.INFO,
                 tag = "GEMINI",
                 title = "发起实时 SSE 流式推流",
-                details = "模型=$modelName, 音色=$voiceName, 长度=${text.length}字"
+                details = "模型=$modelName, 音色=$voiceName, 长度=${text.length}字",
+                sessionId = sessionId
             )
 
-            val request = Request.Builder()
+            val reqBuilder = Request.Builder()
                 .url(targetUrl)
                 .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Accept", "text/event-stream")
                 .addHeader("x-goog-api-key", apiKey)
-                .build()
+            if (sessionId.isNotBlank()) {
+                reqBuilder.tag(sessionId)
+            }
+            val request = reqBuilder.build()
 
             val response = client.newCall(request).execute()
             val responseBody = response.body
@@ -337,7 +359,8 @@ class GeminiTtsProvider(
                     level = com.aitts.engine.data.LogLevel.ERROR,
                     tag = "GEMINI",
                     title = "流式 HTTP 异常 (${response.code})",
-                    details = errStr.take(200)
+                    details = errStr.take(200),
+                    sessionId = sessionId
                 )
                 return@withContext Result.failure(
                     IOException("Gemini 流式请求失败 HTTP ${response.code}: $errStr")
@@ -383,7 +406,8 @@ class GeminiTtsProvider(
                                                             level = com.aitts.engine.data.LogLevel.METRIC,
                                                             tag = "GEMINI",
                                                             title = "流式首包已就绪",
-                                                            details = "TTFB=${latency}ms, 正在推流..."
+                                                            details = "TTFB=${latency}ms, 正在推流...",
+                                                            sessionId = sessionId
                                                         )
                                                     }
                                                     audioOutputStream.write(pcmBytes)
@@ -408,13 +432,18 @@ class GeminiTtsProvider(
                     level = com.aitts.engine.data.LogLevel.SUCCESS,
                     tag = "GEMINI",
                     title = "流式传输完成",
-                    details = "累计获取 ${collectedBytes.size} 字节, 耗时 ${totalTime}ms"
+                    details = "累计获取 ${collectedBytes.size} 字节, 耗时 ${totalTime}ms",
+                    sessionId = sessionId
                 )
                 Result.success(collectedBytes)
             } else {
-                // 兜底回退
-                synthesize(text, config).also { fallbackRes ->
-                    fallbackRes.getOrNull()?.let { onAudioChunk(it) }
+                // 仅当从未推送过任何流式 chunk 时才允许全量兜底，防止音频重叠与鬼畜
+                if (!firstChunkReceived) {
+                    synthesize(text, config, sessionId).also { fallbackRes ->
+                        fallbackRes.getOrNull()?.let { onAudioChunk(it) }
+                    }
+                } else {
+                    Result.failure(IOException("Gemini 流式推流意外中断，已终止避免音频重叠"))
                 }
             }
         } catch (e: Exception) {

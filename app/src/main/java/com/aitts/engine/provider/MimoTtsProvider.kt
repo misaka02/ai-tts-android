@@ -109,6 +109,12 @@ class MimoTtsProvider(
     override suspend fun synthesize(
         text: String,
         config: TtsProviderConfig
+    ): Result<ByteArray> = synthesize(text, config, "")
+
+    override suspend fun synthesize(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         try {
             if (config.apiKey.isBlank()) {
@@ -156,6 +162,10 @@ class MimoTtsProvider(
                 .addHeader("Accept", if (isStreaming) "text/event-stream, application/json" else "application/json")
                 .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
                 .addHeader("api-key", config.apiKey.trim())
+            
+            if (sessionId.isNotBlank()) {
+                requestBuilder.tag(sessionId)
+            }
 
             val response = client.newCall(requestBuilder.build()).execute()
             val responseBody = response.body
@@ -257,9 +267,16 @@ class MimoTtsProvider(
         text: String,
         config: TtsProviderConfig,
         onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> = synthesizeStreaming(text, config, "", onAudioChunk)
+
+    override suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String,
+        onAudioChunk: suspend (ByteArray) -> Unit
     ): Result<ByteArray> = withContext(Dispatchers.IO) {
         if (!config.isStreamingEnabled) {
-            val fullResult = synthesize(text, config)
+            val fullResult = synthesize(text, config, sessionId)
             if (fullResult.isSuccess) {
                 val fullBytes = fullResult.getOrNull() ?: ByteArray(0)
                 if (fullBytes.isNotEmpty()) {
@@ -311,7 +328,7 @@ class MimoTtsProvider(
                 null
             }
             val startReqTime = System.currentTimeMillis()
-            configDataStore?.log("🌐 [MiMo流式发起] 正在向 $url 请求音频流 (模型: $modelName, 音色: $voiceName, 长度: ${text.length}字)")
+            configDataStore?.log("🌐 [MiMo流式发起] 正在向 $url 请求音频流 (模型: $modelName, 音色: $voiceName, 长度: ${text.length}字)", sessionId = sessionId)
 
             val requestBuilder = Request.Builder()
                 .url(url)
@@ -320,6 +337,9 @@ class MimoTtsProvider(
                 .addHeader("Accept", "text/event-stream, application/json")
                 .addHeader("Authorization", "Bearer ${config.apiKey.trim()}")
                 .addHeader("api-key", config.apiKey.trim())
+            if (sessionId.isNotBlank()) {
+                requestBuilder.tag(sessionId)
+            }
 
             val response = client.newCall(requestBuilder.build()).execute()
             val responseBody = response.body

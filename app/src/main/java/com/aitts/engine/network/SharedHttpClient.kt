@@ -32,7 +32,7 @@ object SharedHttpClient {
             .dispatcher(dispatcher)
             .connectionPool(sharedConnectionPool)
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build()
@@ -77,12 +77,14 @@ object SharedHttpClient {
         if (sessionId.isBlank()) return
         try {
             for (call in instance.dispatcher.queuedCalls()) {
-                if (call.request().tag() == sessionId) {
+                val tag = call.request().tag()
+                if (tag == sessionId || call.request().tag(String::class.java) == sessionId) {
                     call.cancel()
                 }
             }
             for (call in instance.dispatcher.runningCalls()) {
-                if (call.request().tag() == sessionId) {
+                val tag = call.request().tag()
+                if (tag == sessionId || call.request().tag(String::class.java) == sessionId) {
                     call.cancel()
                 }
             }

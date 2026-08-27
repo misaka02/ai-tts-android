@@ -31,9 +31,6 @@ class AiTextToSpeechService : TextToSpeechService() {
     private lateinit var configDataStore: ConfigDataStore
     private lateinit var audioManager: AudioManager
 
-    @Volatile
-    private var activeSessionId: String = ""
-
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS -> {
@@ -86,7 +83,9 @@ class AiTextToSpeechService : TextToSpeechService() {
         } catch (e: Exception) {
             // ignore
         }
-        synthesizer.stop(activeSessionId)
+        val currentSession = configDataStore.activeSessionId
+        synthesizer.stop(currentSession)
+        configDataStore.activeSessionId = null
         TtsNotificationManager.cancelPlaybackNotification(this)
         configDataStore.log("AiTextToSpeechService 系统服务已销毁")
     }
@@ -136,13 +135,14 @@ class AiTextToSpeechService : TextToSpeechService() {
 
         val text = request.charSequenceText?.toString() ?: ""
         val sessionId = UUID.randomUUID().toString().take(8)
-        activeSessionId = sessionId
         configDataStore.activeSessionId = sessionId
 
         if (text.isBlank()) {
             callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
             callback.done()
-            configDataStore.activeSessionId = null
+            if (configDataStore.activeSessionId == sessionId) {
+                configDataStore.activeSessionId = null
+            }
             return
         }
 
@@ -166,10 +166,17 @@ class AiTextToSpeechService : TextToSpeechService() {
 
     override fun onStop() {
         try {
-            val sessionToCancel = activeSessionId
+            val sessionToCancel = configDataStore.activeSessionId ?: ""
             synthesizer.stop(sessionToCancel)
             TtsNotificationManager.cancelPlaybackNotification(this)
-            configDataStore.log("收到系统 onStop() 信号，已精准中断会话 [$sessionToCancel]")
+            if (sessionToCancel.isNotBlank()) {
+                configDataStore.log("收到系统 onStop() 信号，已精准中断会话 [$sessionToCancel]", sessionId = sessionToCancel)
+                if (configDataStore.activeSessionId == sessionToCancel) {
+                    configDataStore.activeSessionId = null
+                }
+            } else {
+                configDataStore.log("收到系统 onStop() 信号，当前无活跃会话")
+            }
         } catch (e: Throwable) {
             // ignore
         }

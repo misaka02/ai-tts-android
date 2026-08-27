@@ -32,6 +32,15 @@ interface TtsProvider {
     ): Result<ByteArray>
 
     /**
+     * 支持会话级隔离与精确网络取消的语音合成重载
+     */
+    suspend fun synthesize(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String
+    ): Result<ByteArray> = synthesize(text, config)
+
+    /**
      * 流式语音合成推流 (Streaming chunk-by-chunk push)
      * 当收到每个音频分块时立即回调 onAudioChunk，实现首包毫秒级秒开播放
      */
@@ -47,6 +56,16 @@ interface TtsProvider {
         }
         return full
     }
+
+    /**
+     * 支持会话级隔离与精确网络取消的流式语音合成重载
+     */
+    suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String,
+        onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> = synthesizeStreaming(text, config, onAudioChunk)
 
     /**
      * 校验配置是否有效（测试连接）

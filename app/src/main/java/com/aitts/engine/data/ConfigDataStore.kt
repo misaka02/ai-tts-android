@@ -46,11 +46,22 @@ class ConfigDataStore(private val context: Context) {
     private val _structuredLogsFlow = MutableStateFlow<List<AppLogEntry>>(emptyList())
     val structuredLogsFlow: StateFlow<List<AppLogEntry>> = _structuredLogsFlow.asStateFlow()
 
+    private val logLock = Any()
+    private val timeFormatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
+
     @Volatile
     var activeSessionId: String? = null
 
+    private fun getCurrentTimestamp(): String {
+        return try {
+            java.time.LocalTime.now().format(timeFormatter)
+        } catch (e: Throwable) {
+            java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        }
+    }
+
     fun log(message: String, level: LogLevel = LogLevel.INFO, tag: String = "TTS", sessionId: String? = null) {
-        val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        val timestamp = getCurrentTimestamp()
         val resolvedSessionId = sessionId ?: activeSessionId
         val entry = AppLogEntry(
             timestamp = timestamp,
@@ -61,15 +72,17 @@ class ConfigDataStore(private val context: Context) {
         )
         val formatted = entry.formatToString()
         android.util.Log.d("AiTtsEngine", formatted)
-        val currentStr = _logsFlow.value.toMutableList()
-        if (currentStr.size > 200) currentStr.removeAt(0)
-        currentStr.add(formatted)
-        _logsFlow.value = currentStr
+        synchronized(logLock) {
+            val currentStr = _logsFlow.value.toMutableList()
+            if (currentStr.size > 200) currentStr.removeAt(0)
+            currentStr.add(formatted)
+            _logsFlow.value = currentStr
 
-        val currentStruct = _structuredLogsFlow.value.toMutableList()
-        if (currentStruct.size > 200) currentStruct.removeAt(0)
-        currentStruct.add(entry)
-        _structuredLogsFlow.value = currentStruct
+            val currentStruct = _structuredLogsFlow.value.toMutableList()
+            if (currentStruct.size > 200) currentStruct.removeAt(0)
+            currentStruct.add(entry)
+            _structuredLogsFlow.value = currentStruct
+        }
     }
 
     fun logStructured(
@@ -79,7 +92,7 @@ class ConfigDataStore(private val context: Context) {
         details: String? = null,
         sessionId: String? = null
     ) {
-        val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        val timestamp = getCurrentTimestamp()
         val resolvedSessionId = sessionId ?: activeSessionId
         val entry = AppLogEntry(
             timestamp = timestamp,
@@ -91,20 +104,24 @@ class ConfigDataStore(private val context: Context) {
         )
         val formatted = entry.formatToString()
         android.util.Log.d("AiTtsEngine", formatted)
-        val currentStr = _logsFlow.value.toMutableList()
-        if (currentStr.size > 200) currentStr.removeAt(0)
-        currentStr.add(formatted)
-        _logsFlow.value = currentStr
+        synchronized(logLock) {
+            val currentStr = _logsFlow.value.toMutableList()
+            if (currentStr.size > 200) currentStr.removeAt(0)
+            currentStr.add(formatted)
+            _logsFlow.value = currentStr
 
-        val currentStruct = _structuredLogsFlow.value.toMutableList()
-        if (currentStruct.size > 200) currentStruct.removeAt(0)
-        currentStruct.add(entry)
-        _structuredLogsFlow.value = currentStruct
+            val currentStruct = _structuredLogsFlow.value.toMutableList()
+            if (currentStruct.size > 200) currentStruct.removeAt(0)
+            currentStruct.add(entry)
+            _structuredLogsFlow.value = currentStruct
+        }
     }
 
     fun clearLogs() {
-        _logsFlow.value = emptyList()
-        _structuredLogsFlow.value = emptyList()
+        synchronized(logLock) {
+            _logsFlow.value = emptyList()
+            _structuredLogsFlow.value = emptyList()
+        }
     }
 
     // --- History ---

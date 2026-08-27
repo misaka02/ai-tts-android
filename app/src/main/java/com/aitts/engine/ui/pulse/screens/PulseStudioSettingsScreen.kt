@@ -150,6 +150,7 @@ fun PulseStudioSettingsScreen(
     var showPaletteDialog by remember { mutableStateOf(false) }
     var showFallbackSelectorDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showClearCacheConfirmDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     var showResetSecondConfirmDialog by remember { mutableStateOf(false) }
     var showQuickNavDialog by remember { mutableStateOf(false) }
@@ -883,9 +884,7 @@ fun PulseStudioSettingsScreen(
                                             }
                                             Button(
                                                 onClick = {
-                                                    audioCacheManager.clearAll()
-                                                    cacheSizeText = getCacheSizeString()
-                                                    Toast.makeText(context, "已清空本地全部音频缓存", Toast.LENGTH_SHORT).show()
+                                                    showClearCacheConfirmDialog = true
                                                 },
                                                 colors = ButtonDefaults.buttonColors(containerColor = PulseTokens.SurfaceElevated, contentColor = PulseTokens.MagentaLaser),
                                                 border = BorderStroke(1.dp, PulseTokens.MagentaLaser.copy(alpha = 0.5f)),
@@ -1338,6 +1337,39 @@ fun PulseStudioSettingsScreen(
             )
         }
 
+        // 弹窗: 清理本地音频缓存二次确认
+        if (showClearCacheConfirmDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearCacheConfirmDialog = false },
+                title = { Text("🧹 清理本地音频缓存", fontWeight = FontWeight.Bold, color = PulseTokens.AmberWarm) },
+                text = {
+                    Text(
+                        "确定要清空本地所有已缓存的离线音频吗？\n当前占用: $cacheSizeText\n清空后再次朗读相同句子将重新发起在线合成请求。",
+                        fontSize = 13.sp,
+                        color = PulseTokens.TextSecondary
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            audioCacheManager.clearAll()
+                            cacheSizeText = getCacheSizeString()
+                            showClearCacheConfirmDialog = false
+                            Toast.makeText(context, "已清空本地全部音频缓存", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PulseTokens.AmberWarm, contentColor = Color.Black)
+                    ) {
+                        Text("立即清空", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearCacheConfirmDialog = false }) {
+                        Text("取消", color = PulseTokens.TextSecondary)
+                    }
+                }
+            )
+        }
+
         // 弹窗: 出厂重置第一道确认 (Step 1/2)
         if (showResetDialog) {
             AlertDialog(
@@ -1576,9 +1608,7 @@ fun PulseStudioSettingsScreen(
                     icon = Icons.Default.CleaningServices,
                     color = PulseTokens.AmberWarm,
                     onClick = {
-                        audioCacheManager.clearAll()
-                        cacheSizeText = getCacheSizeString()
-                        Toast.makeText(context, "音频缓存已全部清空", Toast.LENGTH_SHORT).show()
+                        showClearCacheConfirmDialog = true
                     }
                 ),
                 ActionHubItem(

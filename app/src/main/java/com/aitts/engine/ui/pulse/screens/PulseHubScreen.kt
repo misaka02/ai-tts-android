@@ -212,6 +212,7 @@ fun PulseHubScreen(
         isSynthesizing = false
         val sId = configDataStore.activeSessionId
         if (sId != null) {
+            com.aitts.engine.network.SharedHttpClient.cancelSession(sId)
             configDataStore.log("⏹️ 朗读播音结束 (手动停止)", sessionId = sId)
             configDataStore.activeSessionId = null
         }
@@ -248,13 +249,11 @@ fun PulseHubScreen(
 
                 val result = if (provider.isStreamingEnabled) {
                     val streamBuffer = java.io.ByteArrayOutputStream()
-                    val streamRes = TtsProviderManager.getInstance().synthesizeStreaming(testText, testConfig) { chunk ->
+                    val streamRes = TtsProviderManager.getInstance().synthesizeStreaming(testText, testConfig, trialSessionId) { chunk ->
                         if (!firstChunkReceived) {
                             firstChunkReceived = true
                             lastLatencyMs = System.currentTimeMillis() - startTime
-                            isSynthesizing = false
-                            isPlaying = true
-                            configDataStore.log("⚡ [流式首包秒开] 首包到达耗时: ${lastLatencyMs}ms (边推边播启动)", sessionId = trialSessionId)
+                            configDataStore.log("⚡ [流式首包已就绪] 首包到达耗时: ${lastLatencyMs}ms (正在推流接收...)", sessionId = trialSessionId)
                         }
                         streamBuffer.write(chunk)
                     }
@@ -264,7 +263,7 @@ fun PulseHubScreen(
                         streamRes
                     }
                 } else {
-                    TtsProviderManager.getInstance().synthesize(testText, testConfig)
+                    TtsProviderManager.getInstance().synthesize(testText, testConfig, autoRetry = true, sessionId = trialSessionId)
                 }
 
                 val costMs = System.currentTimeMillis() - startTime

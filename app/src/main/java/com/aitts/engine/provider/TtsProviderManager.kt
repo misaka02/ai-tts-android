@@ -36,16 +36,25 @@ class TtsProviderManager {
     suspend fun synthesize(
         text: String,
         config: TtsProviderConfig,
-        autoRetry: Boolean = true
+        autoRetry: Boolean = true,
+        sessionId: String = ""
     ): Result<ByteArray> {
         val provider = getProvider(config.type)
-        var result = provider.synthesize(text, config)
+        var result = if (sessionId.isNotBlank()) {
+            provider.synthesize(text, config, sessionId)
+        } else {
+            provider.synthesize(text, config)
+        }
 
         if (result.isFailure && autoRetry && config.type != ProviderType.EDGE_TTS) {
             // 网络抖动或临时性错误，微秒级轻量抖动自愈重试 (80~200ms Jitter)
             val jitterDelay = 80L + (Math.random() * 120).toLong()
             kotlinx.coroutines.delay(jitterDelay)
-            result = provider.synthesize(text, config)
+            result = if (sessionId.isNotBlank()) {
+                provider.synthesize(text, config, sessionId)
+            } else {
+                provider.synthesize(text, config)
+            }
         }
 
         return result
@@ -55,9 +64,20 @@ class TtsProviderManager {
         text: String,
         config: TtsProviderConfig,
         onAudioChunk: suspend (ByteArray) -> Unit
+    ): Result<ByteArray> = synthesizeStreaming(text, config, "", onAudioChunk)
+
+    suspend fun synthesizeStreaming(
+        text: String,
+        config: TtsProviderConfig,
+        sessionId: String = "",
+        onAudioChunk: suspend (ByteArray) -> Unit
     ): Result<ByteArray> {
         val provider = getProvider(config.type)
-        return provider.synthesizeStreaming(text, config, onAudioChunk)
+        return if (sessionId.isNotBlank()) {
+            provider.synthesizeStreaming(text, config, sessionId, onAudioChunk)
+        } else {
+            provider.synthesizeStreaming(text, config, onAudioChunk)
+        }
     }
 
     suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> {

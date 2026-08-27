@@ -144,38 +144,40 @@ object QuoteService {
         }
 
         try {
-            val url = "https://v1.hitokoto.cn/?c=d&c=e&c=h&c=i&c=k&encode=json"
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("User-Agent", "AI-TTS-Android-Engine/2.0")
-                .build()
+            kotlinx.coroutines.withTimeout(3500L) {
+                val url = "https://v1.hitokoto.cn/?c=d&c=e&c=h&c=i&c=k&encode=json"
+                val request = Request.Builder()
+                    .url(url)
+                    .addHeader("User-Agent", "AI-TTS-Android-Engine/2.0")
+                    .build()
 
-            val client = SharedHttpClient.instance
-            val response = client.newCall(request).execute()
-            response.use { resp ->
-                if (resp.isSuccessful) {
-                    val bodyStr = resp.body?.string() ?: ""
-                    if (bodyStr.isNotBlank()) {
-                        val parsed = json.decodeFromString<HitokotoResponse>(bodyStr)
-                        if (parsed.hitokoto.isNotBlank()) {
-                            val sourceDesc = when {
-                                !parsed.from.isNullOrBlank() && !parsed.from_who.isNullOrBlank() -> "《${parsed.from}》 · ${parsed.from_who}"
-                                !parsed.from.isNullOrBlank() -> "《${parsed.from}》"
-                                !parsed.from_who.isNullOrBlank() -> parsed.from_who
-                                else -> "在线金句"
+                val client = SharedHttpClient.instance
+                val response = client.newCall(request).execute()
+                response.use { resp ->
+                    if (resp.isSuccessful) {
+                        val bodyStr = resp.body?.string() ?: ""
+                        if (bodyStr.isNotBlank()) {
+                            val parsed = json.decodeFromString<HitokotoResponse>(bodyStr)
+                            if (parsed.hitokoto.isNotBlank()) {
+                                val sourceDesc = when {
+                                    !parsed.from.isNullOrBlank() && !parsed.from_who.isNullOrBlank() -> "《${parsed.from}》 · ${parsed.from_who}"
+                                    !parsed.from.isNullOrBlank() -> "《${parsed.from}》"
+                                    !parsed.from_who.isNullOrBlank() -> parsed.from_who
+                                    else -> "在线金句"
+                                }
+                                return@withTimeout QuoteItem(
+                                    text = parsed.hitokoto.trim(),
+                                    category = "在线语料",
+                                    source = sourceDesc
+                                )
                             }
-                            return@withContext QuoteItem(
-                                text = parsed.hitokoto.trim(),
-                                category = "在线语料",
-                                source = sourceDesc
-                            )
                         }
                     }
                 }
+                getRandomLocalQuote()
             }
-            getRandomLocalQuote()
         } catch (e: Exception) {
-            // 离线/弱网自动回退本地精品库
+            // 离线/弱网/超时 自动秒级回退本地精品库
             getRandomLocalQuote()
         }
     }
