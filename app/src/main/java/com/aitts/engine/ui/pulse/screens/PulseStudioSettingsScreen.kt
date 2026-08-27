@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -92,6 +93,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -199,31 +201,78 @@ fun PulseStudioSettingsScreen(
         "💾 备份与系统"
     )
 
-    var dragRightAccumulator by remember { mutableStateOf(0f) }
+    // 双层 HorizontalPager 互斥协同状态控制 (100% 实时像素级跟手 + 往返闭环)
     val nestedScrollConnection = remember(parentPagerState, innerPagerState) {
         object : NestedScrollConnection {
+            /**
+             * 滚动前拦截 (onPreScroll):
+             * 当父级大页面已被向右拖出偏移时（处于 Page 2 与 Page 3 之间），
+             * 如果用户中途反悔向左滑动 (available.x < 0)，
+             * 必须优先将该位移用来收起/推回父级大页面归位到 Page 3！
+             * 在父级完全归位前，严禁子级内部卡片发生任何切换消费！
+             */
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (parentPagerState == null) return Offset.Zero
+
+                val parentFraction = parentPagerState.currentPageOffsetFraction
+                val isParentDraggedOut = parentPagerState.currentPage == 2 || parentFraction < -0.001f
+
+                if (isParentDraggedOut && available.x < 0f) {
+                    // 父级向左推回避让 (offset 逐渐增大向 0f 靠近)
+                    val consumed = parentPagerState.dispatchRawDelta(available.x)
+                    return Offset(consumed, 0f)
+                }
+                return Offset.Zero
+            }
+
+            /**
+             * 滚动后接力 (onPostScroll):
+             * 当子级卡片处于 Page 0 最左端，且用户继续向右滑动 (available.x > 0) 时，
+             * 子级已无法消费（已到边界），未消费的向右位移无缝 1:1 驱动父级 Pager 实时平移跟手！
+             */
             override fun onPostScroll(
                 consumed: Offset,
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
-                // 当处于第 0 张卡片且向右滑动时，仅记录有效滑动位移，不在滑动中途直接强改父级 Pager 偏移，彻底消除抖动与争夺
-                if (parentPagerState != null && innerPagerState.currentPage == 0 && available.x > 0f) {
-                    dragRightAccumulator += available.x
+                if (parentPagerState == null) return Offset.Zero
+
+                val isInnerAtEdge = innerPagerState.currentPage == 0 && innerPagerState.currentPageOffsetFraction <= 0.001f
+
+                if (isInnerAtEdge && available.x > 0f) {
+                    val delta = parentPagerState.dispatchRawDelta(available.x)
+                    return Offset(delta, 0f)
                 }
                 return Offset.Zero
             }
 
+            /**
+             * 手指离屏释放 (onPostFling):
+             * 当手指离开屏幕时，若父级已被拖出位移，执行最终的决定性吸附结算，
+             * 彻底消耗释放惯性速度，消除抖动与悬空。
+             */
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                // 当处于第 0 张卡片且在松手时检测到向右滑动的意图（Fling 速度或累积拖拽位移超标），以标准平滑动画切回规则页
-                val shouldSlideBack = parentPagerState != null && innerPagerState.currentPage == 0 && (available.x > 120f || dragRightAccumulator > 120f)
-                dragRightAccumulator = 0f
-                if (shouldSlideBack) {
-                    parentPagerState?.animateScrollToPage(
-                        page = 2,
-                        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
-                    )
-                    return available
+                if (parentPagerState == null) return Velocity.Zero
+
+                val parentFraction = parentPagerState.currentPageOffsetFraction
+                val isParentDragged = parentPagerState.currentPage == 2 || parentFraction < -0.001f
+
+                if (isParentDragged) {
+                    // 阈值判定：向右初速度超标 (快速轻弹) 或向右拖动幅度越过 20%
+                    val shouldSnapToRules = available.x > 250f || parentFraction < -0.2f
+
+                    if (shouldSnapToRules) {
+                        parentPagerState.animateScrollToPage(
+                            page = 2,
+                            animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing)
+                        )
+                    } else {
+                        parentPagerState.animateScrollToPage(
+                            page = 3,
+                            animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                        )
+                    }
+                    return available // 完整消费释放能量
                 }
                 return Velocity.Zero
             }
@@ -308,12 +357,13 @@ fun PulseStudioSettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // ==================== 4 大分类可滑动卡片视图 (HorizontalPager) ====================
-            HorizontalPager(
-                state = innerPagerState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(nestedScrollConnection)
-            ) { page ->
+            CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+                HorizontalPager(
+                    state = innerPagerState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(nestedScrollConnection)
+                ) { page ->
                 when (page) {
                     // ==================== 卡片 0: 外观主题与设计风格 ====================
                     0 -> {
@@ -1043,6 +1093,7 @@ fun PulseStudioSettingsScreen(
                     }
                 }
             }
+        }
         }
 
         // 弹窗: 快速直达卡片轮盘
