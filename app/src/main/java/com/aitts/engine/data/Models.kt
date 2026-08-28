@@ -139,6 +139,33 @@ data class TtsProviderConfig(
 )
 
 /**
+ * 判定当前 Provider 在指定传输模式下是否需要由客户端 (Sonic / 播放器) 介入语速缩放
+ * 1. 小米 MiMo: 流式 SSE 裸流时钟固定为 1.0x -> 流式下必须挂载客户端 Sonic / 播放器时间拉伸；非流式已由 Prompt 导演指令原生调速，不挂 Sonic。
+ * 2. 自定义 HTTP: 若模板未配置 ${speed} 占位符 -> 流式与非流式均由客户端 Sonic / 播放器补足调速。
+ * 3. 所有其他引擎 (Edge TTS / Azure / MiniMax / 豆包 / OpenAI / 硅基流动 / Fish / StepFun / Gemini / 离线 ONNX):
+ *    无论流式还是非流式，均已通过 SSML prosody、官方 JSON 浮点参数、Prompt 导演指令或 C++ 底层原生输出倍速音频，客户端 100% 原声直出，严禁二次变速！
+ */
+fun TtsProviderConfig.requiresClientSpeedScaling(isStreaming: Boolean): Boolean {
+    if (kotlin.math.abs(speed - 1.0f) < 0.03f) return false
+    return if (isStreaming) {
+        when (type) {
+            ProviderType.MIMO -> true
+            ProviderType.CUSTOM_HTTP -> {
+                !customPayloadTemplate.contains("\${speed}") && !baseUrl.contains("\${speed}")
+            }
+            else -> false
+        }
+    } else {
+        when (type) {
+            ProviderType.CUSTOM_HTTP -> {
+                !customPayloadTemplate.contains("\${speed}") && !baseUrl.contains("\${speed}")
+            }
+            else -> false
+        }
+    }
+}
+
+/**
  * 历史朗读记录与分析看板模型
  */
 @Immutable

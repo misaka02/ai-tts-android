@@ -108,6 +108,7 @@ import com.aitts.engine.data.AppLogEntry
 import com.aitts.engine.data.LogLevel
 import com.aitts.engine.audio.AudioVisualizerManager
 import com.aitts.engine.data.ConfigDataStore
+import com.aitts.engine.data.requiresClientSpeedScaling
 import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
@@ -280,8 +281,8 @@ fun PulseHubScreen(
                         configDataStore.log("✅ 收到音频数据: ${audioData.size} 字节, 总耗时=${costMs}ms, 采样率=${provider.sampleRate}Hz", sessionId = trialSessionId)
                         configDataStore.log("🔊 内存音频直出播放开始, 启动 32 频段 STFT 示波分析", sessionId = trialSessionId)
 
-                        // 仅当流式传输且服务端未按提示词变速时由播放器执行时间缩放；非流式音频已在合成期原生注入语速，播放器以 1.0x 原声保真直出，杜绝二次减速/加速
-                        val playbackSpeed = if (provider.isStreamingEnabled) effectiveSpeed else 1.0f
+                        // 仅当引擎流式裸流时钟固定(如 MiMo)或自定义节点未配 ${speed} 时由播放器执行时间缩放；其余所有引擎已在合成期原生注入语速，播放器以 1.0x 原声保真直出，杜绝二次倍速/减速
+                        val playbackSpeed = if (provider.copy(speed = effectiveSpeed).requiresClientSpeedScaling(isStreaming = provider.isStreamingEnabled)) effectiveSpeed else 1.0f
                         audioPlayer.playAudioBytes(
                             audioBytes = audioData,
                             speed = playbackSpeed,

@@ -124,6 +124,7 @@ import com.aitts.engine.audio.AudioVisualizerManager
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
+import com.aitts.engine.data.requiresClientSpeedScaling
 import com.aitts.engine.permission.PermissionManager
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.QuoteService
@@ -261,9 +262,10 @@ fun VinylDeckHomeScreen(
                         isSynthesizing = false
                         isPlaying = true
 
+                        val playbackSpeed = if (provider.requiresClientSpeedScaling(isStreaming = false)) provider.speed else 1.0f
                         audioPlayer.playAudioBytes(
                             audioBytes = rawBytes,
-                            speed = provider.speed,
+                            speed = playbackSpeed,
                             onCompletion = {
                                 isPlaying = false
                                 currentTestingProviderId = null

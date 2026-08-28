@@ -87,6 +87,7 @@ import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.PresetConfigs
 import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
+import com.aitts.engine.data.requiresClientSpeedScaling
 import com.aitts.engine.data.VoiceModel
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.provider.MimoTtsProvider
@@ -357,8 +358,8 @@ fun PulseProviderConfigScreen(
                 if (res.isSuccess) {
                     val bytes = res.getOrNull() ?: ByteArray(0)
                     if (bytes.isNotEmpty()) {
-                        // 仅流式传输时由播放器执行时间缩放；非流式音频已在合成期原生注入语速，播放器以 1.0x 原声保真直出，杜绝二次减速/加速
-                        val playbackSpeed = if (cfg.isStreamingEnabled) cfg.speed else 1.0f
+                        // 仅当自定义节点未配 ${speed} 时由播放器执行时间缩放；非流式音频已在合成期原生注入语速，播放器以 1.0x 原声保真直出，杜绝二次倍速/减速
+                        val playbackSpeed = if (cfg.requiresClientSpeedScaling(isStreaming = false)) cfg.speed else 1.0f
                         audioPlayer.playAudioBytes(audioBytes = bytes, speed = playbackSpeed, onCompletion = { isTestingAudio = false })
                     } else {
                         isTestingAudio = false

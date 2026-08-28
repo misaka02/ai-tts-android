@@ -16,6 +16,7 @@ import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.SegmentRole
 import com.aitts.engine.data.SentenceSegment
 import com.aitts.engine.data.TtsProviderConfig
+import com.aitts.engine.data.requiresClientSpeedScaling
 import com.aitts.engine.network.SharedHttpClient
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.AcronymNormalizer
@@ -280,7 +281,8 @@ class TtsSynthesizer(private val context: Context) {
                         details = "引擎=${segConfig.name}, 语速=${segConfig.speed}x",
                         sessionId = sessionId
                     )
-                    val sonic = if (segConfig.type != ProviderType.GEMINI && kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f) {
+                    // 仅当引擎流式裸流时钟固定(如 MiMo)或自定义节点未配 ${speed} 时挂载 Sonic，其余大模型(Gemini)与神经引擎(MiniMax/OpenAI/硅基)流式数据已带速度，客户端不重复挂载
+                    val sonic = if (segConfig.requiresClientSpeedScaling(isStreaming = true)) {
                         com.aitts.engine.audio.Sonic(targetSampleRate, 1).apply {
                             speed = segConfig.speed
                         }
@@ -428,7 +430,7 @@ class TtsSynthesizer(private val context: Context) {
                     )
 
                     // 对非流式音频进行倍速处理 (仅当自定义节点未配置 ${speed} 且需要客户端补足调速时生效，其余大模型与神经引擎已原生输出倍速音频)
-                    val finalPcm = if (requiresClientSpeedProcessing(segConfig)) {
+                    val finalPcm = if (segConfig.requiresClientSpeedScaling(isStreaming = false)) {
                         val sonic = com.aitts.engine.audio.Sonic(targetSampleRate, 1).apply {
                             speed = segConfig.speed
                         }
@@ -594,22 +596,5 @@ class TtsSynthesizer(private val context: Context) {
         }
 
         return Result.failure(lastError ?: Exception("合成失败"))
-    }
-
-    /**
-     * 判定非流式模式下是否需要由客户端 Sonic 进行调速兜底
-     * 1. 自定义节点若未在 Payload 模板或 URL 中定义 ${speed}，由客户端 Sonic 实施精准调速；
-     * 2. 其余所有大模型与神经引擎（MiMo/Gemini 依靠 Prompt 导演指令，MiniMax/豆包/Edge/OpenAI/硅基/离线等依靠服务端/C++ 原生倍速参数）
-     *    均已在合成期输出目标倍速音频，非流式下绝不重复执行客户端 Sonic 避免双重倍速。
-     */
-    private fun requiresClientSpeedProcessing(config: TtsProviderConfig): Boolean {
-        if (kotlin.math.abs(config.speed - 1.0f) < 0.03f) return false
-        return when (config.type) {
-            ProviderType.CUSTOM_HTTP -> {
-                !config.customPayloadTemplate.contains("\${speed}") &&
-                        !config.baseUrl.contains("\${speed}")
-            }
-            else -> false
-        }
     }
 }
