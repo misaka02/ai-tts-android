@@ -427,10 +427,8 @@ class TtsSynthesizer(private val context: Context) {
                         normalizeLoudness = true
                     )
 
-                    // 对非流式音频进行倍速/音调处理 (仅当客户端需要局部变速且非大模型导演模式时生效)
-                    val finalPcm = if (kotlin.math.abs(segConfig.speed - 1.0f) >= 0.03f &&
-                        segConfig.type != ProviderType.MIMO &&
-                        segConfig.type != ProviderType.GEMINI) {
+                    // 对非流式音频进行倍速处理 (仅当自定义节点未配置 ${speed} 且需要客户端补足调速时生效，其余大模型与神经引擎已原生输出倍速音频)
+                    val finalPcm = if (requiresClientSpeedProcessing(segConfig)) {
                         val sonic = com.aitts.engine.audio.Sonic(targetSampleRate, 1).apply {
                             speed = segConfig.speed
                         }
@@ -596,5 +594,22 @@ class TtsSynthesizer(private val context: Context) {
         }
 
         return Result.failure(lastError ?: Exception("合成失败"))
+    }
+
+    /**
+     * 判定非流式模式下是否需要由客户端 Sonic 进行调速兜底
+     * 1. 自定义节点若未在 Payload 模板或 URL 中定义 ${speed}，由客户端 Sonic 实施精准调速；
+     * 2. 其余所有大模型与神经引擎（MiMo/Gemini 依靠 Prompt 导演指令，MiniMax/豆包/Edge/OpenAI/硅基/离线等依靠服务端/C++ 原生倍速参数）
+     *    均已在合成期输出目标倍速音频，非流式下绝不重复执行客户端 Sonic 避免双重倍速。
+     */
+    private fun requiresClientSpeedProcessing(config: TtsProviderConfig): Boolean {
+        if (kotlin.math.abs(config.speed - 1.0f) < 0.03f) return false
+        return when (config.type) {
+            ProviderType.CUSTOM_HTTP -> {
+                !config.customPayloadTemplate.contains("\${speed}") &&
+                        !config.baseUrl.contains("\${speed}")
+            }
+            else -> false
+        }
     }
 }

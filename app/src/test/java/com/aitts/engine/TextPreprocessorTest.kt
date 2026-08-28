@@ -70,4 +70,30 @@ class TextPreprocessorTest {
         val output3 = TextPreprocessor.normalizeChineseNumbers(input3)
         assertEquals("联系电话幺三八零零幺三八零零零，时间是十四点三十分，费用是一百点五元。", output3)
     }
+
+    @Test
+    fun testYearRegexLookbehindProtection() {
+        val input = "他闭关修炼了10000年，终于在2026年飞升出关。"
+        val output = TextPreprocessor.normalizeChineseNumbers(input)
+        assertEquals("他闭关修炼了一万年，终于在二零二六年飞升出关。", output)
+    }
+
+    @Test
+    fun testConcurrentRegexProcessing() {
+        val rules = listOf(
+            ReplacementRule(id = "r1", pattern = "(\\d+)米", replacement = "$1公尺", isRegex = true),
+            ReplacementRule(id = "r2", pattern = "第(\\d+)集", replacement = "Episode $1", isRegex = true),
+            ReplacementRule(id = "r3", pattern = "测试", replacement = "TEST", isRegex = false)
+        )
+        val threads = (1..16).map { threadIdx ->
+            Thread {
+                for (i in 0 until 100) {
+                    val res = TextPreprocessor.process("这是第${i}集测试，跑了${i * 10}米", rules)
+                    assert(res.contains("Episode"))
+                }
+            }
+        }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+    }
 }

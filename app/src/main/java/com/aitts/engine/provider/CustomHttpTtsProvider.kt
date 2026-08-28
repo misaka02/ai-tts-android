@@ -155,6 +155,7 @@ class CustomHttpTtsProvider(
 
         return template
             .replace("\${text}", encodedText)
+            .replace("\${prompt}", escapeJson(config.promptInstruction))
             .replace("\${speed}", config.speed.toString())
             .replace("\${pitch}", config.pitch.toString())
             .replace("\${volume}", config.volume.toString())

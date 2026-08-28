@@ -100,13 +100,19 @@ class AudioCacheManager(private val context: Context) {
     }
 
     /**
-     * 写入音频缓存 (文件流独立写入 + 批量 LRU 写锁保护清理)
+     * 写入音频缓存 (临时文件写入 + 原子重命名 + 批量 LRU 写锁保护清理)
+     * 杜绝高并发预拉取时读取线程读到写入一半的损坏残卷音频
      */
     fun put(key: String, data: ByteArray, maxCacheSizeMb: Int = 500) {
         if (data.isEmpty()) return
+        val tempFile = File(cacheDir, "$key.tmp_${System.nanoTime()}")
         try {
-            val file = File(cacheDir, "$key.bin")
-            FileOutputStream(file).use { it.write(data) }
+            FileOutputStream(tempFile).use { it.write(data) }
+            val targetFile = File(cacheDir, "$key.bin")
+            if (targetFile.exists()) {
+                targetFile.delete()
+            }
+            tempFile.renameTo(targetFile)
 
             // 每写入 30 句才检查修剪一次缓存，在排他写锁保护下批量修剪老旧文件
             if (writeCounter.incrementAndGet() % 30 == 0) {
@@ -116,6 +122,9 @@ class AudioCacheManager(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.w("AudioCacheManager", "写入缓存失败: ${e.message}")
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
         }
     }
 

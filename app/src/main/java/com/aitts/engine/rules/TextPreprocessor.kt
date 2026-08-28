@@ -12,8 +12,8 @@ import com.aitts.engine.data.ReplacementRule
  */
 object TextPreprocessor {
 
-    // 预编译正则缓存
-    private val regexCache = mutableMapOf<String, Regex>()
+    // 预编译正则缓存 (使用 ConcurrentHashMap 保证多协程并发分句预处理下的绝对线程安全)
+    private val regexCache = java.util.concurrent.ConcurrentHashMap<String, Regex>()
 
     private val digitChars = charArrayOf('零', '一', '二', '三', '四', '五', '六', '七', '八', '九')
     private val phoneDigitChars = charArrayOf('零', '幺', '二', '三', '四', '五', '六', '七', '八', '九')
@@ -163,12 +163,21 @@ object TextPreprocessor {
             }
         }
 
-        // 5. 年份转换：如 "2026年" -> "二零二六年"
-        val yearRegex = Regex("(\\d{4})年")
+        // 5. 年份与年数转换：
+        // 5.1 4位公历年份：如 "2026年" -> "二零二六年" (前置否定断言避免误伤 10000年 等万级以上大数字)
+        val yearRegex = Regex("(?<!\\d)(\\d{4})年")
         res = yearRegex.replace(res) { match ->
             val digits = match.groupValues[1]
             val chineseDigits = digits.map { digitChars[it - '0'] }.joinToString("")
             "${chineseDigits}年"
+        }
+
+        // 5.2 其余年数/历时转换：如 "10000年" -> "一万年", "500年" -> "五百年", "3年" -> "三年"
+        val durationYearRegex = Regex("(?<!\\d)(\\d{1,3}|\\d{5,})年")
+        res = durationYearRegex.replace(res) { match ->
+            val numStr = match.groupValues[1]
+            val chineseNum = convertIntToChinese(numStr.toLongOrNull() ?: 0)
+            "${chineseNum}年"
         }
 
         // 6. 百分比转换：如 "50%" -> "百分之五十", "99.5%" -> "百分之九十九点五"
