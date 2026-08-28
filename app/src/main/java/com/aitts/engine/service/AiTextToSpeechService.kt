@@ -140,9 +140,7 @@ class AiTextToSpeechService : TextToSpeechService() {
         if (text.isBlank()) {
             callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
             callback.done()
-            if (configDataStore.activeSessionId == sessionId) {
-                configDataStore.activeSessionId = null
-            }
+            configDataStore.compareAndClearActiveSession(sessionId)
             return
         }
 
@@ -158,9 +156,7 @@ class AiTextToSpeechService : TextToSpeechService() {
                 // ignore
             }
         } finally {
-            if (configDataStore.activeSessionId == sessionId) {
-                configDataStore.activeSessionId = null
-            }
+            configDataStore.compareAndClearActiveSession(sessionId)
         }
     }
 
@@ -171,9 +167,7 @@ class AiTextToSpeechService : TextToSpeechService() {
             TtsNotificationManager.cancelPlaybackNotification(this)
             if (sessionToCancel.isNotBlank()) {
                 configDataStore.log("收到系统 onStop() 信号，已精准中断会话 [$sessionToCancel]", sessionId = sessionToCancel)
-                if (configDataStore.activeSessionId == sessionToCancel) {
-                    configDataStore.activeSessionId = null
-                }
+                configDataStore.compareAndClearActiveSession(sessionToCancel)
             } else {
                 configDataStore.log("收到系统 onStop() 信号，当前无活跃会话")
             }

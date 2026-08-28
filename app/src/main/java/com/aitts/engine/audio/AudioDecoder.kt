@@ -188,7 +188,8 @@ object AudioDecoder {
             codec.configure(inputFormat, null, null, 0)
             codec.start()
 
-            val outputStream = ByteArrayOutputStream(data.size * 4)
+            val estimatedPcmSize = minOf(maxOf(data.size * 12, 16384), 4 * 1024 * 1024)
+            val outputStream = ByteArrayOutputStream(estimatedPcmSize)
             val bufferInfo = MediaCodec.BufferInfo()
             var isExtractorEOS = false
             var isCodecEOS = false

@@ -49,8 +49,16 @@ class ConfigDataStore(private val context: Context) {
     private val logLock = Any()
     private val timeFormatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
 
-    @Volatile
-    var activeSessionId: String? = null
+    private val _activeSessionId = java.util.concurrent.atomic.AtomicReference<String?>(null)
+    var activeSessionId: String?
+        get() = _activeSessionId.get()
+        set(value) {
+            _activeSessionId.set(value)
+        }
+
+    fun compareAndClearActiveSession(expectedSession: String?): Boolean {
+        return _activeSessionId.compareAndSet(expectedSession, null)
+    }
 
     private fun getCurrentTimestamp(): String {
         return try {
@@ -61,28 +69,7 @@ class ConfigDataStore(private val context: Context) {
     }
 
     fun log(message: String, level: LogLevel = LogLevel.INFO, tag: String = "TTS", sessionId: String? = null) {
-        val timestamp = getCurrentTimestamp()
-        val resolvedSessionId = sessionId ?: activeSessionId
-        val entry = AppLogEntry(
-            timestamp = timestamp,
-            level = level,
-            tag = tag,
-            title = message,
-            sessionId = resolvedSessionId
-        )
-        val formatted = entry.formatToString()
-        android.util.Log.d("AiTtsEngine", formatted)
-        synchronized(logLock) {
-            val currentStr = _logsFlow.value.toMutableList()
-            if (currentStr.size > 200) currentStr.removeAt(0)
-            currentStr.add(formatted)
-            _logsFlow.value = currentStr
-
-            val currentStruct = _structuredLogsFlow.value.toMutableList()
-            if (currentStruct.size > 200) currentStruct.removeAt(0)
-            currentStruct.add(entry)
-            _structuredLogsFlow.value = currentStruct
-        }
+        logStructured(level = level, tag = tag, title = message, details = null, sessionId = sessionId)
     }
 
     fun logStructured(

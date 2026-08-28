@@ -85,6 +85,13 @@ object AcronymNormalizer {
         "3G" to "三G"
     )
 
+    // 预编译内置词表正则列表 (带特殊字符安全转义，杜绝反复构造正则对象的堆内存颠簸)
+    private val compiledExplicitRules: List<Pair<Pattern, String>> = explicitMap.map { (target, replacement) ->
+        val quoted = Pattern.quote(target)
+        val pattern = Pattern.compile("(?<![a-zA-Z])$quoted(?![a-zA-Z])")
+        pattern to replacement
+    }
+
     // 通用 2~5 位纯大写字母缩写正则（如 NASA, FBI, CIA, MIT 等）
     private val generalAcronymPattern = Pattern.compile("(?<![a-zA-Z])([A-Z]{2,5})(?![a-zA-Z])")
 
@@ -96,10 +103,12 @@ object AcronymNormalizer {
 
         var result = text
 
-        // 1. 精准替换内置词表
-        for ((target, replacement) in explicitMap) {
-            val regex = "(?<![a-zA-Z])$target(?![a-zA-Z])"
-            result = result.replace(Regex(regex), replacement)
+        // 1. 精准替换内置词表 (预编译 Pattern，零内存开销)
+        for ((pattern, replacement) in compiledExplicitRules) {
+            val matcher = pattern.matcher(result)
+            if (matcher.find()) {
+                result = matcher.replaceAll(replacement)
+            }
         }
 
         // 2. 通用大写缩写拆分为字母连读（如 FBI -> F-B-I）

@@ -60,7 +60,7 @@ object SentenceSplitter {
                     for (i in 1 until segments.size) {
                         val seg = segments[i]
                         if (seg.role == currentRole && buffer.length < minMergeLen) {
-                            buffer.append(" ").append(seg.text)
+                            appendSmartly(buffer, seg.text)
                         } else {
                             merged.add(SentenceSegment(buffer.toString().trim(), currentRole, currentEmotion))
                             buffer.clear()
@@ -86,7 +86,7 @@ object SentenceSplitter {
                         if (buffer.isEmpty()) {
                             buffer.append(s)
                         } else if (buffer.length < minMergeLen) {
-                            buffer.append(" ").append(s)
+                            appendSmartly(buffer, s)
                         } else {
                             merged.add(buffer.toString().trim())
                             buffer.clear()
@@ -344,5 +344,25 @@ object SentenceSplitter {
 
     private fun isClosingQuote(c: Char): Boolean {
         return c == '”' || c == '’' || c == '」' || c == '』' || c == '"' || c == '\'' || c == '）' || c == ')'
+    }
+
+    private fun isAsciiAlphanumeric(c: Char): Boolean {
+        return (c in 'a'..'z') || (c in 'A'..'Z') || (c in '0'..'9')
+    }
+
+    private fun appendSmartly(buffer: StringBuilder, nextText: String) {
+        val trimmedNext = nextText.trim()
+        if (trimmedNext.isEmpty()) return
+        if (buffer.isEmpty()) {
+            buffer.append(trimmedNext)
+            return
+        }
+        val lastChar = buffer.last()
+        val firstChar = trimmedNext.first()
+        val needSpace = isAsciiAlphanumeric(lastChar) && isAsciiAlphanumeric(firstChar)
+        if (needSpace) {
+            buffer.append(' ')
+        }
+        buffer.append(trimmedNext)
     }
 }

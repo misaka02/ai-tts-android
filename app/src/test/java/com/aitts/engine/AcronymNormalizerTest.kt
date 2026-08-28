@@ -31,4 +31,11 @@ class AcronymNormalizerTest {
         val input = "这是一段完全没有英文缩写的普通中文文本。"
         assertEquals(input, AcronymNormalizer.normalize(input))
     }
+
+    @Test
+    fun testSpecialAcronymsWithDotAndDash() {
+        val input = "我们使用了GPT-3.5和GPT-4o模型，通过USB-C接口传输数据。"
+        val expected = "我们使用了G-P-T-三点五和G-P-T-四-o模型，通过U-S-B-C接口传输数据。"
+        assertEquals(expected, AcronymNormalizer.normalize(input))
+    }
 }

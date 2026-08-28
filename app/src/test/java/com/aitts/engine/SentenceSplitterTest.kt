@@ -110,4 +110,19 @@ class SentenceSplitterTest {
             assertTrue(lastChar == '。' || lastChar == '！' || lastChar == '？' || lastChar == '!' || lastChar == '?')
         }
     }
+
+    @Test
+    fun testFineRulesPunctuationModeChineseMerge() {
+        val input = "你好。世界！测试。"
+        val segments = SentenceSplitter.splitTextWithFineRules(
+            text = input,
+            mode = "PUNCTUATION",
+            mergeShort = true,
+            minMergeLen = 20,
+            splitLong = false
+        )
+        // 验证中文句子合并时无多余英文空格
+        assertEquals(1, segments.size)
+        assertEquals("你好。世界！测试。", segments[0].text)
+    }
 }

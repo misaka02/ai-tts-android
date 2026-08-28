@@ -215,9 +215,10 @@ fun PulseStudioSettingsScreen(
                 if (parentPagerState == null) return Offset.Zero
 
                 val parentFraction = parentPagerState.currentPageOffsetFraction
-                val isParentDraggedOut = parentPagerState.currentPage == 2 || parentFraction < -0.001f
+                val isParentInTransit = (parentPagerState.currentPage == 3 && parentFraction < -0.001f) ||
+                        (parentPagerState.currentPage == 2 && parentFraction > 0.001f)
 
-                if (isParentDraggedOut && available.x < 0f) {
+                if (isParentInTransit && available.x < 0f) {
                     // 父级向左推回避让 (offset 逐渐增大向 0f 靠近)
                     val consumed = parentPagerState.dispatchRawDelta(available.x)
                     return Offset(consumed, 0f)
@@ -255,11 +256,14 @@ fun PulseStudioSettingsScreen(
                 if (parentPagerState == null) return Velocity.Zero
 
                 val parentFraction = parentPagerState.currentPageOffsetFraction
-                val isParentDragged = parentPagerState.currentPage == 2 || parentFraction < -0.001f
+                val isParentInTransit = (parentPagerState.currentPage == 3 && parentFraction < -0.001f) ||
+                        (parentPagerState.currentPage == 2 && parentFraction > 0.001f)
 
-                if (isParentDragged) {
-                    // 阈值判定：向右初速度超标 (快速轻弹) 或向右拖动幅度越过 20%
-                    val shouldSnapToRules = available.x > 250f || parentFraction < -0.2f
+                if (isParentInTransit) {
+                    // 阈值判定：向右初速度超标 (快速轻弹) 或向右拖动幅度越过临界点
+                    val shouldSnapToRules = available.x > 250f ||
+                            (parentPagerState.currentPage == 3 && parentFraction < -0.2f) ||
+                            (parentPagerState.currentPage == 2 && parentFraction < 0.8f)
 
                     if (shouldSnapToRules) {
                         parentPagerState.animateScrollToPage(
