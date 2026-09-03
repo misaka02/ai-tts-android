@@ -556,6 +556,9 @@ object OfflineModelManager {
                                 }
                                 if (relativePath.isNotBlank()) {
                                     val outFile = File(outputDir, relativePath)
+                                    if (!outFile.canonicalPath.startsWith(outputDir.canonicalPath + File.separator)) {
+                                        throw SecurityException("检测到非法解压路径穿越: $entryName")
+                                    }
                                     if (entry.isDirectory) {
                                         outFile.mkdirs()
                                     } else {
@@ -587,6 +590,9 @@ object OfflineModelManager {
                             }
                             if (relativePath.isNotBlank()) {
                                 val outFile = File(outputDir, relativePath)
+                                if (!outFile.canonicalPath.startsWith(outputDir.canonicalPath + File.separator)) {
+                                    throw SecurityException("检测到非法解压路径穿越: $entryName")
+                                }
                                 if (zipEntry.isDirectory) {
                                     outFile.mkdirs()
                                 } else {

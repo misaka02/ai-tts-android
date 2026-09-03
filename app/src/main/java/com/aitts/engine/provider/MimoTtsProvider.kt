@@ -31,6 +31,8 @@ class MimoTtsProvider(
 
     private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
 
+    override val supportsNativePcmStreaming: Boolean = true
+
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> = withContext(Dispatchers.IO) {

@@ -225,8 +225,9 @@ class TtsSynthesizer(private val context: Context) {
                 1
             }
 
-            // 预先启动前方分段的并发预拉取 (若首段开启流式，则首段无需预取，直接进入实时推流)
-            val startPrefetchIdx = if (mergedConfig.isStreamingEnabled) 1 else 0
+            // 预先启动前方分段的并发预拉取 (仅当首段支持且开启原生流式裸流推流时，首段才无需预取)
+            val isNativeStreamingAvailable = mergedConfig.isStreamingEnabled && providerManager.getProvider(mergedConfig.type).supportsNativePcmStreaming
+            val startPrefetchIdx = if (isNativeStreamingAvailable) 1 else 0
             for (lookAhead in startPrefetchIdx until minOf(prefetchWindow + startPrefetchIdx, segments.size)) {
                 val seg = segments[lookAhead]
                 val segConfig = getConfigForSegment(seg, lookAhead)
@@ -273,11 +274,12 @@ class TtsSynthesizer(private val context: Context) {
                 val sleepFadeFactor = SleepTimerManager.getInstance(context).getFadeVolumeFactor()
                 val effectiveGain = (segConfig.volume * settings.loudnessGainFactor * sleepFadeFactor).coerceIn(0.0f, 2.5f)
 
-                if (segConfig.isStreamingEnabled && !sessionCache.containsKey(i)) {
+                val canNativeStream = segConfig.isStreamingEnabled && providerManager.getProvider(segConfig.type).supportsNativePcmStreaming
+                if (canNativeStream && !sessionCache.containsKey(i)) {
                     configDataStore.logStructured(
                         level = LogLevel.INFO,
                         tag = "STREAM",
-                        title = "第 ${i + 1}/${segments.size} 段流式推流启动",
+                        title = "第 ${i + 1}/${segments.size} 段原生 PCM 流式推流启动",
                         details = "引擎=${segConfig.name}, 语速=${segConfig.speed}x",
                         sessionId = sessionId
                     )

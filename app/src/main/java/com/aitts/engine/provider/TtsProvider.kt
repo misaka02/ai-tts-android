@@ -9,6 +9,13 @@ import com.aitts.engine.data.VoiceModel
 interface TtsProvider {
 
     /**
+     * 当前 Provider 是否原生支持 16-bit 线性 PCM 裸流实时推流。
+     * 仅当为 true 时，TtsSynthesizer 才会启用流式推流分支；
+     * 若为 false（如 Edge/豆包/Azure 等仅支持 MP3/WAV 格式的引擎），强制回退走预加载解码流水线，彻底根绝白噪音。
+     */
+    val supportsNativePcmStreaming: Boolean get() = false
+
+    /**
      * 获取支持的音色列表
      */
     suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel>

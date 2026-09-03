@@ -260,10 +260,14 @@ fun PulseStudioSettingsScreen(
                         (parentPagerState.currentPage == 2 && parentFraction > 0.001f)
 
                 if (isParentInTransit) {
-                    // 阈值判定：向右初速度超标 (快速轻弹) 或向右拖动幅度越过临界点
-                    val shouldSnapToRules = available.x > 250f ||
-                            (parentPagerState.currentPage == 3 && parentFraction < -0.2f) ||
-                            (parentPagerState.currentPage == 2 && parentFraction < 0.8f)
+                    // 强手势速度绝对优先级判定：消除反向快速推回时的手势死锁
+                    val shouldSnapToRules = when {
+                        available.x > 250f -> true   // 明确向右快速轻弹 -> 顺应惯性翻到 Page 2
+                        available.x < -250f -> false // 明确向左快速推回 -> 顺应惯性回到 Page 3 (修复反悔死锁)
+                        parentPagerState.currentPage == 2 -> true // 静止释放且已过中线
+                        parentPagerState.currentPage == 3 && parentFraction < -0.2f -> true // 拖出位移超 20%
+                        else -> false // 归位 Page 3
+                    }
 
                     if (shouldSnapToRules) {
                         parentPagerState.animateScrollToPage(

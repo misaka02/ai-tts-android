@@ -34,7 +34,7 @@ class GeminiTtsProvider(
 ) : TtsProvider {
 
     private val client: OkHttpClient get() = com.aitts.engine.network.SharedHttpClient.instance
-
+    override val supportsNativePcmStreaming: Boolean = true
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun getAvailableVoices(config: TtsProviderConfig): List<VoiceModel> = withContext(Dispatchers.IO) {
@@ -439,8 +439,14 @@ class GeminiTtsProvider(
             } else {
                 // 仅当从未推送过任何流式 chunk 时才允许全量兜底，防止音频重叠与鬼畜
                 if (!firstChunkReceived) {
-                    synthesize(text, config, sessionId).also { fallbackRes ->
-                        fallbackRes.getOrNull()?.let { onAudioChunk(it) }
+                    val fallbackRes = synthesize(text, config, sessionId)
+                    val fullBytes = fallbackRes.getOrNull()
+                    if (fullBytes != null && fullBytes.isNotEmpty()) {
+                        val purePcm = com.aitts.engine.audio.AudioDecoder.decodeToPcm(fullBytes, config.sampleRate).pcmData
+                        onAudioChunk(purePcm)
+                        Result.success(purePcm)
+                    } else {
+                        fallbackRes
                     }
                 } else {
                     Result.failure(IOException("Gemini 流式推流意外中断，已终止避免音频重叠"))

@@ -375,29 +375,6 @@ class OfflineTtsProvider(private val context: Context) : TtsProvider {
         }
     }
 
-    override suspend fun synthesizeStreaming(
-        text: String,
-        config: TtsProviderConfig,
-        onAudioChunk: suspend (ByteArray) -> Unit
-    ): Result<ByteArray> = withContext(Dispatchers.IO) {
-        val fullResult = synthesize(text, config)
-        if (fullResult.isSuccess) {
-            val fullBytes = fullResult.getOrNull() ?: ByteArray(0)
-            if (fullBytes.isNotEmpty()) {
-                val chunkSize = 2048
-                var offset = 0
-                while (offset < fullBytes.size) {
-                    val len = minOf(chunkSize, fullBytes.size - offset)
-                    val chunk = fullBytes.copyOfRange(offset, offset + len)
-                    onAudioChunk(chunk)
-                    offset += len
-                    delay(6)
-                }
-            }
-        }
-        fullResult
-    }
-
     private fun parseSpeakerId(voiceId: String): Int {
         if (voiceId.isBlank()) return 0
         return try {

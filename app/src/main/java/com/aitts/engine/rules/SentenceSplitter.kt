@@ -237,6 +237,15 @@ object SentenceSplitter {
                     rawBlocks.add(SentenceSegment(dialogText, currentDialogueRole, emotion))
                     currentBlock.clear()
                 }
+            } else if (quoteStack.isNotEmpty() && (c == '\n' || c == '\r' || (currentBlock.length > 180 && (c == '。' || c == '！' || c == '？')))) {
+                // 异常保护与熔断：遇到硬换行或单段引语超长且遇到句末标点时，判定排版遗漏后引号，强制闭合出栈，防止污染全篇旁白
+                currentBlock.append(c)
+                val dialogText = currentBlock.toString().trim()
+                val emotion = EmotionDetector.detectEmotion(lastNarratorText, dialogText)
+                rawBlocks.add(SentenceSegment(dialogText, currentDialogueRole, emotion))
+                currentBlock.clear()
+                quoteStack.clear()
+                currentDialogueRole = SegmentRole.DIALOGUE
             } else {
                 currentBlock.append(c)
             }
