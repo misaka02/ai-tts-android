@@ -126,12 +126,15 @@ fun UniversalActionHub(
                 .clip(CircleShape)
                 .clickable { isExpanded = !isExpanded },
             shape = CircleShape,
-            color = if (isExpanded) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceDark.copy(alpha = 0.92f),
-            border = BorderStroke(
-                1.5.dp,
-                if (isExpanded) PulseTokens.CyanElectric else if (isHighlighted) PulseTokens.CyanElectric.copy(alpha = 0.85f) else PulseTokens.CyanElectric.copy(alpha = 0.5f)
-            ),
-            shadowElevation = if (isExpanded) 12.dp else 6.dp
+            color = if (isExpanded) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceDark.copy(alpha = 0.94f),
+            border = if (isExpanded) {
+                BorderStroke(1.dp, PulseTokens.CyanElectric)
+            } else if (isHighlighted) {
+                BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.8f))
+            } else {
+                PulseTokens.BorderSubtle
+            },
+            shadowElevation = if (isExpanded) 8.dp else 4.dp
         ) {
             Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                 if (isExpanded) {
@@ -144,7 +147,7 @@ fun UniversalActionHub(
                 } else {
                     Icon(
                         imageVector = icon,
-                        contentDescription = "单手快捷",
+                        contentDescription = "快捷操作",
                         tint = if (isHighlighted) PulseTokens.CyanElectric else Color.White,
                         modifier = Modifier.size(20.dp)
                     )

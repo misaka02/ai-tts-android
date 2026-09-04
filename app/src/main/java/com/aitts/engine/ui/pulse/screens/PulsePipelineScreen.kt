@@ -114,11 +114,11 @@ fun PulsePipelineScreen(
 
     val categoryTabs = listOf(
         "ALL" to "全部 (${rules.size})",
-        "POLYPHONE" to "🔤 多音字",
-        "CLEANUP" to "🧹 符号净化",
-        "WATERMARK" to "🛡️ 防盗水印",
-        "SPECIAL" to "🧩 专有缩写",
-        "COMMON" to "📝 通用规则"
+        "POLYPHONE" to "多音字",
+        "CLEANUP" to "符号净化",
+        "WATERMARK" to "水印过滤",
+        "SPECIAL" to "专有缩写",
+        "COMMON" to "通用规则"
     )
 
     fun runTest() {
@@ -148,14 +148,14 @@ fun PulsePipelineScreen(
             item {
                 Column(modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
                     Text(
-                        text = "发音正则替换流水线",
+                        text = "发音替换规则",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.sp,
                         color = PulseTokens.TextPrimary
                     )
                     Text(
-                        text = "共 ${rules.size} 条文本发音修正与正则规则 · 按分类一键启停",
+                        text = "共 ${rules.size} 条文本发音修正与清洗规则 · 按分类一键启停",
                         fontSize = 11.sp,
                         color = PulseTokens.CyanElectric,
                         modifier = Modifier.padding(top = 2.dp)
@@ -167,7 +167,7 @@ fun PulsePipelineScreen(
             item {
                 PulseCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("🧪 单手即时替换流水线测试", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = PulseTokens.CyanElectric)
+                        Text("发音替换即时测试", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = PulseTokens.CyanElectric)
 
                         OutlinedTextField(
                             value = testInputText,

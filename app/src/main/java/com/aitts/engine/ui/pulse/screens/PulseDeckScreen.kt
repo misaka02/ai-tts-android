@@ -260,14 +260,14 @@ fun PulseDeckScreen(
                 ) {
                     Column {
                         Text(
-                            text = "模型矩阵全景舱",
+                            text = "语音引擎管理",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 1.sp,
                             color = PulseTokens.TextPrimary
                         )
                         Text(
-                            text = "共 ${providers.size} 个模型引擎 · 长按手柄拖拽排序",
+                            text = "共 ${providers.size} 个可用引擎 · 长按拖拽调整优先级",
                             fontSize = 11.sp,
                             color = PulseTokens.CyanElectric,
                             modifier = Modifier.padding(top = 2.dp)
@@ -303,7 +303,7 @@ fun PulseDeckScreen(
             }
 
             item {
-                val deckTabs = listOf("全部模型 (${providers.size})", "⭐ 主力引擎", "☁️ 云端大模型", "⚡ 离线/直连")
+                val deckTabs = listOf("全部 (${providers.size})", "主力引擎", "云端模型", "离线直连")
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)

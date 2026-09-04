@@ -254,7 +254,7 @@ fun PulseHubScreen(
                         if (!firstChunkReceived) {
                             firstChunkReceived = true
                             lastLatencyMs = System.currentTimeMillis() - startTime
-                            configDataStore.log("⚡ [流式首包已就绪] 首包到达耗时: ${lastLatencyMs}ms (正在推流接收...)", sessionId = trialSessionId)
+                            configDataStore.log("[Stream] 首包耗时: ${lastLatencyMs}ms (推流中)", sessionId = trialSessionId)
                         }
                         streamBuffer.write(chunk)
                     }
@@ -278,8 +278,8 @@ fun PulseHubScreen(
                         isSynthesizing = false
                         isPlaying = true
 
-                        configDataStore.log("✅ 收到音频数据: ${audioData.size} 字节, 总耗时=${costMs}ms, 采样率=${provider.sampleRate}Hz", sessionId = trialSessionId)
-                        configDataStore.log("🔊 内存音频直出播放开始, 启动 32 频段 STFT 示波分析", sessionId = trialSessionId)
+                        configDataStore.log("[Audio] 收到数据: ${audioData.size} 字节, 耗时=${costMs}ms, 采样率=${provider.sampleRate}Hz", sessionId = trialSessionId)
+                        configDataStore.log("[Audio] 开始播放", sessionId = trialSessionId)
 
                         // 仅当引擎流式裸流时钟固定(如 MiMo)或自定义节点未配 ${speed} 时由播放器执行时间缩放；其余所有引擎已在合成期原生注入语速，播放器以 1.0x 原声保真直出，杜绝二次倍速/减速
                         val playbackSpeed = if (provider.copy(speed = effectiveSpeed).requiresClientSpeedScaling(isStreaming = provider.isStreamingEnabled)) effectiveSpeed else 1.0f
@@ -288,14 +288,14 @@ fun PulseHubScreen(
                             speed = playbackSpeed,
                             onCompletion = {
                                 isPlaying = false
-                                configDataStore.log("⏹️ 朗读播音结束 (播放完毕)", sessionId = trialSessionId)
+                                configDataStore.log("[Player] 播放完毕", sessionId = trialSessionId)
                                 if (configDataStore.activeSessionId == trialSessionId) {
                                     configDataStore.activeSessionId = null
                                 }
                             },
                             onError = { err ->
                                 isPlaying = false
-                                configDataStore.log("⚠️ 播放器异常: $err", sessionId = trialSessionId)
+                                configDataStore.log("[Error] 播放异常: $err", sessionId = trialSessionId)
                                 if (configDataStore.activeSessionId == trialSessionId) {
                                     configDataStore.activeSessionId = null
                                 }
@@ -304,7 +304,7 @@ fun PulseHubScreen(
                     } else {
                         isSynthesizing = false
                         isPlaying = false
-                        configDataStore.log("⚠️ 合成音频流为空 (0 字节)", sessionId = trialSessionId)
+                        configDataStore.log("[Warn] 合成音频流为空 (0 字节)", sessionId = trialSessionId)
                         if (configDataStore.activeSessionId == trialSessionId) {
                             configDataStore.activeSessionId = null
                         }
@@ -314,7 +314,7 @@ fun PulseHubScreen(
                     isSynthesizing = false
                     isPlaying = false
                     val err = result.exceptionOrNull()?.message ?: "未知异常"
-                    configDataStore.log("❌ 合成失败: $err", sessionId = trialSessionId)
+                    configDataStore.log("[Error] 合成失败: $err", sessionId = trialSessionId)
                     if (configDataStore.activeSessionId == trialSessionId) {
                         configDataStore.activeSessionId = null
                     }
@@ -324,7 +324,7 @@ fun PulseHubScreen(
                 isSynthesizing = false
                 isPlaying = false
                 val msg = t.message ?: t.javaClass.simpleName
-                configDataStore.log("💥 调用异常: $msg", sessionId = trialSessionId)
+                configDataStore.log("[Error] 调用异常: $msg", sessionId = trialSessionId)
                 if (configDataStore.activeSessionId == trialSessionId) {
                     configDataStore.activeSessionId = null
                 }
@@ -568,19 +568,20 @@ fun PulseHubScreen(
                             coreStyle = settings.acousticCoreStyle,
                             onClick = { startSynthesis(activeProvider) },
                             onStyleChange = { nextStyle ->
-                                configDataStore.updateSettings(settings.copy(acousticCoreStyle = nextStyle % 3))
-                                val styleName = when (nextStyle % 3) {
+                                configDataStore.updateSettings(settings.copy(acousticCoreStyle = nextStyle % 4))
+                                val styleName = when (nextStyle % 4) {
                                     0 -> "极光光晕"
                                     1 -> "物理点阵"
-                                    else -> "引力轨道"
+                                    2 -> "引力轨道"
+                                    else -> "专业声学频谱仪"
                                 }
-                                Toast.makeText(context, "核心球风格: $styleName", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "频谱风格: $styleName", Toast.LENGTH_SHORT).show()
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             }
                         )
 
                         Text(
-                            text = "轻触试听 · 双击切换核心球风格",
+                            text = "轻触试听 · 双击切换频谱风格",
                             fontSize = 10.5.sp,
                             color = PulseTokens.TextTertiary,
                             modifier = Modifier.padding(top = 4.dp)
@@ -588,7 +589,7 @@ fun PulseHubScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // 4 大交互式声学状态微胶囊 (支持直接点击执行相应功能与模型自适应)
+                        // 4 大交互式状态卡片
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -611,7 +612,7 @@ fun PulseHubScreen(
                                 ) {
                                     Text("合成延迟", fontSize = 10.sp, color = PulseTokens.TextTertiary)
                                     Text("${lastLatencyMs ?: "--"}ms", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
-                                    Text("测速 ⚡", fontSize = 9.sp, color = PulseTokens.CyanElectric.copy(alpha = 0.8f))
+                                    Text("测速", fontSize = 9.sp, color = PulseTokens.CyanElectric.copy(alpha = 0.8f))
                                 }
                             }
 
@@ -630,11 +631,11 @@ fun PulseHubScreen(
                                 ) {
                                     Text("发音音色", fontSize = 10.sp, color = PulseTokens.TextTertiary)
                                     Text(activeProvider.voiceId.ifBlank { "默认" }.take(6), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = PulseTokens.SonicBlue, maxLines = 1)
-                                    Text("换音色 🎙️", fontSize = 9.sp, color = PulseTokens.SonicBlue.copy(alpha = 0.8f))
+                                    Text("换音色", fontSize = 9.sp, color = PulseTokens.SonicBlue.copy(alpha = 0.8f))
                                 }
                             }
 
-                            // 卡片 3: 模型自适应参数 (AI 情绪 Prompt / 传统 TTS 语速音高)
+                            // 卡片 3: 模型参数 (提示词 Prompt / 语速音高)
                             if (isAiModel) {
                                 Surface(
                                     modifier = Modifier
@@ -648,9 +649,9 @@ fun PulseHubScreen(
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        Text("AI 情绪", fontSize = 10.sp, color = PulseTokens.TextTertiary)
+                                        Text("提示词", fontSize = 10.sp, color = PulseTokens.TextTertiary)
                                         Text(if (activeProvider.promptInstruction.isNotBlank()) "自定义" else "标准", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = PulseTokens.AmberWarm)
-                                        Text("Prompt 🎭", fontSize = 9.sp, color = PulseTokens.AmberWarm.copy(alpha = 0.8f))
+                                        Text("Prompt", fontSize = 9.sp, color = PulseTokens.AmberWarm.copy(alpha = 0.8f))
                                     }
                                 }
                             } else {
@@ -668,7 +669,7 @@ fun PulseHubScreen(
                                     ) {
                                         Text("语速音高", fontSize = 10.sp, color = PulseTokens.TextTertiary)
                                         Text("${String.format("%.1f", activeProvider.speed)}x/${String.format("%.1f", activeProvider.pitch)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseTokens.CyanElectric)
-                                        Text("微调 🎚️", fontSize = 9.sp, color = PulseTokens.CyanElectric.copy(alpha = 0.8f))
+                                        Text("微调", fontSize = 9.sp, color = PulseTokens.CyanElectric.copy(alpha = 0.8f))
                                     }
                                 }
                             }
@@ -697,7 +698,7 @@ fun PulseHubScreen(
                                 ) {
                                     Text("缓存空间", fontSize = 10.sp, color = PulseTokens.TextTertiary)
                                     Text(formattedCacheSize, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PulseTokens.MagentaLaser, maxLines = 1)
-                                    Text("清理 🧹", fontSize = 9.sp, color = PulseTokens.MagentaLaser.copy(alpha = 0.8f))
+                                    Text("清理", fontSize = 9.sp, color = PulseTokens.MagentaLaser.copy(alpha = 0.8f))
                                 }
                             }
                         }
@@ -786,7 +787,7 @@ fun PulseHubScreen(
                                     border = PulseTokens.BorderSubtle,
                                     modifier = Modifier.height(38.dp)
                                 ) {
-                                    Text("⚡ 日志", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("日志", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 

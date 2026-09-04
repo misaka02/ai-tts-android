@@ -195,10 +195,10 @@ fun PulseStudioSettingsScreen(
     }
 
     val categories = listOf(
-        "🎨 外观与主题",
-        "⚡ 引擎与声学",
-        "🌐 网络与代理",
-        "💾 备份与系统"
+        "外观与主题",
+        "引擎与声学",
+        "网络与代理",
+        "备份与系统"
     )
 
     // 双层 HorizontalPager 互斥协同状态控制 (100% 实时像素级跟手 + 往返闭环)
@@ -314,7 +314,7 @@ fun PulseStudioSettingsScreen(
                         color = PulseTokens.TextPrimary
                     )
                     Text(
-                        text = "分类微胶囊快速直达 · 单手操作收纳岛",
+                        text = "系统首选项与引擎配置",
                         fontSize = 11.sp,
                         color = PulseTokens.CyanElectric,
                         modifier = Modifier.padding(top = 2.dp)
@@ -383,14 +383,14 @@ fun PulseStudioSettingsScreen(
                             item {
                                 PulseCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
                                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                        Text("🎨 界面外观与设计风格", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
+                                        Text("界面外观与主题风格", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
 
-                                        Text("全局 UI 主题架构", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
+                                        Text("界面展示模式", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
                                         val styleOptions = listOf(
-                                            "PULSE" to "⚡ Pulse 极光灵动微胶囊中枢",
-                                            "BENTO" to "🚀 Bento 全景网格矩阵工作台",
-                                            "STUDIO" to "🎛️ Modern Studio 专业声学调音台",
-                                            "VINYL" to "📻 Vinyl 复古黑胶阅览中枢"
+                                            "PULSE" to "现代卡片模式 (Pulse)",
+                                            "BENTO" to "全景面板模式 (Bento)",
+                                            "STUDIO" to "专业控制台 (Studio)",
+                                            "VINYL" to "经典黑胶模式 (Vinyl)"
                                         )
                                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             styleOptions.forEach { (key, label) ->
@@ -403,7 +403,7 @@ fun PulseStudioSettingsScreen(
                                                             Toast.makeText(context, "已切换为: $label", Toast.LENGTH_SHORT).show()
                                                         },
                                                     backgroundColor = if (isCurrent) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceElevated,
-                                                    border = if (isCurrent) BorderStroke(1.5.dp, PulseTokens.CyanElectric) else PulseTokens.BorderSubtle,
+                                                    border = if (isCurrent) BorderStroke(1.dp, PulseTokens.CyanElectric) else PulseTokens.BorderSubtle,
                                                     shape = RoundedCornerShape(10.dp)
                                                 ) {
                                                     Row(
@@ -422,11 +422,11 @@ fun PulseStudioSettingsScreen(
 
                                         Spacer(modifier = Modifier.height(4.dp))
 
-                                        Text("主题明暗模式 (Theme Mode)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
+                                        Text("明暗模式", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                             val themeModes = listOf(
-                                                "DARK" to "🌙 深邃夜间",
-                                                "LIGHT" to "☀️ 灵动明亮"
+                                                "DARK" to "深色模式",
+                                                "LIGHT" to "浅色模式"
                                             )
                                             themeModes.forEach { (modeKey, modeTitle) ->
                                                 val isCurrent = settings.appThemeMode.uppercase() == modeKey
@@ -1147,14 +1147,14 @@ fun PulseStudioSettingsScreen(
         // 弹窗: 切换主题风格
         if (showThemeDialog) {
             val styles = listOf(
-                "PULSE" to "⚡ Pulse 极光灵动微胶囊中枢",
-                "BENTO" to "🚀 Bento 全景网格矩阵工作台",
-                "STUDIO" to "🎛️ Modern Studio 专业声学调音台",
-                "VINYL" to "📻 Vinyl 复古黑胶阅览中枢"
+                "PULSE" to "现代卡片模式 (Pulse)",
+                "BENTO" to "全景面板模式 (Bento)",
+                "STUDIO" to "专业控制台 (Studio)",
+                "VINYL" to "经典黑胶模式 (Vinyl)"
             )
             AlertDialog(
                 onDismissRequest = { showThemeDialog = false },
-                title = { Text("切换设计系统风格", fontWeight = FontWeight.Bold) },
+                title = { Text("切换界面模式", fontWeight = FontWeight.Bold) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         styles.forEach { (key, name) ->
@@ -1165,10 +1165,10 @@ fun PulseStudioSettingsScreen(
                                     .clickable {
                                         configDataStore.updateSettings(settings.copy(appUiStyle = key))
                                         showThemeDialog = false
-                                        Toast.makeText(context, "已切换风格为: $name", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "已切换为: $name", Toast.LENGTH_SHORT).show()
                                     },
                                 backgroundColor = if (isCurrent) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceElevated,
-                                border = if (isCurrent) BorderStroke(1.5.dp, PulseTokens.CyanElectric) else PulseTokens.BorderSubtle,
+                                border = if (isCurrent) BorderStroke(1.dp, PulseTokens.CyanElectric) else PulseTokens.BorderSubtle,
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Row(
@@ -1194,14 +1194,14 @@ fun PulseStudioSettingsScreen(
         // 弹窗: 切换调色板
         if (showPaletteDialog) {
             val palettes = listOf(
-                "OCEAN_AZURE" to "⚡ 电光蔚蓝 (极客科技)",
-                "EMERALD_JADE" to "🍃 翡翠翠玉 (温润自然)",
-                "TITANIUM_SLATE" to "🪨 钛金岩灰 (低调沉稳)",
-                "SUNSET_AMBER" to "🌅 暮光琥珀 (温暖夜间)",
-                "NEON_CYBER" to "⚡ 赛博霓虹 (高能动感)",
-                "SAKURA_PINK" to "🌸 樱花落粉 (甜美清新)",
-                "AMETHYST_PURPLE" to "🔮 幻晶紫曜 (梦幻深邃)",
-                "MORANDI_GRAPHITE" to "🎨 莫兰迪石墨 (低饱和度)"
+                "OCEAN_AZURE" to "经典蔚蓝 (默认推荐)",
+                "EMERALD_JADE" to "翡翠翠绿 (温润自然)",
+                "TITANIUM_SLATE" to "钛金岩灰 (低调沉稳)",
+                "SUNSET_AMBER" to "落日暖金 (温暖舒适)",
+                "NEON_CYBER" to "紫罗兰 (优雅现代)",
+                "SAKURA_PINK" to "樱花淡粉 (清新柔和)",
+                "AMETHYST_PURPLE" to "紫晶深邃 (宁静端庄)",
+                "MORANDI_GRAPHITE" to "莫兰迪灰 (低饱和度)"
             )
             AlertDialog(
                 onDismissRequest = { showPaletteDialog = false },

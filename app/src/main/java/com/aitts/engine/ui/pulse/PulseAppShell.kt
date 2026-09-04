@@ -186,15 +186,15 @@ fun PulseAppShell(
                     }
                 }
 
-            // 底部流体微胶囊导航坞（居中悬浮在大拇指舒适区）
+            // 底部悬浮导航栏
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 14.dp)
-                    .shadow(12.dp, CircleShape),
+                    .shadow(8.dp, CircleShape),
                 shape = CircleShape,
-                color = PulseTokens.SurfaceDark.copy(alpha = 0.94f),
-                border = BorderStroke(1.dp, PulseTokens.CyanElectric.copy(alpha = 0.35f))
+                color = PulseTokens.SurfaceDark.copy(alpha = 0.96f),
+                border = PulseTokens.BorderSubtle
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
@@ -202,7 +202,7 @@ fun PulseAppShell(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val tabs = listOf(
-                        TabItem("中枢", Icons.Default.GraphicEq),
+                        TabItem("主页", Icons.Default.GraphicEq),
                         TabItem("模型", Icons.Default.RecordVoiceOver),
                         TabItem("规则", Icons.Default.Spellcheck),
                         TabItem("设置", Icons.Default.Tune)

@@ -6,12 +6,12 @@ import com.aitts.engine.data.ProviderType
 
 // --- 10 套高品质预设主题色系方案 ---
 enum class AppPaletteTheme(val key: String, val title: String, val primaryColor: Color, val previewColor: Color) {
-    OCEAN_AZURE("OCEAN_AZURE", "深海曜蓝", Color(0xFF0EA5E9), Color(0xFF0284C7)),
-    EMERALD_JADE("EMERALD_JADE", "极客翡翠", Color(0xFF10B981), Color(0xFF059669)),
+    OCEAN_AZURE("OCEAN_AZURE", "经典蔚蓝", Color(0xFF0EA5E9), Color(0xFF0284C7)),
+    EMERALD_JADE("EMERALD_JADE", "翠绿翡翠", Color(0xFF10B981), Color(0xFF059669)),
     TITANIUM_SLATE("TITANIUM_SLATE", "钛金岩灰", Color(0xFF64748B), Color(0xFF475569)),
     SUNSET_AMBER("SUNSET_AMBER", "落日暖金", Color(0xFFF59E0B), Color(0xFFD97706)),
     MORANDI_GRAPHITE("MORANDI_GRAPHITE", "莫兰迪灰", Color(0xFF546E7A), Color(0xFF37474F)),
-    NEON_CYBERPUNK("NEON_CYBERPUNK", "赛博霓虹", Color(0xFFD946EF), Color(0xFFC026D3)),
+    NEON_CYBERPUNK("NEON_CYBERPUNK", "紫罗兰", Color(0xFFD946EF), Color(0xFFC026D3)),
     AURORA_MINT("AURORA_MINT", "极光薄荷", Color(0xFF14B8A6), Color(0xFF0D9488)),
     CHERRY_BLOSSOM("CHERRY_BLOSSOM", "樱花幽粉", Color(0xFFF43F5E), Color(0xFFE11D48)),
     OBSIDIAN_NIGHT("OBSIDIAN_NIGHT", "暗夜曜石", Color(0xFF6366F1), Color(0xFF4F46E5)),
