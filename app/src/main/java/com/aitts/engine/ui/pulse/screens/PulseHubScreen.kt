@@ -854,9 +854,9 @@ fun PulseHubScreen(
                 color = PulseTokens.CyanElectric,
                 autoDismiss = false,
                 onClick = {
-                    val nextStyle = (settings.acousticCoreStyle + 1) % 3
+                    val nextStyle = (settings.acousticCoreStyle + 1) % 4
                     configDataStore.updateSettings(settings.copy(acousticCoreStyle = nextStyle))
-                    val styleNames = listOf("极光光晕", "物理点阵", "引力轨道")
+                    val styleNames = listOf("极光光晕", "物理点阵", "引力轨道", "专业频谱仪")
                     Toast.makeText(context, "核心形态: ${styleNames[nextStyle]}", Toast.LENGTH_SHORT).show()
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }

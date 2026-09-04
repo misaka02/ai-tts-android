@@ -422,6 +422,53 @@ fun PulseStudioSettingsScreen(
 
                                         Spacer(modifier = Modifier.height(4.dp))
 
+                                        Text("核心球视觉风格", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
+                                        val coreStyles = listOf(
+                                            0 to "极光光晕 (经典微光)",
+                                            1 to "物理点阵 (全息光圈)",
+                                            2 to "引力轨道 (天体开普勒)",
+                                            3 to "专业频谱仪 (硬件VU电平柱)"
+                                        )
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            coreStyles.forEach { (styleIdx, styleTitle) ->
+                                                val isCurrent = (settings.acousticCoreStyle % 4) == styleIdx
+                                                PulseCard(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            configDataStore.updateSettings(settings.copy(acousticCoreStyle = styleIdx))
+                                                            Toast.makeText(context, "已切换核心形态为: $styleTitle", Toast.LENGTH_SHORT).show()
+                                                        },
+                                                    backgroundColor = if (isCurrent) PulseTokens.SurfaceCardActive else PulseTokens.SurfaceElevated,
+                                                    border = if (isCurrent) BorderStroke(1.dp, PulseTokens.CyanElectric) else PulseTokens.BorderSubtle,
+                                                    shape = RoundedCornerShape(10.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            styleTitle,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                                            color = if (isCurrent) PulseTokens.CyanElectric else PulseTokens.TextPrimary
+                                                        )
+                                                        if (isCurrent) {
+                                                            Icon(
+                                                                Icons.Default.Check,
+                                                                contentDescription = null,
+                                                                tint = PulseTokens.CyanElectric,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
                                         Text("明暗模式", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                             val themeModes = listOf(
@@ -1536,9 +1583,9 @@ fun PulseStudioSettingsScreen(
                     icon = Icons.Default.GraphicEq,
                     color = PulseTokens.SonicBlue,
                     onClick = {
-                        val nextStyle = (settings.acousticCoreStyle + 1) % 3
+                        val nextStyle = (settings.acousticCoreStyle + 1) % 4
                         configDataStore.updateSettings(settings.copy(acousticCoreStyle = nextStyle))
-                        val names = listOf("极光光晕", "物理点阵", "引力轨道")
+                        val names = listOf("极光光晕", "物理点阵", "引力轨道", "专业频谱仪")
                         Toast.makeText(context, "已切换核心形态为: ${names[nextStyle]}", Toast.LENGTH_SHORT).show()
                     }
                 ),

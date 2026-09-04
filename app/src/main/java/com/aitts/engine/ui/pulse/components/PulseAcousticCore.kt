@@ -146,7 +146,7 @@ fun PulseAcousticCore(
                 detectTapGestures(
                     onTap = { onClick() },
                     onDoubleTap = {
-                        val nextStyle = (coreStyle + 1) % 3
+                        val nextStyle = (coreStyle + 1) % 4
                         onStyleChange(nextStyle)
                     }
                 )
@@ -163,7 +163,7 @@ fun PulseAcousticCore(
                 else -> idleBreathing
             }
 
-            when (coreStyle % 3) {
+            when (coreStyle % 4) {
                 // ==========================================
                 // 风格 0: 经典极光光晕 (Classic Aurora Halo - 像素级精准还原实机截图)
                 // ==========================================
@@ -542,7 +542,7 @@ fun PulseAcousticCore(
                 }
 
                 // ==========================================
-                // 风格 3: 专业声学频谱仪 (Studio Level Meter & Waveform)
+                // 风格 3: 专业声学频谱仪 (Studio Level Meter & Spectrum Analyzer)
                 // ==========================================
                 else -> {
                     val meterRadius = (baseRadius * 0.92f) * effectiveScale
@@ -560,9 +560,9 @@ fun PulseAcousticCore(
                     for (t in 0 until ticks) {
                         val angle = t * tickAngleStep
                         val isMajor = (t % 6 == 0)
-                        val tickLen = if (isMajor) 4.5.dp.toPx() else 2.dp.toPx()
-                        val tickAlpha = if (isMajor) (if (isPlaying) 0.6f else 0.3f) else (if (isPlaying) 0.25f else 0.12f)
-                        val tickWidth = if (isMajor) 1.2.dp.toPx() else 0.7.dp.toPx()
+                        val tickLen = if (isMajor) 5.dp.toPx() else 2.5.dp.toPx()
+                        val tickAlpha = if (isMajor) (if (isPlaying) 0.65f else 0.35f) else (if (isPlaying) 0.28f else 0.14f)
+                        val tickWidth = if (isMajor) 1.3.dp.toPx() else 0.8.dp.toPx()
 
                         val startX = center.x + (meterRadius - tickLen) * cos(angle)
                         val startY = center.y + (meterRadius - tickLen) * sin(angle)
@@ -580,9 +580,17 @@ fun PulseAcousticCore(
 
                     // 2. 内部 24 频段高精度声学频谱柱 (左右对称镜像分布，如同 DAW 调音台电平总线)
                     val barCount = 24
-                    val barSpacing = (meterRadius * 1.45f) / barCount
+                    val barSpacing = (meterRadius * 1.50f) / barCount
                     val startX = center.x - (barCount * barSpacing) / 2f + barSpacing / 2f
-                    val maxBarHeight = meterRadius * 0.68f
+                    val maxBarHeight = meterRadius * 0.72f
+
+                    // 2.1 水平基准刻度线 (0dB Reference Baseline)
+                    drawLine(
+                        color = coreColor.copy(alpha = 0.15f),
+                        start = Offset(startX - 6.dp.toPx(), center.y),
+                        end = Offset(startX + (barCount - 1) * barSpacing + 6.dp.toPx(), center.y),
+                        strokeWidth = 1.dp.toPx()
+                    )
 
                     for (b in 0 until barCount) {
                         val bandIdx = if (b < barCount / 2) {
@@ -593,53 +601,61 @@ fun PulseAcousticCore(
 
                         val bandMag = if (isPlaying && spectrumBands.isNotEmpty()) {
                             spectrumBands.getOrElse(bandIdx) { 0.04f }.coerceIn(0.04f, 1f)
-                        } else if (isSynthesizing) 0.25f else 0.05f
+                        } else if (isSynthesizing) 0.28f else 0.05f
 
-                        val currentBarH = if (isPlaying) {
-                            (bandMag * maxBarHeight + smoothedRms.value * 8.dp.toPx()).coerceAtLeast(3.dp.toPx())
-                        } else {
-                            2.dp.toPx()
+                        // 静默待机/合成中细腻律动波形，杜绝死寂
+                        val idleWave = (sin(dynamicAngle1 * (PI / 180f) * 1.2f + b * 0.32f) * 0.5f + 0.5f).toFloat()
+                        val currentBarH = when {
+                            isPlaying -> (bandMag * maxBarHeight + smoothedRms.value * 10.dp.toPx()).coerceAtLeast(4.dp.toPx())
+                            isSynthesizing -> (idleWave * 16.dp.toPx() + 6.dp.toPx())
+                            else -> (idleWave * 5.dp.toPx() + 4.dp.toPx())
                         }
 
                         val barX = startX + b * barSpacing
-                        val barAlpha = if (isPlaying) (0.45f + bandMag * 0.55f).coerceIn(0.3f, 1f) else 0.25f
+                        val barAlpha = when {
+                            isPlaying -> (0.50f + bandMag * 0.50f).coerceIn(0.35f, 1f)
+                            isSynthesizing -> 0.40f
+                            else -> 0.22f + idleWave * 0.15f
+                        }
 
-                        val barColor = if (isPlaying && bandMag > 0.6f) {
-                            androidx.compose.ui.graphics.lerp(coreColor, Color(0xFFFFB300), (bandMag - 0.6f) * 2f)
-                        } else {
-                            coreColor
+                        val barColor = when {
+                            !isPlaying -> coreColor
+                            bandMag > 0.82f -> Color(0xFFEF4444) // 峰值红
+                            bandMag > 0.58f -> Color(0xFFF59E0B) // 预警琥珀橙
+                            else -> coreColor
                         }
 
                         drawLine(
                             color = barColor.copy(alpha = barAlpha),
                             start = Offset(barX, center.y - currentBarH / 2f),
                             end = Offset(barX, center.y + currentBarH / 2f),
-                            strokeWidth = 2.2.dp.toPx(),
+                            strokeWidth = 2.4.dp.toPx(),
                             cap = StrokeCap.Round
                         )
 
-                        if (isPlaying && bandMag > 0.25f) {
-                            val peakY = center.y - currentBarH / 2f - 2.5.dp.toPx()
+                        // 瞬态峰值保持点 (Peak Hold)
+                        if (isPlaying && bandMag > 0.20f) {
+                            val peakY = center.y - currentBarH / 2f - 2.8.dp.toPx()
                             drawCircle(
-                                color = barColor.copy(alpha = (barAlpha * 0.9f).coerceIn(0f, 1f)),
-                                radius = 1.2.dp.toPx(),
+                                color = barColor.copy(alpha = (barAlpha * 0.95f).coerceIn(0f, 1f)),
+                                radius = 1.3.dp.toPx(),
                                 center = Offset(barX, peakY)
                             )
                         }
                     }
 
                     // 3. 中心水平基准与动态声能环
-                    val innerRmsR = meterRadius * 0.20f * (if (isPlaying) 1f + smoothedRms.value * 0.35f else 1f)
+                    val innerRmsR = meterRadius * 0.22f * (if (isPlaying) 1f + smoothedRms.value * 0.40f else 1f)
                     drawCircle(
-                        color = coreColor.copy(alpha = if (isPlaying) 0.18f + smoothedRms.value * 0.25f else 0.06f),
+                        color = coreColor.copy(alpha = if (isPlaying) 0.18f + smoothedRms.value * 0.28f else 0.07f),
                         radius = innerRmsR,
                         center = center
                     )
                     drawCircle(
-                        color = coreColor.copy(alpha = if (isPlaying) 0.45f + smoothedRms.value * 0.4f else 0.16f),
+                        color = coreColor.copy(alpha = if (isPlaying) 0.50f + smoothedRms.value * 0.45f else 0.20f),
                         radius = innerRmsR,
                         center = center,
-                        style = Stroke(width = 1.dp.toPx())
+                        style = Stroke(width = 1.1.dp.toPx())
                     )
                 }
             }
