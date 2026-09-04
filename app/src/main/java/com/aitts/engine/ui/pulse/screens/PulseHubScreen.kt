@@ -568,12 +568,12 @@ fun PulseHubScreen(
                             coreStyle = settings.acousticCoreStyle,
                             onClick = { startSynthesis(activeProvider) },
                             onStyleChange = { nextStyle ->
-                                configDataStore.updateSettings(settings.copy(acousticCoreStyle = nextStyle % 4))
-                                val styleName = when (nextStyle % 4) {
+                                val s = nextStyle % 3
+                                configDataStore.updateSettings(settings.copy(acousticCoreStyle = s))
+                                val styleName = when (s) {
                                     0 -> "极光光晕"
                                     1 -> "物理点阵"
-                                    2 -> "引力轨道"
-                                    else -> "专业声学频谱仪"
+                                    else -> "引力轨道"
                                 }
                                 Toast.makeText(context, "频谱风格: $styleName", Toast.LENGTH_SHORT).show()
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -854,9 +854,9 @@ fun PulseHubScreen(
                 color = PulseTokens.CyanElectric,
                 autoDismiss = false,
                 onClick = {
-                    val nextStyle = (settings.acousticCoreStyle + 1) % 4
+                    val nextStyle = (settings.acousticCoreStyle + 1) % 3
                     configDataStore.updateSettings(settings.copy(acousticCoreStyle = nextStyle))
-                    val styleNames = listOf("极光光晕", "物理点阵", "引力轨道", "专业频谱仪")
+                    val styleNames = listOf("极光光晕", "物理点阵", "引力轨道")
                     Toast.makeText(context, "核心形态: ${styleNames[nextStyle]}", Toast.LENGTH_SHORT).show()
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }

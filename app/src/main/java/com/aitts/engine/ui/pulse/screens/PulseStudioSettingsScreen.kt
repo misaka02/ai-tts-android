@@ -424,14 +424,13 @@ fun PulseStudioSettingsScreen(
 
                                         Text("核心球视觉风格", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
                                         val coreStyles = listOf(
-                                            0 to "极光光晕 (经典微光)",
-                                            1 to "物理点阵 (全息光圈)",
-                                            2 to "引力轨道 (天体开普勒)",
-                                            3 to "专业频谱仪 (硬件VU电平柱)"
+                                            0 to "极光光晕 (经典微光声谱)",
+                                            1 to "物理点阵 (全息光圈矩阵)",
+                                            2 to "引力轨道 (天体开普勒轨道)"
                                         )
                                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             coreStyles.forEach { (styleIdx, styleTitle) ->
-                                                val isCurrent = (settings.acousticCoreStyle % 4) == styleIdx
+                                                val isCurrent = (settings.acousticCoreStyle % 3) == styleIdx
                                                 PulseCard(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
@@ -1583,9 +1582,9 @@ fun PulseStudioSettingsScreen(
                     icon = Icons.Default.GraphicEq,
                     color = PulseTokens.SonicBlue,
                     onClick = {
-                        val nextStyle = (settings.acousticCoreStyle + 1) % 4
+                        val nextStyle = (settings.acousticCoreStyle + 1) % 3
                         configDataStore.updateSettings(settings.copy(acousticCoreStyle = nextStyle))
-                        val names = listOf("极光光晕", "物理点阵", "引力轨道", "专业频谱仪")
+                        val names = listOf("极光光晕", "物理点阵", "引力轨道")
                         Toast.makeText(context, "已切换核心形态为: ${names[nextStyle]}", Toast.LENGTH_SHORT).show()
                     }
                 ),
