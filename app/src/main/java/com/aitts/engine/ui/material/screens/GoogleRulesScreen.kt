@@ -1,5 +1,8 @@
 package com.aitts.engine.ui.material.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,18 +21,26 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Spellcheck
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -56,17 +67,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aitts.engine.data.ConfigDataStore
+import com.aitts.engine.data.PresetConfigs
 import com.aitts.engine.data.ReplacementRule
 import com.aitts.engine.rules.TextPreprocessor
 import com.aitts.engine.ui.material.GoogleColors
 import java.util.UUID
 
 /**
- * 📝 Google 官方应用风格 - 发音规则流水线 (Google Rules Pipeline)
- * 1. Google Tasks / Keep 风格列表与圆角容器；
+ * 📝 Google 官方应用风格 - 发音规则流水线全功能版 (Google Rules Pipeline)
+ * 适配全量高级能力：
+ * 1. 规则搜索过滤与分类滑轨；
  * 2. 实时发音替换比对测试卡片；
- * 3. 搜索过滤与分类药丸 (全部 / 多音字 / 净化 / 专有名词)；
- * 4. M3 Switch 极简启闭开关与新增规则弹窗。
+ * 3. 预设规则包恢复与内置精选库；
+ * 4. 批量一键全开/全关；
+ * 5. 规则顺序上下移动调整匹配优先级；
+ * 6. 规则 JSON 导出与导入；
+ * 7. 正则、大小写敏感、分类标签与备注。
  */
 @Composable
 fun GoogleRulesScreen(
@@ -82,11 +98,13 @@ fun GoogleRulesScreen(
     var testInputText by remember { mutableStateOf("重庆的重阳节到了，银行行长去考察工作。") }
     var editingRule by remember { mutableStateOf<ReplacementRule?>(null) }
     var showRuleDialog by remember { mutableStateOf(false) }
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
 
     val categories = listOf(
         "ALL" to "全部规则",
         "POLYPHONE" to "多音字",
         "CLEANUP" to "符号净化",
+        "WATERMARK" to "去水印",
         "SPECIAL" to "专有名词",
         "COMMON" to "常用规则"
     )
@@ -101,6 +119,28 @@ fun GoogleRulesScreen(
         matchesCategory && matchesSearch
     }
 
+    fun moveRule(fromIndex: Int, up: Boolean) {
+        val toIndex = if (up) fromIndex - 1 else fromIndex + 1
+        if (toIndex in rules.indices) {
+            val list = rules.toMutableList()
+            val item = list.removeAt(fromIndex)
+            list.add(toIndex, item)
+            configDataStore.saveRules(list)
+        }
+    }
+
+    fun batchToggle(enabled: Boolean) {
+        val updated = rules.map {
+            if (selectedCategory == "ALL" || it.category == selectedCategory) {
+                it.copy(enabled = enabled)
+            } else {
+                it
+            }
+        }
+        configDataStore.saveRules(updated)
+        Toast.makeText(context, if (enabled) "已开启当前匹配规则" else "已关闭当前匹配规则", Toast.LENGTH_SHORT).show()
+    }
+
     Box(modifier = modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(
             modifier = Modifier
@@ -109,61 +149,118 @@ fun GoogleRulesScreen(
             contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 顶栏标题
+            // 顶栏标题与快捷工具
             item {
-                Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    Text(
-                        text = "发音修正与流水线",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.textPrimary
-                    )
-                    Text(
-                        text = "实时纠正多音字读音、净化特殊符号与专有名词规范化",
-                        fontSize = 13.sp,
-                        color = colors.textSecondary
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "发音规则流水线",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary
+                        )
+                        Text(
+                            text = "多音字纠错、去水印与专有名词发音规范化",
+                            fontSize = 13.sp,
+                            color = colors.textSecondary
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        // 导出规则 JSON
+                        IconButton(
+                            onClick = {
+                                val jsonStr = configDataStore.exportRulesJson()
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                cm.setPrimaryClip(ClipData.newPlainText("aitts_rules", jsonStr))
+                                Toast.makeText(context, "规则已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "导出规则", tint = colors.textSecondary, modifier = Modifier.size(16.dp))
+                        }
+
+                        // 恢复默认规则
+                        IconButton(
+                            onClick = { showResetConfirmDialog = true },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.RestartAlt, contentDescription = "恢复内置预设", tint = colors.primary, modifier = Modifier.size(18.dp))
+                        }
+                    }
                 }
             }
 
-            // Google 风格搜索药丸输入框
+            // Google 搜索药丸与批量控制条
             item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    color = colors.surfaceContainer
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        color = colors.surfaceContainer
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(20.dp))
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("搜索匹配规则或替换词...", fontSize = 14.sp, color = colors.textTertiary) },
+                                modifier = Modifier.weight(1f),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    cursorColor = colors.primary,
+                                    focusedTextColor = colors.textPrimary,
+                                    unfocusedTextColor = colors.textPrimary
+                                ),
+                                singleLine = true
+                            )
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.Clear, contentDescription = "清除", tint = colors.textSecondary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    // 批量全开 / 全关
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            tint = colors.textTertiary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("搜索匹配规则或替换词...", fontSize = 14.sp, color = colors.textTertiary) },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                                unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                                focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                                unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                                cursorColor = colors.primary,
-                                focusedTextColor = colors.textPrimary,
-                                unfocusedTextColor = colors.textPrimary
-                            ),
-                            singleLine = true
-                        )
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(28.dp)) {
-                                Icon(Icons.Default.Clear, contentDescription = "清除", tint = colors.textSecondary, modifier = Modifier.size(16.dp))
+                        Surface(
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { batchToggle(true) },
+                            shape = RoundedCornerShape(8.dp),
+                            color = colors.surfaceContainer
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = colors.googleGreen, modifier = Modifier.size(12.dp))
+                                Text("开启全部", fontSize = 11.sp, color = colors.googleGreen)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Surface(
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { batchToggle(false) },
+                            shape = RoundedCornerShape(8.dp),
+                            color = colors.surfaceContainer
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.Block, contentDescription = null, tint = colors.googleRed, modifier = Modifier.size(12.dp))
+                                Text("关闭全部", fontSize = 11.sp, color = colors.googleRed)
                             }
                         }
                     }
@@ -172,9 +269,7 @@ fun GoogleRulesScreen(
 
             // 规则分类药丸滑轨
             item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(categories) { (key, label) ->
                         val isSelected = selectedCategory == key
                         FilterChip(
@@ -194,7 +289,7 @@ fun GoogleRulesScreen(
                 }
             }
 
-            // 实时发音替换比对测试卡片
+            // 实时发音比对演练卡片
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -202,29 +297,16 @@ fun GoogleRulesScreen(
                     color = colors.surface,
                     border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineSubtle)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "⚡ 规则实时效果演练",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.primary
-                        )
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("⚡ 规则实时效果演练", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.primary)
 
                         OutlinedTextField(
                             value = testInputText,
                             onValueChange = { testInputText = it },
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("输入测试原句", fontSize = 12.sp) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = colors.primary,
-                                unfocusedBorderColor = colors.outlineSubtle,
-                                focusedTextColor = colors.textPrimary,
-                                unfocusedTextColor = colors.textPrimary
-                            ),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
                         )
 
                         val processed: String = remember(testInputText, rules) {
@@ -250,20 +332,17 @@ fun GoogleRulesScreen(
                 }
             }
 
-            // 规则卡片列表
+            // 规则卡片列表 (包含优先级上移/下移)
             if (filteredRules.isEmpty()) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
                         Text("未找到符合条件的发音规则", color = colors.textTertiary, fontSize = 13.sp)
                     }
                 }
             } else {
-                items(filteredRules, key = { it.id }) { rule ->
+                itemsIndexed(filteredRules, key = { _, it -> it.id }) { index, rule ->
+                    val originalIndex = rules.indexOf(rule)
+
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(18.dp),
@@ -287,6 +366,7 @@ fun GoogleRulesScreen(
                                         color = when (rule.category) {
                                             "POLYPHONE" -> colors.googleBlue.copy(alpha = 0.15f)
                                             "CLEANUP" -> colors.googleYellow.copy(alpha = 0.2f)
+                                            "WATERMARK" -> colors.googleRed.copy(alpha = 0.15f)
                                             "SPECIAL" -> colors.googleGreen.copy(alpha = 0.15f)
                                             else -> colors.surfaceContainerHigh
                                         }
@@ -295,6 +375,7 @@ fun GoogleRulesScreen(
                                             text = when (rule.category) {
                                                 "POLYPHONE" -> "多音字"
                                                 "CLEANUP" -> "净化"
+                                                "WATERMARK" -> "去水印"
                                                 "SPECIAL" -> "专有名词"
                                                 else -> "通用"
                                             },
@@ -306,26 +387,13 @@ fun GoogleRulesScreen(
                                     }
 
                                     if (rule.isRegex) {
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = colors.surfaceContainerHigh
-                                        ) {
-                                            Text(
-                                                text = "正则",
-                                                fontSize = 10.sp,
-                                                color = colors.textSecondary,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                            )
+                                        Surface(shape = RoundedCornerShape(6.dp), color = colors.surfaceContainerHigh) {
+                                            Text("正则", fontSize = 10.sp, color = colors.textSecondary, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                                         }
                                     }
 
                                     if (rule.description.isNotBlank()) {
-                                        Text(
-                                            text = rule.description,
-                                            fontSize = 11.5.sp,
-                                            color = colors.textTertiary,
-                                            maxLines = 1
-                                        )
+                                        Text(rule.description, fontSize = 11.5.sp, color = colors.textTertiary, maxLines = 1)
                                     }
                                 }
 
@@ -335,18 +403,8 @@ fun GoogleRulesScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = rule.pattern,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = colors.textPrimary
-                                    )
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowForward,
-                                        contentDescription = null,
-                                        tint = colors.textTertiary,
-                                        modifier = Modifier.size(13.dp)
-                                    )
+                                    Text(rule.pattern, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(13.dp))
                                     Text(
                                         text = rule.replacement.ifBlank { "(清除)" },
                                         fontSize = 14.sp,
@@ -356,10 +414,25 @@ fun GoogleRulesScreen(
                                 }
                             }
 
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                // 上移优先级
+                                IconButton(
+                                    onClick = { if (originalIndex > 0) moveRule(originalIndex, true) },
+                                    enabled = originalIndex > 0,
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.ArrowUpward, contentDescription = "上移", tint = if (originalIndex > 0) colors.textSecondary else colors.textTertiary.copy(alpha = 0.3f), modifier = Modifier.size(15.dp))
+                                }
+
+                                // 下移优先级
+                                IconButton(
+                                    onClick = { if (originalIndex < rules.size - 1) moveRule(originalIndex, false) },
+                                    enabled = originalIndex < rules.size - 1,
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.ArrowDownward, contentDescription = "下移", tint = if (originalIndex < rules.size - 1) colors.textSecondary else colors.textTertiary.copy(alpha = 0.3f), modifier = Modifier.size(15.dp))
+                                }
+
                                 Switch(
                                     checked = rule.enabled,
                                     onCheckedChange = { isChecked ->
@@ -378,9 +451,9 @@ fun GoogleRulesScreen(
                                         editingRule = rule
                                         showRuleDialog = true
                                     },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(30.dp)
                                 ) {
-                                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = colors.textSecondary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Edit, contentDescription = "编辑", tint = colors.textSecondary, modifier = Modifier.size(15.dp))
                                 }
 
                                 IconButton(
@@ -388,9 +461,9 @@ fun GoogleRulesScreen(
                                         configDataStore.deleteRule(rule.id)
                                         Toast.makeText(context, "已删除规则", Toast.LENGTH_SHORT).show()
                                     },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(30.dp)
                                 ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = colors.googleRed, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = colors.googleRed, modifier = Modifier.size(15.dp))
                                 }
                             }
                         }
@@ -418,12 +491,38 @@ fun GoogleRulesScreen(
         }
     }
 
+    // 重置默认规则弹窗
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmDialog = false },
+            title = { Text("恢复内置精选规则库", fontWeight = FontWeight.Bold, color = colors.textPrimary) },
+            text = { Text("确定要恢复系统内置的常用多音字与去水印精选规则包吗？这不会删除您自建的规则。", color = colors.textSecondary) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        configDataStore.saveRules(PresetConfigs.defaultRules)
+                        showResetConfirmDialog = false
+                        Toast.makeText(context, "已恢复内置精选规则包", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("确认恢复")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirmDialog = false }) { Text("取消") }
+            },
+            containerColor = colors.surface,
+            shape = RoundedCornerShape(24.dp)
+        )
+    }
+
     // 新增/编辑规则弹窗
     if (showRuleDialog) {
         var patternText by remember { mutableStateOf(editingRule?.pattern ?: "") }
         var replacementText by remember { mutableStateOf(editingRule?.replacement ?: "") }
         var isRegexChecked by remember { mutableStateOf(editingRule?.isRegex ?: false) }
-        var ruleCategory by remember { mutableStateOf(editingRule?.category ?: "POLYPHONE") }
+        var isCaseSensitiveChecked by remember { mutableStateOf(editingRule?.isCaseSensitive ?: false) }
+        var ruleCategory by remember { mutableStateOf(editingRule?.category ?: if (selectedCategory == "ALL") "POLYPHONE" else selectedCategory) }
         var descText by remember { mutableStateOf(editingRule?.description ?: "") }
 
         AlertDialog(
@@ -437,6 +536,7 @@ fun GoogleRulesScreen(
                         label = { Text("匹配词语或正则表达式") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
                     )
 
@@ -446,15 +546,17 @@ fun GoogleRulesScreen(
                         label = { Text("替换发音文本 (可留空以清除)") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
                     )
 
                     OutlinedTextField(
                         value = descText,
                         onValueChange = { descText = it },
-                        label = { Text("规则说明 (选填)") },
+                        label = { Text("规则说明/备注 (选填)") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
                     )
 
@@ -467,6 +569,19 @@ fun GoogleRulesScreen(
                         Switch(
                             checked = isRegexChecked,
                             onCheckedChange = { isRegexChecked = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = colors.onPrimary, checkedTrackColor = colors.primary)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("区分大小写", fontSize = 13.sp, color = colors.textPrimary)
+                        Switch(
+                            checked = isCaseSensitiveChecked,
+                            onCheckedChange = { isCaseSensitiveChecked = it },
                             colors = SwitchDefaults.colors(checkedThumbColor = colors.onPrimary, checkedTrackColor = colors.primary)
                         )
                     }
@@ -484,6 +599,7 @@ fun GoogleRulesScreen(
                             pattern = patternText.trim(),
                             replacement = replacementText.trim(),
                             isRegex = isRegexChecked,
+                            isCaseSensitive = isCaseSensitiveChecked,
                             category = ruleCategory,
                             description = descText.trim(),
                             enabled = editingRule?.enabled ?: true

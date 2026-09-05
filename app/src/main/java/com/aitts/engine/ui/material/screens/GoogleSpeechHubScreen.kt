@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Environment
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,11 +21,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
@@ -35,13 +39,12 @@ import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -50,6 +53,8 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -69,6 +74,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,17 +87,22 @@ import com.aitts.engine.data.VoiceModel
 import com.aitts.engine.data.requiresClientSpeedScaling
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.QuoteService
+import com.aitts.engine.rules.TextPreprocessor
 import com.aitts.engine.ui.material.GoogleColors
 import com.aitts.engine.ui.material.components.GoogleAudioWaveform
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
 
 /**
- * 🎙️ Google 官方应用风格 - 朗读与试听中枢 (Google Speech Hub)
- * 1. 顶栏：Google 药丸标识与状态胶囊 (🟢 服务就绪)，深浅色快速切换；
- * 2. 核心区：Google Recorder 录音机动态圆角柱状声谱 (GoogleAudioWaveform)；
- * 3. 文本输入区：Google Keep 风格大圆角卡片，含字数统计、粘贴、一言金句、清空；
- * 4. 播放控制：64dp Google 蓝圆形主控，停止、导出音频药丸；
- * 5. 音色与参数：当前音色快捷卡片 + 语速快捷药丸 (0.8x, 1.0x, 1.2x, 1.5x) + 细调滑块。
+ * 🎙️ Google 官方应用风格 - 朗读与试听全功能中枢 (Google Speech Hub)
+ * 全功能无缝适配：
+ * 1. 顶栏：Google 标识、实时状态徽章、深浅色一键切换、诊断日志抽屉入口；
+ * 2. 核心区：Google Recorder 32 根圆柱状对称声谱 (GoogleAudioWaveform)；
+ * 3. 文本输入区：字数统计、粘贴、一言金句、清空；
+ * 4. 播放中控：64dp Google 蓝圆形主键、停止、导出音频到本地 Downloads 目录；
+ * 5. 音色与参数：当前音色卡片（支持在线选音色与双角色对白提示）、快捷倍速药丸；
+ * 6. 进阶声学抽屉：句间自然停顿 (sentencePauseMs)、EQ 音效预设、清晰人声增强 (Clear Voice)、睡眠定时器、软件响度增益。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,6 +118,8 @@ fun GoogleSpeechHubScreen(
 
     val settings by configDataStore.settingsFlow.collectAsState()
     val providers by configDataStore.providersFlow.collectAsState()
+    val rules by configDataStore.rulesFlow.collectAsState()
+    val logs by configDataStore.logsFlow.collectAsState()
 
     val activeProvider = providers.find { it.id == settings.activeProviderId }
         ?: providers.firstOrNull()
@@ -125,10 +138,14 @@ fun GoogleSpeechHubScreen(
     var isSynthesizing by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     var lastLatencyMs by remember { mutableLongStateOf(0L) }
+    var lastSynthesizedBytes by remember { mutableStateOf<ByteArray?>(null) }
+
     var showVoicePickerSheet by remember { mutableStateOf(false) }
     var availableVoices by remember { mutableStateOf<List<VoiceModel>>(emptyList()) }
     var isLoadingVoices by remember { mutableStateOf(false) }
-    var showFineTuneSliders by remember { mutableStateOf(false) }
+
+    var showAdvancedAudioSheet by remember { mutableStateOf(false) }
+    var showLogsSheet by remember { mutableStateOf(false) }
 
     fun executeSynthesis() {
         if (textInput.isBlank()) {
@@ -143,7 +160,7 @@ fun GoogleSpeechHubScreen(
             return
         }
 
-        val testText = textInput.trim()
+        val testText = TextPreprocessor.process(textInput.trim(), rules)
         val trialSessionId = "g_hub_${System.currentTimeMillis() % 100000}"
         isSynthesizing = true
 
@@ -153,7 +170,7 @@ fun GoogleSpeechHubScreen(
                 val effectivePitch = (activeProvider.pitch * settings.globalPitch).coerceIn(0.2f, 2.0f)
                 val testConfig = activeProvider.copy(speed = effectiveSpeed, pitch = effectivePitch)
 
-                configDataStore.log("[Google Hub] 发起合成: 模型=${activeProvider.name}, 音色=${activeProvider.voiceId}", sessionId = trialSessionId)
+                configDataStore.log("[Google Hub] 发起合成: 模型=${activeProvider.name}, 音色=${activeProvider.voiceId}, 文本长度=${testText.length}", sessionId = trialSessionId)
                 val startTime = System.currentTimeMillis()
                 var firstChunkReceived = false
 
@@ -163,6 +180,7 @@ fun GoogleSpeechHubScreen(
                         if (!firstChunkReceived) {
                             firstChunkReceived = true
                             lastLatencyMs = System.currentTimeMillis() - startTime
+                            configDataStore.log("[Stream] 首包到达: ${lastLatencyMs}ms", sessionId = trialSessionId)
                         }
                         streamBuffer.write(chunk)
                     }
@@ -183,8 +201,11 @@ fun GoogleSpeechHubScreen(
                         if (!firstChunkReceived) {
                             lastLatencyMs = costMs
                         }
+                        lastSynthesizedBytes = audioData
                         isSynthesizing = false
                         isPlaying = true
+
+                        configDataStore.log("[Audio] 合成成功: 大小=${audioData.size}字节, 耗时=${costMs}ms, 采样率=${activeProvider.sampleRate}Hz", sessionId = trialSessionId)
 
                         val playbackSpeed = if (activeProvider.copy(speed = effectiveSpeed).requiresClientSpeedScaling(isStreaming = activeProvider.isStreamingEnabled)) effectiveSpeed else 1.0f
                         audioPlayer.playAudioBytes(
@@ -201,12 +222,33 @@ fun GoogleSpeechHubScreen(
                 } else {
                     isSynthesizing = false
                     val errorMsg = result.exceptionOrNull()?.message ?: "未知合成错误"
+                    configDataStore.log("[Error] 合成失败: $errorMsg", sessionId = trialSessionId)
                     Toast.makeText(context, "合成失败: $errorMsg", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 isSynthesizing = false
                 Toast.makeText(context, "异常: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    fun exportAudioToDisk() {
+        val data = lastSynthesizedBytes
+        if (data == null || data.isEmpty()) {
+            Toast.makeText(context, "请先播放合成一段音频后再导出", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            val ext = if (activeProvider.audioFormat.isNotBlank()) activeProvider.audioFormat else "mp3"
+            val fileName = "AITTS_${System.currentTimeMillis()}.$ext"
+            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadDir.exists()) downloadDir.mkdirs()
+            val outFile = File(downloadDir, fileName)
+            FileOutputStream(outFile).use { it.write(data) }
+            Toast.makeText(context, "已成功导出到: Downloads/$fileName", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -218,7 +260,7 @@ fun GoogleSpeechHubScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. Google 官方风格应用顶栏
+        // 1. Google 顶栏 (包含状态绿点、诊断日志入口、深浅色切换)
         item {
             Row(
                 modifier = Modifier
@@ -231,7 +273,6 @@ fun GoogleSpeechHubScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Google 风格圆形标识
                     Surface(
                         modifier = Modifier.size(38.dp),
                         shape = CircleShape,
@@ -269,22 +310,39 @@ fun GoogleSpeechHubScreen(
                                 fontSize = 12.sp,
                                 color = colors.textSecondary
                             )
+                            if (activeProvider.isDualRoleEnabled) {
+                                Surface(shape = RoundedCornerShape(4.dp), color = colors.primaryContainer) {
+                                    Text("双角色", fontSize = 10.sp, color = colors.onPrimaryContainer, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                }
+                            }
                         }
                     }
                 }
 
-                // 右侧深浅色快速切换
-                IconButton(
-                    onClick = {
-                        val nextMode = if (settings.appThemeMode.uppercase() == "LIGHT") "DARK" else "LIGHT"
-                        configDataStore.updateSettings(settings.copy(appThemeMode = nextMode))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 实时诊断日志按钮
+                    IconButton(onClick = { showLogsSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Terminal,
+                            contentDescription = "诊断日志",
+                            tint = colors.textSecondary,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
-                ) {
-                    Icon(
-                        imageVector = if (colors.isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
-                        contentDescription = "切换深浅主题",
-                        tint = colors.textSecondary
-                    )
+
+                    // 深浅色切换
+                    IconButton(
+                        onClick = {
+                            val nextMode = if (settings.appThemeMode.uppercase() == "LIGHT") "DARK" else "LIGHT"
+                            configDataStore.updateSettings(settings.copy(appThemeMode = nextMode))
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (colors.isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = "切换深浅主题",
+                            tint = colors.textSecondary
+                        )
+                    }
                 }
             }
         }
@@ -296,9 +354,9 @@ fun GoogleSpeechHubScreen(
                 colors = colors,
                 statusText = when {
                     isSynthesizing -> "正在请求云端引擎合成..."
-                    isPlaying -> "正在朗读音频 (延迟 ${lastLatencyMs}ms)"
-                    lastLatencyMs > 0 -> "就绪 · 上次首字延迟 ${lastLatencyMs}ms"
-                    else -> "就绪 · 点击播放按钮试听"
+                    isPlaying -> "正在朗读音频 (首包延迟 ${lastLatencyMs}ms)"
+                    lastLatencyMs > 0 -> "就绪 · 上次首字延迟 ${lastLatencyMs}ms · ${activeProvider.sampleRate}Hz"
+                    else -> "就绪 · 点击播放开始试听"
                 }
             )
         }
@@ -423,7 +481,7 @@ fun GoogleSpeechHubScreen(
             }
         }
 
-        // 4. 当前音色与服务商药丸卡片 (Google Assistant Card)
+        // 4. 当前音色卡片
         item {
             Surface(
                 modifier = Modifier
@@ -511,16 +569,15 @@ fun GoogleSpeechHubScreen(
             }
         }
 
-        // 5. Google Recorder 居中圆形主控播放键与控制台
+        // 5. 播放中控与快捷操作
         item {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 播放控制大按钮行
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -549,9 +606,9 @@ fun GoogleSpeechHubScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(28.dp))
+                    Spacer(modifier = Modifier.width(24.dp))
 
-                    // Google Blue 大圆形播放/暂停主按键 (68dp)
+                    // 64dp Google Blue 圆形主控播放键
                     Surface(
                         modifier = Modifier
                             .size(68.dp)
@@ -579,113 +636,75 @@ fun GoogleSpeechHubScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(28.dp))
+                    Spacer(modifier = Modifier.width(24.dp))
 
-                    // 导出/微调开关
+                    // 导出音频到本地文件
                     Surface(
                         modifier = Modifier
                             .size(50.dp)
                             .clip(CircleShape)
-                            .clickable { showFineTuneSliders = !showFineTuneSliders },
+                            .clickable { exportAudioToDisk() },
                         shape = CircleShape,
-                        color = if (showFineTuneSliders) colors.primaryContainer else colors.surfaceContainerHigh
+                        color = colors.surfaceContainerHigh
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = "调节参数",
-                                tint = if (showFineTuneSliders) colors.onPrimaryContainer else colors.textSecondary,
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "导出音频",
+                                tint = if (lastSynthesizedBytes != null) colors.primary else colors.textTertiary,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
                     }
                 }
 
-                // 语速快捷药丸 (Google Speed Pills)
+                // 语速快捷药丸与声学高级微调入口
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val speedPresets = listOf(0.8f, 1.0f, 1.2f, 1.5f, 2.0f)
-                    speedPresets.forEach { speed ->
-                        val isSelected = kotlin.math.abs(settings.globalSpeed - speed) < 0.05f
-                        Surface(
-                            modifier = Modifier
-                                .padding(horizontal = 4.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    configDataStore.updateSettings(settings.copy(globalSpeed = speed))
-                                    Toast.makeText(context, "全局语速设为 ${speed}x", Toast.LENGTH_SHORT).show()
-                                },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) colors.primaryContainer else colors.surfaceContainer,
-                            border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, colors.primary) else null
-                        ) {
-                            Text(
-                                text = "${speed}x",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                fontSize = 12.5.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) colors.onPrimaryContainer else colors.textSecondary
-                            )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val speedPresets = listOf(0.8f, 1.0f, 1.2f, 1.5f, 2.0f)
+                        speedPresets.forEach { speed ->
+                            val isSelected = kotlin.math.abs(settings.globalSpeed - speed) < 0.05f
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        configDataStore.updateSettings(settings.copy(globalSpeed = speed))
+                                        Toast.makeText(context, "全局语速设为 ${speed}x", Toast.LENGTH_SHORT).show()
+                                    },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) colors.primaryContainer else colors.surfaceContainer,
+                                border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, colors.primary) else null
+                            ) {
+                                Text(
+                                    text = "${speed}x",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) colors.onPrimaryContainer else colors.textSecondary
+                                )
+                            }
                         }
                     }
-                }
 
-                // 展开细调参数 (语速、语调)
-                if (showFineTuneSliders) {
+                    // 展开听书进阶声学设置抽屉
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        color = colors.surfaceContainer,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineSubtle)
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { showAdvancedAudioSheet = true },
+                        shape = RoundedCornerShape(12.dp),
+                        color = colors.surfaceContainer
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            // 语速滑块
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("语速调节", fontSize = 13.sp, color = colors.textPrimary, fontWeight = FontWeight.Medium)
-                                    Text(String.format("%.2fx", settings.globalSpeed), fontSize = 13.sp, color = colors.primary, fontWeight = FontWeight.Bold)
-                                }
-                                Slider(
-                                    value = settings.globalSpeed,
-                                    onValueChange = { configDataStore.updateSettings(settings.copy(globalSpeed = it)) },
-                                    valueRange = 0.5f..2.5f,
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = colors.primary,
-                                        activeTrackColor = colors.primary,
-                                        inactiveTrackColor = colors.outlineSubtle
-                                    )
-                                )
-                            }
-
-                            // 音调滑块
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("音调调节", fontSize = 13.sp, color = colors.textPrimary, fontWeight = FontWeight.Medium)
-                                    Text(String.format("%.2fx", settings.globalPitch), fontSize = 13.sp, color = colors.primary, fontWeight = FontWeight.Bold)
-                                }
-                                Slider(
-                                    value = settings.globalPitch,
-                                    onValueChange = { configDataStore.updateSettings(settings.copy(globalPitch = it)) },
-                                    valueRange = 0.5f..1.5f,
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = colors.primary,
-                                        activeTrackColor = colors.primary,
-                                        inactiveTrackColor = colors.outlineSubtle
-                                    )
-                                )
-                            }
+                            Icon(Icons.Default.Tune, contentDescription = null, tint = colors.primary, modifier = Modifier.size(14.dp))
+                            Text("声学工具", fontSize = 12.sp, color = colors.primary, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -693,7 +712,7 @@ fun GoogleSpeechHubScreen(
         }
     }
 
-    // Google 风格底部音色选择抽屉
+    // 抽屉 1: 在线音色选择抽屉
     if (showVoicePickerSheet) {
         ModalBottomSheet(
             onDismissRequest = { showVoicePickerSheet = false },
@@ -707,40 +726,19 @@ fun GoogleSpeechHubScreen(
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "选择音色 · ${activeProvider.name}",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.textPrimary
-                )
+                Text("选择音色 · ${activeProvider.name}", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
 
                 if (isLoadingVoices) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = colors.primary)
                     }
                 } else if (availableVoices.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                         Text("暂无在线音色列表，请在模型配置中手动填写音色代码", color = colors.textTertiary, fontSize = 13.sp)
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(340.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(availableVoices.size) { idx ->
-                            val v = availableVoices[idx]
+                    LazyColumn(modifier = Modifier.fillMaxWidth().height(340.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(availableVoices) { v ->
                             val isChosen = v.id == activeProvider.voiceId
                             Surface(
                                 modifier = Modifier
@@ -755,35 +753,194 @@ fun GoogleSpeechHubScreen(
                                 color = if (isChosen) colors.primaryContainer else colors.surfaceContainer
                             ) {
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text(
-                                            text = v.name,
-                                            fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Medium,
-                                            fontSize = 14.5.sp,
-                                            color = if (isChosen) colors.onPrimaryContainer else colors.textPrimary
-                                        )
-                                        Text(
-                                            text = "${v.id} · ${v.locale}",
-                                            fontSize = 12.sp,
-                                            color = if (isChosen) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.textSecondary
-                                        )
+                                        Text(v.name, fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Medium, fontSize = 14.5.sp, color = if (isChosen) colors.onPrimaryContainer else colors.textPrimary)
+                                        Text("${v.id} · ${v.locale}", fontSize = 12.sp, color = if (isChosen) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.textSecondary)
                                     }
-
                                     if (isChosen) {
-                                        Icon(
-                                            imageVector = androidx.compose.material.icons.Icons.Default.GraphicEq,
-                                            contentDescription = null,
-                                            tint = colors.onPrimaryContainer,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(18.dp))
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+
+    // 抽屉 2: 听书声学工具箱 (句间停顿、EQ预设、清晰人声、睡眠定时)
+    if (showAdvancedAudioSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAdvancedAudioSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colors.surface,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text("听书声学与睡眠定时工具箱", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
+
+                // 1. 句间自然停顿
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("标点句间停顿时长", fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                        Text("${settings.sentencePauseMs}ms", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                    }
+                    Text("在小说分句后注入微小静音，大幅提高听感自然度", fontSize = 11.5.sp, color = colors.textSecondary)
+                    Slider(
+                        value = settings.sentencePauseMs.toFloat(),
+                        onValueChange = { configDataStore.updateSettings(settings.copy(sentencePauseMs = it.toInt())) },
+                        valueRange = 0f..800f,
+                        steps = 7,
+                        colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary)
+                    )
+                }
+
+                // 2. 清晰人声增强滤镜
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("清晰人声增强滤镜 (Clear Voice)", fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                        Text("优化 1~3kHz 人声元音共振峰，嘈杂环境下更清晰", fontSize = 11.5.sp, color = colors.textSecondary)
+                    }
+                    Switch(
+                        checked = settings.voiceClarityBoostEnabled,
+                        onCheckedChange = { configDataStore.updateSettings(settings.copy(voiceClarityBoostEnabled = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = colors.onPrimary, checkedTrackColor = colors.primary)
+                    )
+                }
+
+                // 3. 听书睡眠定时器
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("听书睡眠定时器 (倒计时停止)", fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val timerMinutes = listOf(0, 15, 30, 45, 60)
+                        timerMinutes.forEach { min ->
+                            val isSel = settings.sleepTimerMinutes == min
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        configDataStore.updateSettings(settings.copy(sleepTimerMinutes = min))
+                                        Toast.makeText(context, if (min == 0) "已关闭定时器" else "已设为 ${min} 分钟后停止", Toast.LENGTH_SHORT).show()
+                                    },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSel) colors.primaryContainer else colors.surfaceContainer,
+                                border = if (isSel) androidx.compose.foundation.BorderStroke(1.dp, colors.primary) else null
+                            ) {
+                                Text(
+                                    text = if (min == 0) "关闭" else "${min}分",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) colors.onPrimaryContainer else colors.textSecondary,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 4. 软件级响度动态增益
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("软件级响度增益", fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                        Text(String.format("%.1fx", settings.loudnessGainFactor), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                    }
+                    Slider(
+                        value = settings.loudnessGainFactor,
+                        onValueChange = { configDataStore.updateSettings(settings.copy(loudnessGainFactor = it)) },
+                        valueRange = 1.0f..2.0f,
+                        colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+
+    // 抽屉 3: 实时诊断日志抽屉
+    if (showLogsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showLogsSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colors.surface,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("实时请求诊断日志", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                                val allLogs = logs.joinToString("\n")
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                cm.setPrimaryClip(ClipData.newPlainText("aitts_logs", allLogs))
+                                Toast.makeText(context, "日志已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = colors.surfaceContainer
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = colors.primary, modifier = Modifier.size(12.dp))
+                                Text("复制", fontSize = 11.sp, color = colors.primary)
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                                configDataStore.clearLogs()
+                                Toast.makeText(context, "已清空日志", Toast.LENGTH_SHORT).show()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = colors.surfaceContainer
+                        ) {
+                            Text("清空", fontSize = 11.sp, color = colors.googleRed, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                        }
+                    }
+                }
+
+                if (logs.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                        Text("暂无日志记录", color = colors.textTertiary, fontSize = 13.sp)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxWidth().height(320.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        items(logs.takeLast(100).reversed()) { log ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = colors.surfaceContainer
+                            ) {
+                                Text(
+                                    text = log,
+                                    fontSize = 11.5.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = if (log.contains("ERROR", ignoreCase = true) || log.contains("失败", ignoreCase = true)) colors.googleRed else colors.textPrimary,
+                                    lineHeight = 16.sp,
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
                             }
                         }
                     }
