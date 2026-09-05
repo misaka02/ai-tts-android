@@ -13,8 +13,8 @@ android {
         applicationId = "com.aitts.engine"
         minSdk = 26
         targetSdk = 34
-        versionCode = 42
-        versionName = "3.8.4-test"
+        versionCode = 43
+        versionName = "3.8.5-test"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

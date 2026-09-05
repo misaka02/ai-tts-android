@@ -387,6 +387,7 @@ fun PulseStudioSettingsScreen(
 
                                         Text("界面展示模式", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PulseTokens.TextPrimary)
                                         val styleOptions = listOf(
+                                            "MATERIAL" to "Google 官方样式 (Material 3)",
                                             "PULSE" to "现代卡片模式 (Pulse)",
                                             "BENTO" to "全景面板模式 (Bento)",
                                             "STUDIO" to "专业控制台 (Studio)",
@@ -1193,6 +1194,7 @@ fun PulseStudioSettingsScreen(
         // 弹窗: 切换主题风格
         if (showThemeDialog) {
             val styles = listOf(
+                "MATERIAL" to "Google 官方样式 (Material 3)",
                 "PULSE" to "现代卡片模式 (Pulse)",
                 "BENTO" to "全景面板模式 (Bento)",
                 "STUDIO" to "专业控制台 (Studio)",
@@ -1569,11 +1571,11 @@ fun PulseStudioSettingsScreen(
                     icon = Icons.Default.Dashboard,
                     color = PulseTokens.CyanElectric,
                     onClick = {
-                        val styles = listOf("PULSE", "BENTO", "STUDIO", "VINYL")
+                        val styles = listOf("MATERIAL", "PULSE", "BENTO", "STUDIO", "VINYL")
                         val currentIdx = styles.indexOf(settings.appUiStyle)
                         val nextStyle = styles[(if (currentIdx >= 0) currentIdx + 1 else 0) % styles.size]
                         configDataStore.updateSettings(settings.copy(appUiStyle = nextStyle))
-                        val styleNames = mapOf("PULSE" to "极光中枢", "BENTO" to "全景网格", "STUDIO" to "声学调音台", "VINYL" to "复古黑胶")
+                        val styleNames = mapOf("MATERIAL" to "Google 官方", "PULSE" to "极光中枢", "BENTO" to "全景网格", "STUDIO" to "声学调音台", "VINYL" to "复古黑胶")
                         Toast.makeText(context, "已切换主页布局为: ${styleNames[nextStyle]}", Toast.LENGTH_SHORT).show()
                     }
                 ),

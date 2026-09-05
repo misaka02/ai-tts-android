@@ -84,7 +84,14 @@ sealed class Screen(val route: String, val title: String, val icon: androidx.com
 
 @Composable
 fun MainAppNavHost(configDataStore: ConfigDataStore) {
-    com.aitts.engine.ui.pulse.PulseAppShell(
-        configDataStore = configDataStore
-    )
+    val settings by configDataStore.settingsFlow.collectAsState()
+    if (settings.appUiStyle == "MATERIAL") {
+        com.aitts.engine.ui.material.GoogleMaterialAppShell(
+            configDataStore = configDataStore
+        )
+    } else {
+        com.aitts.engine.ui.pulse.PulseAppShell(
+            configDataStore = configDataStore
+        )
+    }
 }
