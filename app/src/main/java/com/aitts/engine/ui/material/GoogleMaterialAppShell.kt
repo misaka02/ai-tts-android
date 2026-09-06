@@ -170,6 +170,9 @@ fun GoogleMaterialAppShell(
                             colors = colors,
                             onOpenProviders = {
                                 scope.launch { pagerState.animateScrollToPage(1) }
+                            },
+                            onNavigateToEditProvider = { providerId ->
+                                editingProviderId = providerId
                             }
                         )
                         1 -> GoogleProvidersScreen(

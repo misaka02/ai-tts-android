@@ -25,24 +25,32 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -56,6 +64,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -110,6 +119,7 @@ fun GoogleSpeechHubScreen(
     configDataStore: ConfigDataStore,
     colors: GoogleColors,
     onOpenProviders: () -> Unit = {},
+    onNavigateToEditProvider: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -124,6 +134,11 @@ fun GoogleSpeechHubScreen(
     val activeProvider = providers.find { it.id == settings.activeProviderId }
         ?: providers.firstOrNull()
         ?: TtsProviderConfig(id = "default", type = ProviderType.EDGE_TTS, name = "默认微软引擎")
+
+    val isAiModel = activeProvider.type.requiresApiKey || activeProvider.type in listOf(
+        ProviderType.MIMO, ProviderType.MINIMAX, ProviderType.DOUBAO, ProviderType.SILICONFLOW,
+        ProviderType.FISH_AUDIO, ProviderType.STEPFUN, ProviderType.OPENAI, ProviderType.GEMINI
+    )
 
     val audioPlayer = remember { AndroidAudioPlayer(context) }
     val audioCacheManager = remember { AudioCacheManager.getInstance(context) }
@@ -144,8 +159,62 @@ fun GoogleSpeechHubScreen(
     var availableVoices by remember { mutableStateOf<List<VoiceModel>>(emptyList()) }
     var isLoadingVoices by remember { mutableStateOf(false) }
 
+    var showModelSwitcherSheet by remember { mutableStateOf(false) }
+    var showPromptDialog by remember { mutableStateOf(false) }
+    var promptEditValue by remember(activeProvider) { mutableStateOf(activeProvider.promptInstruction) }
+
+    var isTestingPing by remember { mutableStateOf(false) }
+    var activePingLatency by remember { mutableStateOf<Long?>(null) }
+
+    var isFetchingOnlineQuote by remember { mutableStateOf(false) }
+    var quoteSourceDesc by remember { mutableStateOf<String?>("") }
+
     var showAdvancedAudioSheet by remember { mutableStateOf(false) }
     var showLogsSheet by remember { mutableStateOf(false) }
+
+    fun fetchOnlineQuote() {
+        isFetchingOnlineQuote = true
+        scope.launch {
+            try {
+                val q = QuoteService.fetchOnlineHitokoto()
+                textInput = q.text
+                quoteSourceDesc = q.source ?: "网络精选名句"
+                Toast.makeText(context, "已载入在线精选名句", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                val fallback = QuoteService.getRandomLocalQuote()
+                textInput = fallback.text
+                quoteSourceDesc = fallback.source ?: "内置经典语料"
+                Toast.makeText(context, "网络波动，已载入本地经典名言", Toast.LENGTH_SHORT).show()
+            } finally {
+                isFetchingOnlineQuote = false
+            }
+        }
+    }
+
+    fun fetchLocalQuote() {
+        val fallback = QuoteService.getRandomLocalQuote()
+        textInput = fallback.text
+        quoteSourceDesc = "内置名家金句"
+        Toast.makeText(context, "已载入本地金句", Toast.LENGTH_SHORT).show()
+    }
+
+    fun testActivePing() {
+        isTestingPing = true
+        scope.launch {
+            val start = System.currentTimeMillis()
+            val res = TtsProviderManager.getInstance().synthesize("测试", activeProvider, autoRetry = false)
+            val cost = System.currentTimeMillis() - start
+            isTestingPing = false
+            if (res.isSuccess) {
+                activePingLatency = cost
+                Toast.makeText(context, "${activeProvider.name} 延迟: ${cost}ms", Toast.LENGTH_SHORT).show()
+            } else {
+                activePingLatency = -1L
+                val err = res.exceptionOrNull()?.message ?: "失败"
+                Toast.makeText(context, "测速异常: $err", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     fun executeSynthesis() {
         if (textInput.isBlank()) {
@@ -403,7 +472,28 @@ fun GoogleSpeechHubScreen(
                         )
                     )
 
-                    // 底部快捷操作条 (字数统计 + 粘贴 + 样句 + 清空)
+                    // 出处来源徽章
+                    if (!quoteSourceDesc.isNullOrBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FormatQuote,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = "出处来源: $quoteSourceDesc",
+                                fontSize = 11.5.sp,
+                                color = colors.primary,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    // 底部快捷操作条 (字数统计 + 粘贴 + 在线语料 + 本地语料 + 清空)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -416,7 +506,7 @@ fun GoogleSpeechHubScreen(
                             fontWeight = FontWeight.Medium
                         )
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             // 粘贴
                             AssistChip(
                                 onClick = {
@@ -442,12 +532,29 @@ fun GoogleSpeechHubScreen(
                                 shape = RoundedCornerShape(12.dp)
                             )
 
-                            // 样句
+                            // 在线语料 (Hitokoto)
                             AssistChip(
-                                onClick = {
-                                    textInput = QuoteService.getRandomLocalQuote().text
+                                onClick = { fetchOnlineQuote() },
+                                label = { Text("在线语料", fontSize = 12.sp) },
+                                leadingIcon = {
+                                    if (isFetchingOnlineQuote) {
+                                        CircularProgressIndicator(modifier = Modifier.size(12.dp), color = colors.primary, strokeWidth = 1.5.dp)
+                                    } else {
+                                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    }
                                 },
-                                label = { Text("样句", fontSize = 12.sp) },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = colors.surfaceContainer,
+                                    labelColor = colors.primary
+                                ),
+                                border = null,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            // 本地语料
+                            AssistChip(
+                                onClick = { fetchLocalQuote() },
+                                label = { Text("本地名言", fontSize = 12.sp) },
                                 leadingIcon = {
                                     Icon(Icons.Default.Casino, contentDescription = null, modifier = Modifier.size(14.dp))
                                 },
@@ -462,7 +569,10 @@ fun GoogleSpeechHubScreen(
                             // 清空
                             if (textInput.isNotEmpty()) {
                                 AssistChip(
-                                    onClick = { textInput = "" },
+                                    onClick = {
+                                        textInput = ""
+                                        quoteSourceDesc = null
+                                    },
                                     label = { Text("清空", fontSize = 12.sp) },
                                     leadingIcon = {
                                         Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(14.dp))
@@ -481,88 +591,267 @@ fun GoogleSpeechHubScreen(
             }
         }
 
-        // 4. 当前音色卡片
+        // 4. 当前模型与音色工作台 (包含直达模型配置、一键换模型、测速与语气提示词)
         item {
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        showVoicePickerSheet = true
-                        isLoadingVoices = true
-                        scope.launch {
-                            try {
-                                val list = TtsProviderManager.getInstance().getAvailableVoices(activeProvider)
-                                availableVoices = list
-                            } catch (_: Exception) {}
-                            isLoadingVoices = false
-                        }
-                    },
-                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
                 color = colors.surfaceContainer,
                 border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineSubtle)
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // 头部：图标 + 当前模型名称 + 类型 + 主力徽章 + 直接进入“模型设置”操作图标
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            modifier = Modifier.size(42.dp),
-                            shape = CircleShape,
-                            color = colors.primaryContainer
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onNavigateToEditProvider(activeProvider.id) }
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.RecordVoiceOver,
-                                    contentDescription = null,
-                                    tint = colors.onPrimaryContainer,
-                                    modifier = Modifier.size(22.dp)
+                            Surface(
+                                modifier = Modifier.size(44.dp),
+                                shape = CircleShape,
+                                color = colors.primaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.RecordVoiceOver,
+                                        contentDescription = null,
+                                        tint = colors.onPrimaryContainer,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = activeProvider.name,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.textPrimary
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = colors.primary.copy(alpha = 0.12f)
+                                    ) {
+                                        Text(
+                                            text = "主力",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = colors.primary,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "${activeProvider.type.displayName} · 音色: ${activeProvider.voiceId.ifBlank { "默认" }}",
+                                    fontSize = 12.sp,
+                                    color = colors.textSecondary
                                 )
                             }
                         }
 
-                        Column {
-                            Text(
-                                text = activeProvider.voiceId.ifBlank { "默认音色" },
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.textPrimary
-                            )
-                            Text(
-                                text = "${activeProvider.name} · ${activeProvider.type.displayName}",
-                                fontSize = 12.5.sp,
-                                color = colors.textSecondary
+                        // 快速进入当前模型精细设置入口 (一键直达)
+                        IconButton(
+                            onClick = { onNavigateToEditProvider(activeProvider.id) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "模型设置",
+                                tint = colors.primary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
 
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = colors.surface
+                    // 关键参数胶囊行 (测速结果/实时探测 + 对白音色 + 采样率)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        // 实时延迟徽章 / 测速按键
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable(enabled = !isTestingPing) { testActivePing() },
+                            shape = RoundedCornerShape(10.dp),
+                            color = when {
+                                activePingLatency == null -> colors.surfaceContainerHigh
+                                activePingLatency!! < 0 -> colors.googleRed.copy(alpha = 0.15f)
+                                activePingLatency!! < 400 -> colors.googleGreen.copy(alpha = 0.15f)
+                                activePingLatency!! < 900 -> colors.googleYellow.copy(alpha = 0.2f)
+                                else -> colors.googleRed.copy(alpha = 0.15f)
+                            }
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.SwapHoriz,
-                                contentDescription = null,
-                                tint = colors.primary,
-                                modifier = Modifier.size(14.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                if (isTestingPing) {
+                                    CircularProgressIndicator(color = colors.primary, strokeWidth = 1.5.dp, modifier = Modifier.size(11.dp))
+                                    Text("测速中", fontSize = 11.sp, color = colors.primary)
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.FlashOn,
+                                        contentDescription = null,
+                                        tint = when {
+                                            activePingLatency == null -> colors.textSecondary
+                                            activePingLatency!! < 0 -> colors.googleRed
+                                            activePingLatency!! < 400 -> colors.googleGreen
+                                            else -> colors.textPrimary
+                                        },
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = when {
+                                            activePingLatency == null -> "测速"
+                                            activePingLatency!! < 0 -> "异常"
+                                            else -> "${activePingLatency}ms"
+                                        },
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = when {
+                                            activePingLatency == null -> colors.textSecondary
+                                            activePingLatency!! < 0 -> colors.googleRed
+                                            activePingLatency!! < 400 -> colors.googleGreen
+                                            else -> colors.textPrimary
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        if (activeProvider.isDualRoleEnabled) {
+                            Surface(shape = RoundedCornerShape(10.dp), color = colors.primaryContainer) {
+                                Text(
+                                    text = "对白: ${activeProvider.dialogueVoiceId}",
+                                    fontSize = 11.sp,
+                                    color = colors.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        Surface(shape = RoundedCornerShape(10.dp), color = colors.surfaceContainerHigh) {
                             Text(
-                                text = "换音色",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = colors.primary
+                                text = "${activeProvider.sampleRate}Hz · ${activeProvider.audioFormat.uppercase()}",
+                                fontSize = 11.sp,
+                                color = colors.textSecondary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
+                        }
+                    }
+
+                    // 底部快捷动作行 (换模型 + 换音色 + 语气提示词 + 进入设置)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 换模型
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { showModelSwitcherSheet = true },
+                            shape = RoundedCornerShape(12.dp),
+                            color = colors.surface
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = colors.primary, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("换模型", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = colors.primary)
+                            }
+                        }
+
+                        // 换音色
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    showVoicePickerSheet = true
+                                    isLoadingVoices = true
+                                    scope.launch {
+                                        try {
+                                            val list = TtsProviderManager.getInstance().getAvailableVoices(activeProvider)
+                                            availableVoices = list
+                                        } catch (_: Exception) {}
+                                        isLoadingVoices = false
+                                    }
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = colors.surface
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = colors.primary, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("换音色", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = colors.primary)
+                            }
+                        }
+
+                        // AI 语气提示词 / 导演指令
+                        if (isAiModel) {
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { showPromptDialog = true },
+                                shape = RoundedCornerShape(12.dp),
+                                color = colors.surface
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = colors.googleYellow, modifier = Modifier.size(15.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("提示词", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                                }
+                            }
+                        }
+
+                        // 模型设置
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onNavigateToEditProvider(activeProvider.id) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = colors.primaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Tune, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("模型设置", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = colors.onPrimaryContainer)
+                            }
                         }
                     }
                 }
@@ -949,5 +1238,206 @@ fun GoogleSpeechHubScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
+    }
+
+    // 抽屉 4: 底部快捷切换模型抽屉 (支持一键选为主力 + 直达参数设置)
+    if (showModelSwitcherSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showModelSwitcherSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colors.surface,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("切换主力语音引擎", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    Text("${providers.size} 个已就绪", fontSize = 12.sp, color = colors.textSecondary)
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(360.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(providers, key = { it.id }) { p ->
+                        val isCurrent = p.id == activeProvider.id
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    configDataStore.updateSettings(settings.copy(activeProviderId = p.id))
+                                    showModelSwitcherSheet = false
+                                    Toast.makeText(context, "已切换主力引擎: ${p.name}", Toast.LENGTH_SHORT).show()
+                                },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isCurrent) colors.primaryContainer else colors.surfaceContainer,
+                            border = if (isCurrent) androidx.compose.foundation.BorderStroke(1.dp, colors.primary) else null
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isCurrent) colors.primary else colors.textTertiary)
+                                    )
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(
+                                                text = p.name,
+                                                fontSize = 15.sp,
+                                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isCurrent) colors.onPrimaryContainer else colors.textPrimary
+                                            )
+                                            if (isCurrent) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = colors.primary
+                                                ) {
+                                                    Text(
+                                                        text = "当前主力",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = colors.onPrimary,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Text(
+                                            text = "${p.type.displayName} · 音色: ${p.voiceId.ifBlank { "默认" }}",
+                                            fontSize = 12.sp,
+                                            color = if (isCurrent) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.textSecondary
+                                        )
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    IconButton(
+                                        onClick = {
+                                            showModelSwitcherSheet = false
+                                            onNavigateToEditProvider(p.id)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "编辑模型参数",
+                                            tint = if (isCurrent) colors.primary else colors.textSecondary,
+                                            modifier = Modifier.size(17.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+        }
+    }
+
+    // 对话框: 大模型导演提示词 (Prompt Instruction) 快速调整
+    if (showPromptDialog) {
+        AlertDialog(
+            onDismissRequest = { showPromptDialog = false },
+            title = {
+                Text("语气与导演提示词", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "为大模型指定语气风格、角色情感与语调抑扬顿挫：",
+                        fontSize = 12.5.sp,
+                        color = colors.textSecondary
+                    )
+
+                    OutlinedTextField(
+                        value = promptEditValue,
+                        onValueChange = { promptEditValue = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(110.dp),
+                        placeholder = { Text("例如：用温柔亲切的语气朗读，带有适当的情感起伏和停顿。", fontSize = 13.sp) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary
+                        )
+                    )
+
+                    // 快速模板
+                    Text("常用风格模板:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = colors.primary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val presets = listOf(
+                            "自然旁白" to "用自然、沉稳的小说旁白口吻朗读，语速适中，富有沉浸感。",
+                            "温柔陪伴" to "声音轻柔温暖，带有亲切的微笑感，语速舒缓柔和。",
+                            "激情演说" to "用充满激情与感染力的方式演讲，抑扬顿挫，节奏有力。"
+                        )
+                        presets.forEach { (label, content) ->
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { promptEditValue = content },
+                                shape = RoundedCornerShape(8.dp),
+                                color = colors.surfaceContainer
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    color = colors.textSecondary,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val updated = activeProvider.copy(promptInstruction = promptEditValue.trim())
+                        configDataStore.updateProvider(updated)
+                        showPromptDialog = false
+                        Toast.makeText(context, "已更新模型导演提示词", Toast.LENGTH_SHORT).show()
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("保存并生效")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPromptDialog = false }) {
+                    Text("取消", color = colors.textSecondary)
+                }
+            },
+            containerColor = colors.surface,
+            shape = RoundedCornerShape(24.dp)
+        )
     }
 }

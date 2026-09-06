@@ -126,6 +126,9 @@ fun GoogleProviderConfigScreen(
     var audioFormat by remember(currentConfig) { mutableStateOf(currentConfig.audioFormat) }
     var isStreamingEnabled by remember(currentConfig) { mutableStateOf(currentConfig.isStreamingEnabled) }
     var customPayload by remember(currentConfig) { mutableStateOf(currentConfig.customPayloadTemplate) }
+    var customHeadersJson by remember(currentConfig) { mutableStateOf(currentConfig.customHeadersJson) }
+    var responseAudioPath by remember(currentConfig) { mutableStateOf(currentConfig.responseAudioPath) }
+    var fallbackProviderId by remember(currentConfig) { mutableStateOf(currentConfig.fallbackProviderId ?: "") }
     var testPhrase by remember { mutableStateOf("您好，正在为您试听当前配置的语音合成效果。") }
 
     val audioPlayer = remember { AndroidAudioPlayer(context) }
@@ -219,7 +222,10 @@ fun GoogleProviderConfigScreen(
             sampleRate = sampleRate.toIntOrNull() ?: 24000,
             audioFormat = audioFormat.trim().ifBlank { "mp3" },
             isStreamingEnabled = isStreamingEnabled,
-            customPayloadTemplate = customPayload
+            customPayloadTemplate = customPayload,
+            customHeadersJson = customHeadersJson.trim(),
+            responseAudioPath = responseAudioPath.trim(),
+            fallbackProviderId = fallbackProviderId.trim().ifBlank { null }
         )
         configDataStore.updateProvider(updated)
         Toast.makeText(context, "配置已保存", Toast.LENGTH_SHORT).show()
@@ -249,7 +255,10 @@ fun GoogleProviderConfigScreen(
             sampleRate = sampleRate.toIntOrNull() ?: 24000,
             audioFormat = audioFormat.trim().ifBlank { "mp3" },
             isStreamingEnabled = isStreamingEnabled,
-            customPayloadTemplate = customPayload
+            customPayloadTemplate = customPayload,
+            customHeadersJson = customHeadersJson.trim(),
+            responseAudioPath = responseAudioPath.trim(),
+            fallbackProviderId = fallbackProviderId.trim().ifBlank { null }
         )
 
         isSynthesizing = true
@@ -655,29 +664,52 @@ fun GoogleProviderConfigScreen(
                 }
             }
 
-            // 4. 自定义 HTTP 模板 (仅自定义或高级模式)
-            if (selectedType == ProviderType.CUSTOM_HTTP) {
-                item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        color = colors.surface,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineSubtle)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("自定义 HTTP 请求体模板", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = colors.primary)
-                            Text("支持占位符: \${text}, \${voice}, \${speed}, \${pitch}", fontSize = 11.sp, color = colors.textSecondary)
+            // 4. 自定义 HTTP 模板与高级网络定制
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    color = colors.surface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineSubtle)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("高级网络与请求定制", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = colors.primary)
 
+                        if (selectedType == ProviderType.CUSTOM_HTTP) {
+                            Text("自定义 HTTP 请求体模板 (支持占位符: \${text}, \${voice}, \${speed}, \${pitch})", fontSize = 11.5.sp, color = colors.textSecondary)
                             OutlinedTextField(
                                 value = customPayload,
                                 onValueChange = { customPayload = it },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(140.dp),
+                                    .height(130.dp),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
                             )
                         }
+
+                        Text("自定义请求头 (JSON Headers，选填)", fontSize = 11.5.sp, color = colors.textSecondary)
+                        OutlinedTextField(
+                            value = customHeadersJson,
+                            onValueChange = { customHeadersJson = it },
+                            placeholder = { Text("{\n  \"User-Agent\": \"AI-TTS/3.8.5\"\n}") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(90.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
+                        )
+
+                        Text("响应音频提取路径 (JSON Path，留空为二进制流)", fontSize = 11.5.sp, color = colors.textSecondary)
+                        OutlinedTextField(
+                            value = responseAudioPath,
+                            onValueChange = { responseAudioPath = it },
+                            placeholder = { Text("例如: data.audio 或 choices[0].message.audio.data") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
+                        )
                     }
                 }
             }
