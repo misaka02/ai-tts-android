@@ -1,6 +1,7 @@
 package com.aitts.engine.ui.material.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -74,6 +75,9 @@ import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
+import com.aitts.engine.data.requiresClientSpeedScaling
+import com.aitts.engine.provider.GeminiTtsProvider
+import com.aitts.engine.provider.MimoTtsProvider
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.ui.material.GoogleColors
 import kotlinx.coroutines.launch
@@ -270,7 +274,8 @@ fun GoogleProviderConfigScreen(
                     val bytes = res.getOrNull() ?: ByteArray(0)
                     if (bytes.isNotEmpty()) {
                         isPlaying = true
-                        audioPlayer.playAudioBytes(bytes, speed = 1.0f) {
+                        val playbackSpeed = if (testCfg.requiresClientSpeedScaling(isStreaming = isStreamingEnabled)) testCfg.speed else 1.0f
+                        audioPlayer.playAudioBytes(bytes, speed = playbackSpeed) {
                             isPlaying = false
                         }
                     } else {
@@ -557,8 +562,8 @@ fun GoogleProviderConfigScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text("流式极速传输 (Streaming)", fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
-                                Text("首字直出极低延迟", fontSize = 11.sp, color = colors.textSecondary)
+                                Text("流式分片传输 (Streaming)", fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                                Text("实时流式输出音频分片，首包低延迟", fontSize = 11.sp, color = colors.textSecondary)
                             }
                             Switch(
                                 checked = isStreamingEnabled,
@@ -576,35 +581,149 @@ fun GoogleProviderConfigScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
                     color = colors.surface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.outlineSubtle)
+                    border = BorderStroke(1.dp, colors.outlineSubtle)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Text("发音参数与音频格式", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = colors.primary)
 
-                        Column {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("原生倍速 (Speed)", fontSize = 13.sp, color = colors.textPrimary)
-                                Text(String.format("%.2fx", speed), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                        val isPromptGearsMode = (selectedType == ProviderType.MIMO && !isStreamingEnabled) ||
+                                                (selectedType == ProviderType.GEMINI)
+                        val isMimoStreaming = (selectedType == ProviderType.MIMO && isStreamingEnabled)
+
+                        if (isPromptGearsMode) {
+                            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "发音倍速: ${String.format(java.util.Locale.US, "%.2f", speed)}x (声学指令 7 档)",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.textPrimary
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = colors.primary.copy(alpha = 0.12f)
+                                    ) {
+                                        Text(
+                                            if (selectedType == ProviderType.GEMINI) "全链路原生指令" else "大模型原生非流式",
+                                            fontSize = 10.5.sp,
+                                            color = colors.primary,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                val gears = listOf(
+                                    Triple(0.60f, "0.6x 极缓", "极度舒缓"),
+                                    Triple(0.75f, "0.75x 从容", "从容较慢"),
+                                    Triple(0.88f, "0.88x 微慢", "悠闲微慢"),
+                                    Triple(1.00f, "1.0x 标准", "自然流畅"),
+                                    Triple(1.20f, "1.2x 轻快", "稍快明快"),
+                                    Triple(1.45f, "1.45x 紧凑", "紧凑干练"),
+                                    Triple(1.75f, "1.75x 极速", "快速疾读")
+                                )
+
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    items(gears) { (gearSpeed, gearLabel, _) ->
+                                        val isCurrent = kotlin.math.abs(speed - gearSpeed) < 0.05f
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = if (isCurrent) colors.primaryContainer else colors.surfaceContainer,
+                                            border = if (isCurrent) BorderStroke(1.dp, colors.primary) else null,
+                                            modifier = Modifier.clickable { speed = gearSpeed }
+                                        ) {
+                                            Text(
+                                                text = gearLabel,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isCurrent) colors.onPrimaryContainer else colors.textSecondary,
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                val currentPromptDesc = when (selectedType) {
+                                    ProviderType.MIMO -> MimoTtsProvider.getSpeedInstruction(speed)
+                                    ProviderType.GEMINI -> GeminiTtsProvider.getSpeedInstruction(speed)
+                                    else -> ""
+                                }
+                                if (currentPromptDesc.isNotBlank()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = colors.surfaceContainer,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "大模型声学指令：“$currentPromptDesc” (客户端原声 1.0x 直出)",
+                                            fontSize = 11.sp,
+                                            color = colors.textSecondary,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
                             }
-                            Slider(
-                                value = speed,
-                                onValueChange = { speed = it },
-                                valueRange = 0.5f..2.5f,
-                                colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary)
-                            )
+                        } else {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text("原生倍速 (Speed)", fontSize = 13.sp, color = colors.textPrimary)
+                                        if (isMimoStreaming) {
+                                            Surface(shape = RoundedCornerShape(6.dp), color = colors.googleYellow.copy(alpha = 0.18f)) {
+                                                Text(
+                                                    "Sonic 物理拉伸",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = colors.primary,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(String.format(java.util.Locale.US, "%.2fx", speed), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                                }
+                                Slider(
+                                    value = speed,
+                                    onValueChange = { speed = it },
+                                    valueRange = 0.5f..2.5f,
+                                    colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary)
+                                )
+                            }
                         }
 
-                        Column {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("原生音调 (Pitch)", fontSize = 13.sp, color = colors.textPrimary)
-                                Text(String.format("%.2fx", pitch), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                        // 高级 AI 自回归大模型由端到端神经网络直出，仅传统参数化引擎支持 Pitch
+                        val supportsPitch = when (selectedType) {
+                            ProviderType.EDGE_TTS,
+                            ProviderType.AZURE,
+                            ProviderType.CUSTOM_HTTP,
+                            ProviderType.OFFLINE_VITS -> true
+                            else -> false
+                        }
+
+                        if (supportsPitch) {
+                            Column {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("原生音调 (Pitch)", fontSize = 13.sp, color = colors.textPrimary)
+                                    Text(String.format(java.util.Locale.US, "%.2fx", pitch), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                                }
+                                Slider(
+                                    value = pitch,
+                                    onValueChange = { pitch = it },
+                                    valueRange = 0.5f..1.5f,
+                                    colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary)
+                                )
                             }
-                            Slider(
-                                value = pitch,
-                                onValueChange = { pitch = it },
-                                valueRange = 0.5f..1.5f,
-                                colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary)
-                            )
                         }
 
                         // 音频格式选择

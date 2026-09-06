@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Environment
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -94,11 +96,14 @@ import com.aitts.engine.data.ProviderType
 import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.data.VoiceModel
 import com.aitts.engine.data.requiresClientSpeedScaling
+import com.aitts.engine.provider.GeminiTtsProvider
+import com.aitts.engine.provider.MimoTtsProvider
 import com.aitts.engine.provider.TtsProviderManager
 import com.aitts.engine.rules.QuoteService
 import com.aitts.engine.rules.TextPreprocessor
 import com.aitts.engine.ui.material.GoogleColors
 import com.aitts.engine.ui.material.components.GoogleAudioWaveform
+import com.aitts.engine.ui.material.components.GoogleLogViewerSheet
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -235,11 +240,11 @@ fun GoogleSpeechHubScreen(
 
         scope.launch {
             try {
-                val effectiveSpeed = (activeProvider.speed * settings.globalSpeed).coerceIn(0.2f, 3.0f)
-                val effectivePitch = (activeProvider.pitch * settings.globalPitch).coerceIn(0.2f, 2.0f)
+                val effectiveSpeed = activeProvider.speed.coerceIn(0.2f, 3.0f)
+                val effectivePitch = activeProvider.pitch.coerceIn(0.2f, 2.0f)
                 val testConfig = activeProvider.copy(speed = effectiveSpeed, pitch = effectivePitch)
 
-                configDataStore.log("[Google Hub] 发起合成: 模型=${activeProvider.name}, 音色=${activeProvider.voiceId}, 文本长度=${testText.length}", sessionId = trialSessionId)
+                configDataStore.log("[Google Hub] 发起合成: 模型=${activeProvider.name}, 音色=${activeProvider.voiceId}, 语速=${effectiveSpeed}x, 文本长度=${testText.length}", sessionId = trialSessionId)
                 val startTime = System.currentTimeMillis()
                 var firstChunkReceived = false
 
@@ -276,7 +281,7 @@ fun GoogleSpeechHubScreen(
 
                         configDataStore.log("[Audio] 合成成功: 大小=${audioData.size}字节, 耗时=${costMs}ms, 采样率=${activeProvider.sampleRate}Hz", sessionId = trialSessionId)
 
-                        val playbackSpeed = if (activeProvider.copy(speed = effectiveSpeed).requiresClientSpeedScaling(isStreaming = activeProvider.isStreamingEnabled)) effectiveSpeed else 1.0f
+                        val playbackSpeed = if (testConfig.requiresClientSpeedScaling(isStreaming = activeProvider.isStreamingEnabled)) effectiveSpeed else 1.0f
                         audioPlayer.playAudioBytes(
                             audioBytes = audioData,
                             speed = playbackSpeed,
@@ -557,6 +562,21 @@ fun GoogleSpeechHubScreen(
                                 label = { Text("本地名言", fontSize = 12.sp) },
                                 leadingIcon = {
                                     Icon(Icons.Default.Casino, contentDescription = null, modifier = Modifier.size(14.dp))
+                                },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = colors.surfaceContainer,
+                                    labelColor = colors.textSecondary
+                                ),
+                                border = null,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            // 诊断日志
+                            AssistChip(
+                                onClick = { showLogsSheet = true },
+                                label = { Text("日志", fontSize = 12.sp) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(14.dp))
                                 },
                                 colors = AssistChipDefaults.assistChipColors(
                                     containerColor = colors.surfaceContainer,
@@ -947,53 +967,147 @@ fun GoogleSpeechHubScreen(
                     }
                 }
 
-                // 语速快捷药丸与声学高级微调入口
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        val speedPresets = listOf(0.8f, 1.0f, 1.2f, 1.5f, 2.0f)
-                        speedPresets.forEach { speed ->
-                            val isSelected = kotlin.math.abs(settings.globalSpeed - speed) < 0.05f
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        configDataStore.updateSettings(settings.copy(globalSpeed = speed))
-                                        Toast.makeText(context, "全局语速设为 ${speed}x", Toast.LENGTH_SHORT).show()
-                                    },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) colors.primaryContainer else colors.surfaceContainer,
-                                border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, colors.primary) else null
+                // 语速快捷控制（自适应四大调速体系：MiMo非流式声学7档/MiMo流式Sonic/传统/原生AI）
+                val isPromptGearsMode = (activeProvider.type == ProviderType.MIMO && !activeProvider.isStreamingEnabled) ||
+                                        (activeProvider.type == ProviderType.GEMINI)
+                val isMimoStreaming = (activeProvider.type == ProviderType.MIMO && activeProvider.isStreamingEnabled)
+
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "语速调节: ${String.format(java.util.Locale.US, "%.2f", activeProvider.speed)}x",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textPrimary
+                            )
+                            if (isMimoStreaming) {
+                                Surface(shape = RoundedCornerShape(6.dp), color = colors.googleYellow.copy(alpha = 0.18f)) {
+                                    Text(
+                                        text = "Sonic 物理拉伸",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.primary,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            } else if (isPromptGearsMode) {
+                                Surface(shape = RoundedCornerShape(6.dp), color = colors.primary.copy(alpha = 0.12f)) {
+                                    Text(
+                                        text = "声学指令 7 档",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.primary,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // 展开听书进阶声学设置抽屉
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { showAdvancedAudioSheet = true },
+                            shape = RoundedCornerShape(12.dp),
+                            color = colors.surfaceContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(
-                                    text = "${speed}x",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) colors.onPrimaryContainer else colors.textSecondary
-                                )
+                                Icon(Icons.Default.Tune, contentDescription = null, tint = colors.primary, modifier = Modifier.size(14.dp))
+                                Text("声学工具", fontSize = 12.sp, color = colors.primary, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
 
-                    // 展开听书进阶声学设置抽屉
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { showAdvancedAudioSheet = true },
-                        shape = RoundedCornerShape(12.dp),
-                        color = colors.surfaceContainer
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    if (isPromptGearsMode) {
+                        val mimoGears = listOf(
+                            Triple(0.60f, "0.6x 极缓", "极度舒缓"),
+                            Triple(0.75f, "0.75x 从容", "从容较慢"),
+                            Triple(0.88f, "0.88x 微慢", "悠闲微慢"),
+                            Triple(1.00f, "1.0x 标准", "自然流畅"),
+                            Triple(1.20f, "1.2x 轻快", "稍快明快"),
+                            Triple(1.45f, "1.45x 紧凑", "紧凑干练"),
+                            Triple(1.75f, "1.75x 极速", "快速疾读")
+                        )
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Default.Tune, contentDescription = null, tint = colors.primary, modifier = Modifier.size(14.dp))
-                            Text("声学工具", fontSize = 12.sp, color = colors.primary, fontWeight = FontWeight.Medium)
+                            items(mimoGears) { (gearSpeed, gearLabel, _) ->
+                                val isSelected = kotlin.math.abs(activeProvider.speed - gearSpeed) < 0.05f
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            configDataStore.updateProvider(activeProvider.copy(speed = gearSpeed))
+                                            Toast.makeText(context, "${activeProvider.name} 语速: $gearLabel", Toast.LENGTH_SHORT).show()
+                                        },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isSelected) colors.primaryContainer else colors.surfaceContainer,
+                                    border = if (isSelected) BorderStroke(1.dp, colors.primary) else null
+                                ) {
+                                    Text(
+                                        text = gearLabel,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) colors.onPrimaryContainer else colors.textSecondary
+                                    )
+                                }
+                            }
+                        }
+
+                        val currentInstruction = when (activeProvider.type) {
+                            ProviderType.MIMO -> MimoTtsProvider.getSpeedInstruction(activeProvider.speed)
+                            ProviderType.GEMINI -> GeminiTtsProvider.getSpeedInstruction(activeProvider.speed)
+                            else -> ""
+                        }
+                        if (currentInstruction.isNotBlank()) {
+                            Text(
+                                text = "大模型声学指令：“$currentInstruction” (客户端原声 1.0x 直出)",
+                                fontSize = 11.sp,
+                                color = colors.textTertiary,
+                                modifier = Modifier.padding(horizontal = 2.dp)
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val speedPresets = listOf(0.8f, 1.0f, 1.2f, 1.5f, 2.0f)
+                            speedPresets.forEach { speed ->
+                                val isSelected = kotlin.math.abs(activeProvider.speed - speed) < 0.05f
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            configDataStore.updateProvider(activeProvider.copy(speed = speed))
+                                            Toast.makeText(context, "${activeProvider.name} 语速设为 ${speed}x", Toast.LENGTH_SHORT).show()
+                                        },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isSelected) colors.primaryContainer else colors.surfaceContainer,
+                                    border = if (isSelected) BorderStroke(1.dp, colors.primary) else null
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 6.dp)) {
+                                        Text(
+                                            text = "${speed}x",
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) colors.onPrimaryContainer else colors.textSecondary
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1142,11 +1256,34 @@ fun GoogleSpeechHubScreen(
                     }
                 }
 
-                // 4. 软件级响度动态增益
+                // 4. 传统引擎音调微调 (Pitch)
+                val supportsPitch = when (activeProvider.type) {
+                    ProviderType.EDGE_TTS,
+                    ProviderType.AZURE,
+                    ProviderType.CUSTOM_HTTP,
+                    ProviderType.OFFLINE_VITS -> true
+                    else -> false
+                }
+                if (supportsPitch) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("传统引擎音调 (Pitch)", fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                            Text(String.format(java.util.Locale.US, "%.2fx", activeProvider.pitch), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                        }
+                        Slider(
+                            value = activeProvider.pitch,
+                            onValueChange = { configDataStore.updateProvider(activeProvider.copy(pitch = it)) },
+                            valueRange = 0.5f..1.5f,
+                            colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary)
+                        )
+                    }
+                }
+
+                // 5. 软件级响度动态增益
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("软件级响度增益", fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
-                        Text(String.format("%.1fx", settings.loudnessGainFactor), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
+                        Text(String.format(java.util.Locale.US, "%.1fx", settings.loudnessGainFactor), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
                     }
                     Slider(
                         value = settings.loudnessGainFactor,
@@ -1161,83 +1298,13 @@ fun GoogleSpeechHubScreen(
         }
     }
 
-    // 抽屉 3: 实时诊断日志抽屉
+    // 抽屉 3: 实时诊断日志抽屉 (Material 3 标准组件，支持请求生命周期聚合、单次独立复制与二次清空确认)
     if (showLogsSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showLogsSheet = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = colors.surface,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("实时请求诊断日志", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Surface(
-                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
-                                val allLogs = logs.joinToString("\n")
-                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                cm.setPrimaryClip(ClipData.newPlainText("aitts_logs", allLogs))
-                                Toast.makeText(context, "日志已复制到剪贴板", Toast.LENGTH_SHORT).show()
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            color = colors.surfaceContainer
-                        ) {
-                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = colors.primary, modifier = Modifier.size(12.dp))
-                                Text("复制", fontSize = 11.sp, color = colors.primary)
-                            }
-                        }
-
-                        Surface(
-                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
-                                configDataStore.clearLogs()
-                                Toast.makeText(context, "已清空日志", Toast.LENGTH_SHORT).show()
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            color = colors.surfaceContainer
-                        ) {
-                            Text("清空", fontSize = 11.sp, color = colors.googleRed, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                        }
-                    }
-                }
-
-                if (logs.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
-                        Text("暂无日志记录", color = colors.textTertiary, fontSize = 13.sp)
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxWidth().height(320.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        items(logs.takeLast(100).reversed()) { log ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = colors.surfaceContainer
-                            ) {
-                                Text(
-                                    text = log,
-                                    fontSize = 11.5.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    color = if (log.contains("ERROR", ignoreCase = true) || log.contains("失败", ignoreCase = true)) colors.googleRed else colors.textPrimary,
-                                    lineHeight = 16.sp,
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-        }
+        GoogleLogViewerSheet(
+            configDataStore = configDataStore,
+            colors = colors,
+            onDismiss = { showLogsSheet = false }
+        )
     }
 
     // 抽屉 4: 底部快捷切换模型抽屉 (支持一键选为主力 + 直达参数设置)

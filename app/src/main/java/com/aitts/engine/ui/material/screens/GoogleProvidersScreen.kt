@@ -97,7 +97,7 @@ import kotlin.math.roundToInt
  * 1. 列表长按滑动自由悬浮拖拽排序 (detectDragGesturesAfterLongPress + 视口边缘自适应滚动 + 平滑错位动画)；
  * 2. 分类快速过滤滑轨 (全部 / 主力 / 云端大模型 / 离线直连 / 免Key)；
  * 3. 一键置顶 (moveProviderToTop)、一键克隆副本 (duplicateProvider)、一键设为主力；
- * 4. 辅助微调上移/下移键，单项与全矩阵并发测速；
+ * 4. 辅助微调上移/下移键，单项与批量网络延迟检测；
  * 5. 模型分享口令导出 (Token) 与口令导入解析；
  * 6. 进入模型精细配置参数与删除确认。
  */
@@ -230,7 +230,7 @@ fun GoogleProvidersScreen(
                 testLatencyMap[p.id] = if (res.isSuccess) cost else -1L
             }
             isBatchTesting = false
-            Toast.makeText(context, "全矩阵测速已完成", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "批量延迟检测已完成", Toast.LENGTH_SHORT).show()
         }
     }
 
