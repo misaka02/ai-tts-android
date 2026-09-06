@@ -811,7 +811,7 @@ fun GoogleProviderConfigScreen(
                         OutlinedTextField(
                             value = customHeadersJson,
                             onValueChange = { customHeadersJson = it },
-                            placeholder = { Text("{\n  \"User-Agent\": \"AI-TTS/3.8.6\"\n}") },
+                            placeholder = { Text("{\n  \"User-Agent\": \"AI-TTS/3.8.7\"\n}") },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(90.dp),

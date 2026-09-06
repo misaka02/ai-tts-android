@@ -6,8 +6,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.provider.Settings as AndroidSettings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,12 +34,9 @@ import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CleaningServices
-import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Dock
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.FolderShared
@@ -50,34 +45,24 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Spellcheck
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -85,13 +70,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -102,41 +84,32 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aitts.engine.BuildConfig
 import com.aitts.engine.audio.AudioCacheManager
 import com.aitts.engine.data.ConfigDataStore
-import com.aitts.engine.data.ProviderType
-import com.aitts.engine.data.TtsProviderConfig
 import com.aitts.engine.permission.PermissionManager
 import com.aitts.engine.ui.material.GoogleColors
 import com.aitts.engine.ui.material.components.GoogleLogViewerSheet
-import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
- * ⚙️ Google Pixel 系统设置规范 - 全功能配置中枢 (Google Settings Screen)
+ * Google 官方应用风格 (Material Design 3) 系统设置界面
  *
- * 严格遵照 Google Material Design 3 规范与 Pixel 官方系统设置交互逻辑：
- * 1. 引擎状态：当前主力引擎、备用降级状态、全局缓存度量；
- * 2. Android 原生系统深度集成：TTS 设置跳转、电池优化保活白名单、全文件访问、后台通知栏常驻；
- * 3. 全局悬浮主控坞：启用开关、4 种交互形态（水平微胶囊、垂直侧边栏、环形扇面轮盘、边缘贴靠）；
- * 4. 阅读器长文本切分与分段预加载流水线：按换行自然段/标点断句/智能对白角色、短段落自动合并、超长段落强制标点拆分、异步提前并发预加载前瞻深度（1~4 块）；
- * 5. 声学发音与语意规整：低延迟首包音频直出、标点微停顿调节、英文缩写规范化、数字读音转换、对白智能情感语气注入；
- * 6. 全局网络代理与故障转移：主备自动降级与兜底引擎选择、网络错误自动重试 (指数退避)、HTTP/SOCKS 代理、超时控制；
- * 7. 界面风格与外观：5 大独立界面风格一键切换、明暗模式（系统/浅色/深色）、触觉震动微反馈；
- * 8. 数据备份、文件恢复与出厂重置：全量 JSON 导出到文件、从本地 JSON 文件恢复、剪贴板脱敏/完整复制、粘贴恢复、LRU 音频缓存清理、两步出厂重置；
- * 9. 实时请求诊断日志与开发者生态致谢。
+ * 遵循 Material 3 与 Android AOSP 偏好设置官方规范：
+ * 1. 【信息分级呈现】：主列表仅展示核心开关与生效值状态摘要 (Summary)，避免超长表单平铺轰炸；
+ * 2. 【大段配置收纳】：切分策略、预加载深度、代理参数、连接超时、多主题风格等均收纳至标准 Dialog，选完即收起；
+ * 3. 【彻底消除幽灵伪选项】：剥离未生效的自制悬浮坞形态选择（如“水平微胶囊/环形扇面盘”），保持官方规范的纯净质感；
+ * 4. 【依赖性折叠】：主开关关闭时自动隐藏下属微调项，杜绝屏幕噪音。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GoogleSettingsScreen(
+    modifier: Modifier = Modifier,
     configDataStore: ConfigDataStore,
-    colors: GoogleColors,
-    modifier: Modifier = Modifier
+    colors: GoogleColors
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -157,8 +130,18 @@ fun GoogleSettingsScreen(
     var cacheSizeText by remember { mutableStateOf("计算中...") }
     var permState by remember { mutableStateOf(PermissionManager.checkPermissions(context)) }
 
-    // 弹窗状态管理
+    // 弹窗状态管理 (规范收纳)
     var showFallbackSelectorDialog by remember { mutableStateOf(false) }
+    var showSegmentationModeDialog by remember { mutableStateOf(false) }
+    var showPreloadDepthDialog by remember { mutableStateOf(false) }
+    var showProxyConfigDialog by remember { mutableStateOf(false) }
+    var tempProxyType by remember(settings.proxyType) { mutableStateOf(settings.proxyType) }
+    var tempProxyHost by remember(settings.proxyHost) { mutableStateOf(settings.proxyHost) }
+    var tempProxyPort by remember(settings.proxyPort) { mutableStateOf(settings.proxyPort.toString()) }
+    var showTimeoutDialog by remember { mutableStateOf(false) }
+    var showThemeStyleDialog by remember { mutableStateOf(false) }
+    var showThemeModeDialog by remember { mutableStateOf(false) }
+
     var showImportTextDialog by remember { mutableStateOf(false) }
     var importJsonText by remember { mutableStateOf("") }
     var showClearCacheDialog by remember { mutableStateOf(false) }
@@ -216,7 +199,7 @@ fun GoogleSettingsScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 顶部标题
+        // 顶部大标题
         item {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 Text(
@@ -233,7 +216,7 @@ fun GoogleSettingsScreen(
             }
         }
 
-        // ==================== 1. 系统状态概览看板 ====================
+        // ==================== 1. 系统状态概览卡片 ====================
         item {
             val activeProvider = providers.find { it.id == settings.activeProviderId } ?: providers.firstOrNull()
             val fallbackProvider = providers.find { it.id == settings.fallbackProviderId }
@@ -376,83 +359,13 @@ fun GoogleSettingsScreen(
             }
         }
 
-        // ==================== 3. 全局悬浮主控坞 ====================
+        // ==================== 3. 阅读器长文本切分与预加载 ====================
         item {
-            SettingsGroupCard(title = "全局悬浮主控坞 (Floating Dock)", colors = colors) {
-                SettingsSwitchRow(
-                    icon = Icons.Default.Dock,
-                    title = "启用全局悬浮主控坞",
-                    subtitle = "在开源阅读 (Legado)、静读天下等阅读软件或任意 App 界面悬浮自由取词与控制",
-                    checked = settings.isFloatingDockEnabled,
-                    colors = colors,
-                    onCheckedChange = { configDataStore.updateSettings(settings.copy(isFloatingDockEnabled = it)) }
-                )
-
-                if (settings.isFloatingDockEnabled) {
-                    HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
-
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "悬浮坞展示形态:",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textPrimary
-                        )
-
-                        val dockModes = listOf(
-                            Triple("EXPANDED_HORIZONTAL", "水平微胶囊", "横向展开常用按键，操作极其顺手"),
-                            Triple("SIDEBAR_VERTICAL", "垂直侧边栏", "贴合屏幕边缘竖向排列，视线遮挡极少"),
-                            Triple("PIE_RADIAL", "环形扇面轮盘", "指尖轻触展开扇形操作盘，操作便捷"),
-                            Triple("EDGE_STASHED", "边缘隐藏贴靠", "静止时半透明收缩于侧边，轻触唤出")
-                        )
-
-                        dockModes.forEach { (modeKey, title, desc) ->
-                            val isSelected = settings.floatingDockMode == modeKey
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        configDataStore.updateSettings(settings.copy(floatingDockMode = modeKey))
-                                        Toast.makeText(context, "已设为悬浮形态: $title", Toast.LENGTH_SHORT).show()
-                                    },
-                                shape = RoundedCornerShape(14.dp),
-                                color = if (isSelected) colors.primaryContainer else colors.surfaceContainerHigh,
-                                border = if (isSelected) BorderStroke(1.5.dp, colors.primary) else null
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(title, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, fontSize = 13.5.sp, color = if (isSelected) colors.onPrimaryContainer else colors.textPrimary)
-                                        Text(desc, fontSize = 11.5.sp, color = if (isSelected) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.textSecondary)
-                                    }
-                                    if (isSelected) {
-                                        Surface(shape = CircleShape, color = colors.primary) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = colors.onPrimary, modifier = Modifier.size(16.dp).padding(2.dp))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ==================== 4. 阅读器长文本切分与分段流水线 ====================
-        item {
-            SettingsGroupCard(title = "阅读器文本切分与分段流水线", colors = colors) {
+            SettingsGroupCard(title = "阅读器文本切分与预加载", colors = colors) {
                 SettingsSwitchRow(
                     icon = Icons.Default.FormatQuote,
-                    title = "启用文本切分预处理流水线",
-                    subtitle = if (settings.isSentenceSplittingEnabled) "开启：按下方策略智能切分并流水线并发预加载" else "关闭：阅读器传入什么就整篇透传（不做任何处理）",
+                    title = "启用文本切分预处理",
+                    subtitle = if (settings.isSentenceSplittingEnabled) "开启：按设定策略智能切分并流水线并发预加载" else "关闭：阅读器传入文本整篇透传",
                     checked = settings.isSentenceSplittingEnabled,
                     colors = colors,
                     onCheckedChange = { configDataStore.updateSettings(settings.copy(isSentenceSplittingEnabled = it)) }
@@ -461,62 +374,27 @@ fun GoogleSettingsScreen(
                 if (settings.isSentenceSplittingEnabled) {
                     HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
 
-                    // 分段策略选择
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "切分划分模式:",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textPrimary
-                        )
-
-                        val segModes = listOf(
-                            Triple("PARAGRAPH", "按换行自然段落", "保留小说作者自然意境段落，换行即分段"),
-                            Triple("PUNCTUATION", "按句末标点断句", "遇到。！？；即切分，超长段落极速切碎播放"),
-                            Triple("SMART_HYBRID", "智能对白角色混合", "自动识别引号内对话与叙述旁白混合划分")
-                        )
-
-                        segModes.forEach { (modeKey, title, desc) ->
-                            val isCurrent = settings.textSegmentationMode == modeKey
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        configDataStore.updateSettings(settings.copy(textSegmentationMode = modeKey))
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isCurrent) colors.primaryContainer else colors.surfaceContainerHigh,
-                                border = if (isCurrent) BorderStroke(1.2.dp, colors.primary) else null
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(title, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, fontSize = 13.5.sp, color = if (isCurrent) colors.onPrimaryContainer else colors.textPrimary)
-                                        Text(desc, fontSize = 11.5.sp, color = if (isCurrent) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.textSecondary)
-                                    }
-                                    if (isCurrent) {
-                                        Icon(Icons.Default.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
-                        }
+                    val segModeLabel = when (settings.textSegmentationMode) {
+                        "PARAGRAPH" -> "按换行自然段落"
+                        "PUNCTUATION" -> "按句末标点断句"
+                        "SMART_HYBRID" -> "智能对白角色混合"
+                        else -> "按换行自然段落"
                     }
+                    SettingsActionRow(
+                        icon = Icons.Default.Tune,
+                        title = "文本切分划分策略",
+                        subtitle = "当前策略: $segModeLabel",
+                        actionText = "更改",
+                        colors = colors,
+                        onClick = { showSegmentationModeDialog = true }
+                    )
 
                     HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
 
-                    // 相邻极短段落合并
                     SettingsSwitchRow(
                         icon = Icons.Default.SwapHoriz,
-                        title = "相邻极短段落自动合并",
-                        subtitle = "将连续极短段落 (<30字) 合并发送，消除频繁网络请求与语意割裂",
+                        title = "相邻短段落自动合并",
+                        subtitle = "将连续极短段落 (<30字) 合并发送，消除频繁请求与语意割裂",
                         checked = settings.mergeShortParagraphs,
                         colors = colors,
                         onCheckedChange = { configDataStore.updateSettings(settings.copy(mergeShortParagraphs = it)) }
@@ -524,20 +402,19 @@ fun GoogleSettingsScreen(
 
                     HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
 
-                    // 超长段落句号拆分
                     SettingsSwitchRow(
                         icon = Icons.Default.AltRoute,
                         title = "超长段落标点强制拆分",
-                        subtitle = "单段文本超出阈值时严格在句末标点处断开，防止大模型单次请求超时",
+                        subtitle = if (settings.splitLongParagraphs) "阈值: ${settings.maxSegmentLength} 字，超长时严格在句末断开" else "关闭：超长段落不强制截断",
                         checked = settings.splitLongParagraphs,
                         colors = colors,
                         onCheckedChange = { configDataStore.updateSettings(settings.copy(splitLongParagraphs = it)) }
                     )
 
                     if (settings.splitLongParagraphs) {
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("拆分阈值 (字数):", fontSize = 12.5.sp, color = colors.textSecondary)
+                                Text("拆分字数阈值", fontSize = 12.5.sp, color = colors.textSecondary)
                                 Text("${settings.maxSegmentLength} 字", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
                             }
                             Slider(
@@ -552,54 +429,32 @@ fun GoogleSettingsScreen(
 
                     HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
 
-                    // 分段并发预加载
                     SettingsSwitchRow(
                         icon = Icons.Default.Bolt,
-                        title = "分段流式并发预加载流水线",
-                        subtitle = "朗读当前段时，在后台异步预先合成并缓存接下来的段落，彻底消除等待",
+                        title = "分段流式并发预加载",
+                        subtitle = "朗读当前段时，在后台异步预合成接下来的段落",
                         checked = settings.enableSegmentPreload,
                         colors = colors,
                         onCheckedChange = { configDataStore.updateSettings(settings.copy(enableSegmentPreload = it)) }
                     )
 
                     if (settings.enableSegmentPreload) {
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("预加载前瞻深度 (提前准备段数):", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = colors.textSecondary)
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf(
-                                    1 to "1 块\n省流量",
-                                    2 to "2 块\n均衡推荐",
-                                    3 to "3 块\n深度预热",
-                                    4 to "4 块\n强劲管线"
-                                ).forEach { (count, label) ->
-                                    val isCurrent = settings.preloadAheadCount == count
-                                    Surface(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clickable { configDataStore.updateSettings(settings.copy(preloadAheadCount = count)) },
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = if (isCurrent) colors.primaryContainer else colors.surfaceContainerHigh,
-                                        border = if (isCurrent) BorderStroke(1.2.dp, colors.primary) else null
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 11.sp,
-                                            lineHeight = 15.sp,
-                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isCurrent) colors.onPrimaryContainer else colors.textSecondary,
-                                            modifier = Modifier.padding(vertical = 8.dp),
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
+
+                        SettingsActionRow(
+                            icon = Icons.Default.Speed,
+                            title = "预加载前瞻深度",
+                            subtitle = "当前深度: 提前准备 ${settings.preloadAheadCount} 段",
+                            actionText = "调整",
+                            colors = colors,
+                            onClick = { showPreloadDepthDialog = true }
+                        )
                     }
                 }
             }
         }
 
-        // ==================== 5. 语意规整与声学发音微调 ====================
+        // ==================== 4. 声学发音与语意规范化 ====================
         item {
             SettingsGroupCard(title = "声学发音与语意规范化", colors = colors) {
                 // 低延迟首包音频直出
@@ -619,7 +474,7 @@ fun GoogleSettingsScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
                             Text("标点分句自然停顿时间", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
-                            Text("逗号、句号及段落换行处的微停顿（推荐 200~350ms）", fontSize = 11.5.sp, color = colors.textSecondary)
+                            Text("逗号、句号及换行处的微停顿 (推荐 200~350ms)", fontSize = 11.5.sp, color = colors.textSecondary)
                         }
                         Text("${settings.sentencePauseMs} ms", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.primary)
                     }
@@ -670,7 +525,7 @@ fun GoogleSettingsScreen(
             }
         }
 
-        // ==================== 6. 网络连接、代理与故障转移 ====================
+        // ==================== 5. 网络代理与高可用故障转移 ====================
         item {
             SettingsGroupCard(title = "网络代理与高可用故障转移", colors = colors) {
                 // 故障自动降级
@@ -678,7 +533,7 @@ fun GoogleSettingsScreen(
                 SettingsSwitchRow(
                     icon = Icons.Default.AltRoute,
                     title = "主备自动故障转移 (Auto Fallback)",
-                    subtitle = "当主力引擎发生超时、429 限流或 503 报错时，毫秒级无缝自动降级到备用引擎",
+                    subtitle = if (settings.autoFallbackOnFailure) "发生异常时降级至: ${fallbackProvider?.name ?: "Edge-TTS"}" else "未开启",
                     checked = settings.autoFallbackOnFailure,
                     colors = colors,
                     onCheckedChange = { configDataStore.updateSettings(settings.copy(autoFallbackOnFailure = it)) }
@@ -690,7 +545,7 @@ fun GoogleSettingsScreen(
                     SettingsActionRow(
                         icon = Icons.Default.SwapHoriz,
                         title = "指定备用兜底引擎",
-                        subtitle = "当前指定: ${fallbackProvider?.name ?: "Edge-TTS (默认)"}",
+                        subtitle = "当前: ${fallbackProvider?.name ?: "Edge-TTS (默认)"}",
                         actionText = "更换",
                         colors = colors,
                         onClick = { showFallbackSelectorDialog = true }
@@ -702,8 +557,8 @@ fun GoogleSettingsScreen(
                 // 网络错误重试
                 SettingsSwitchRow(
                     icon = Icons.Default.Refresh,
-                    title = "网络错误自动重试 (指数退避)",
-                    subtitle = "遇偶发网络抖动或超时时自动按指数退避重试 2 次",
+                    title = "网络错误自动重试",
+                    subtitle = "遇偶发网络抖动时按指数退避自动重试 2 次",
                     checked = settings.autoRetryOnFailure,
                     colors = colors,
                     onCheckedChange = { configDataStore.updateSettings(settings.copy(autoRetryOnFailure = it)) }
@@ -714,8 +569,8 @@ fun GoogleSettingsScreen(
                 // 全局网络代理
                 SettingsSwitchRow(
                     icon = Icons.Default.Language,
-                    title = "全局 HTTP / SOCKS 网络代理",
-                    subtitle = "为所有 TTS 服务商统一配置代理网络转发 (如 Clash / V2ray 本地端口)",
+                    title = "全局网络代理",
+                    subtitle = if (settings.proxyEnabled) "${settings.proxyType} · ${settings.proxyHost.ifBlank { "127.0.0.1" }}:${settings.proxyPort}" else "未开启，直连各 TTS 服务商",
                     checked = settings.proxyEnabled,
                     colors = colors,
                     onCheckedChange = { configDataStore.updateSettings(settings.copy(proxyEnabled = it)) }
@@ -724,199 +579,77 @@ fun GoogleSettingsScreen(
                 if (settings.proxyEnabled) {
                     HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
 
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text("代理协议与地址配置:", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf("HTTP", "SOCKS").forEach { type ->
-                                val isCur = settings.proxyType.uppercase() == type
-                                Surface(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { configDataStore.updateSettings(settings.copy(proxyType = type)) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (isCur) colors.primaryContainer else colors.surfaceContainerHigh,
-                                    border = if (isCur) BorderStroke(1.2.dp, colors.primary) else null
-                                ) {
-                                    Text(
-                                        text = "$type 代理",
-                                        fontSize = 12.5.sp,
-                                        fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isCur) colors.onPrimaryContainer else colors.textSecondary,
-                                        modifier = Modifier.padding(vertical = 8.dp),
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
-                                }
-                            }
+                    SettingsActionRow(
+                        icon = Icons.Default.Tune,
+                        title = "代理服务器配置",
+                        subtitle = "${settings.proxyType}://${settings.proxyHost.ifBlank { "127.0.0.1" }}:${settings.proxyPort}",
+                        actionText = "配置",
+                        colors = colors,
+                        onClick = {
+                            tempProxyType = settings.proxyType
+                            tempProxyHost = settings.proxyHost
+                            tempProxyPort = settings.proxyPort.toString()
+                            showProxyConfigDialog = true
                         }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = settings.proxyHost,
-                                onValueChange = { configDataStore.updateSettings(settings.copy(proxyHost = it)) },
-                                label = { Text("代理 Host") },
-                                placeholder = { Text("127.0.0.1") },
-                                singleLine = true,
-                                modifier = Modifier.weight(2f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-
-                            OutlinedTextField(
-                                value = settings.proxyPort.toString(),
-                                onValueChange = {
-                                    val port = it.toIntOrNull() ?: 7890
-                                    configDataStore.updateSettings(settings.copy(proxyPort = port))
-                                },
-                                label = { Text("端口") },
-                                placeholder = { Text("7890") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        }
-                    }
+                    )
                 }
 
                 HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
 
-                // 超时设定
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("请求连接超时 (Connect Timeout):", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(10, 15, 30, 60).forEach { sec ->
-                            val isSel = settings.connectTimeoutSeconds == sec
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        configDataStore.updateSettings(settings.copy(connectTimeoutSeconds = sec))
-                                    },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isSel) colors.primaryContainer else colors.surfaceContainerHigh,
-                                border = if (isSel) BorderStroke(1.2.dp, colors.primary) else null
-                            ) {
-                                Text(
-                                    text = "${sec} 秒",
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSel) colors.onPrimaryContainer else colors.textSecondary,
-                                    modifier = Modifier.padding(vertical = 8.dp),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                }
+                // 连接超时
+                SettingsActionRow(
+                    icon = Icons.Default.Timer,
+                    title = "请求连接超时",
+                    subtitle = "当前限制: ${settings.connectTimeoutSeconds} 秒",
+                    actionText = "修改",
+                    colors = colors,
+                    onClick = { showTimeoutDialog = true }
+                )
             }
         }
 
-        // ==================== 7. 界面外观、多主题风格与调色板 ====================
+        // ==================== 6. 界面外观与多主题风格 ====================
         item {
-            SettingsGroupCard(title = "界面外观与主题风格 (支持所有原有主题)", colors = colors) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("界面设计风格 (一键无损切换)", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
-                    Text("5 大完全独立的设计系统，随意切换：", fontSize = 12.sp, color = colors.textSecondary)
-
-                    val uiStyles = listOf(
-                        Triple("MATERIAL", "Google 官方样式 (Material 3)", "Google Recorder / Pixel 原生设计，极简纯净"),
-                        Triple("PULSE", "极光微胶囊 (Pulse)", "经典极光流动微胶囊主控，灵动光效"),
-                        Triple("BENTO", "全景网格 (Bento)", "模块化网格矩阵工作台，全信息聚合"),
-                        Triple("STUDIO", "专业调音台 (Studio)", "DAW 多轨音频控制台，高密专业掌控"),
-                        Triple("VINYL", "复古黑胶 (Vinyl)", "经典黑胶唱片阅览舱，优雅典藏黑胶质感")
-                    )
-
-                    uiStyles.forEach { (key, name, desc) ->
-                        val isCurrent = settings.appUiStyle == key
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    configDataStore.updateSettings(settings.copy(appUiStyle = key))
-                                    Toast.makeText(context, "已切换为: $name", Toast.LENGTH_SHORT).show()
-                                },
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (isCurrent) colors.primaryContainer else colors.surfaceContainerHigh,
-                            border = if (isCurrent) BorderStroke(1.5.dp, colors.primary) else null
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(name, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, fontSize = 13.5.sp, color = if (isCurrent) colors.onPrimaryContainer else colors.textPrimary)
-                                    Text(desc, fontSize = 11.5.sp, color = if (isCurrent) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.textSecondary)
-                                }
-
-                                if (isCurrent) {
-                                    Surface(shape = CircleShape, color = colors.primary) {
-                                        Icon(Icons.Default.Radio, contentDescription = null, tint = colors.onPrimary, modifier = Modifier.size(16.dp).padding(2.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
+            SettingsGroupCard(title = "界面外观与主题风格", colors = colors) {
+                val currentStyleName = when (settings.appUiStyle) {
+                    "MATERIAL" -> "Google 官方样式 (Material 3)"
+                    "PULSE" -> "极光微胶囊 (Pulse)"
+                    "BENTO" -> "全景网格 (Bento)"
+                    "STUDIO" -> "专业调音台 (Studio)"
+                    "VINYL" -> "复古黑胶 (Vinyl)"
+                    else -> "Google 官方样式 (Material 3)"
                 }
+                SettingsActionRow(
+                    icon = Icons.Default.Palette,
+                    title = "界面设计系统",
+                    subtitle = "当前: $currentStyleName",
+                    actionText = "切换风格",
+                    colors = colors,
+                    onClick = { showThemeStyleDialog = true }
+                )
 
                 HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
 
-                // 深浅色模式切换
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("明暗外观模式", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
-                    val modes = listOf("SYSTEM" to "跟随系统", "LIGHT" to "浅色模式", "DARK" to "深色模式")
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        modes.forEach { (modeKey, modeTitle) ->
-                            val isSel = settings.appThemeMode.uppercase() == modeKey
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        configDataStore.updateSettings(settings.copy(appThemeMode = modeKey))
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSel) colors.primaryContainer else colors.surfaceContainerHigh,
-                                border = if (isSel) BorderStroke(1.dp, colors.primary) else null
-                            ) {
-                                Text(
-                                    text = modeTitle,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSel) colors.onPrimaryContainer else colors.textSecondary,
-                                    modifier = Modifier.padding(vertical = 8.dp),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            }
-                        }
-                    }
+                val currentModeName = when (settings.appThemeMode.uppercase()) {
+                    "LIGHT" -> "浅色模式"
+                    "DARK" -> "深色模式"
+                    else -> "跟随系统"
                 }
+                SettingsActionRow(
+                    icon = Icons.Default.DarkMode,
+                    title = "明暗外观模式",
+                    subtitle = "当前: $currentModeName",
+                    actionText = "切换模式",
+                    colors = colors,
+                    onClick = { showThemeModeDialog = true }
+                )
 
                 HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
 
-                // 触觉微震动
                 SettingsSwitchRow(
                     icon = Icons.Default.GraphicEq,
                     title = "触觉震动微反馈 (Haptics)",
-                    subtitle = "在拖拽排序、长按与按键点击时提供精准的物理触觉震动反馈",
+                    subtitle = "在拖拽排序、长按与按键点击时提供物理触觉震动",
                     checked = settings.hapticFeedbackEnabled,
                     colors = colors,
                     onCheckedChange = { configDataStore.updateSettings(settings.copy(hapticFeedbackEnabled = it)) }
@@ -924,7 +657,7 @@ fun GoogleSettingsScreen(
             }
         }
 
-        // ==================== 8. 音频缓存、全量数据备份与出厂重置 ====================
+        // ==================== 7. 存储缓存、配置备份与恢复 ====================
         item {
             SettingsGroupCard(title = "存储缓存、配置备份与恢复", colors = colors) {
                 // 音频缓存清理
@@ -943,7 +676,7 @@ fun GoogleSettingsScreen(
                 SettingsActionRow(
                     icon = Icons.Default.FileDownload,
                     title = "导出全量配置到 JSON 文件",
-                    subtitle = "保存全部模型参数、发音正则库与首选项到本地 Downloads 或文档目录",
+                    subtitle = "保存全部模型参数、发音正则库与首选项到本地文件",
                     actionText = "导出文件",
                     colors = colors,
                     onClick = {
@@ -970,7 +703,7 @@ fun GoogleSettingsScreen(
                 SettingsActionRow(
                     icon = Icons.Default.ContentCopy,
                     title = "复制全量配置到剪贴板",
-                    subtitle = "以标准 JSON 文本形式复制到剪贴板，方便在微信/QQ/备忘录间快速迁移",
+                    subtitle = "以标准 JSON 文本形式复制到剪贴板，方便跨设备快速迁移",
                     actionText = "复制文本",
                     colors = colors,
                     onClick = {
@@ -986,7 +719,7 @@ fun GoogleSettingsScreen(
                 SettingsActionRow(
                     icon = Icons.Default.ContentPaste,
                     title = "粘贴文本恢复配置",
-                    subtitle = "从剪贴板粘贴已备份的 JSON 字符串进行极速解析恢复",
+                    subtitle = "从剪贴板粘贴已备份的 JSON 字符串进行解析恢复",
                     actionText = "粘贴恢复",
                     colors = colors,
                     onClick = { showImportTextDialog = true }
@@ -1018,7 +751,7 @@ fun GoogleSettingsScreen(
             }
         }
 
-        // ==================== 9. 关于与开发者生态 ====================
+        // ==================== 8. 关于与开源致谢 ====================
         item {
             SettingsGroupCard(title = "关于软件与开源生态致谢", colors = colors) {
                 SettingsActionRow(
@@ -1094,7 +827,7 @@ fun GoogleSettingsScreen(
         }
     }
 
-    // ==================== 弹窗区 ====================
+    // ==================== 规范收纳弹窗区 ====================
 
     // 1. 备用兜底降级模型选择弹窗
     if (showFallbackSelectorDialog) {
@@ -1151,7 +884,328 @@ fun GoogleSettingsScreen(
         )
     }
 
-    // 3. 粘贴 JSON 文本恢复配置弹窗
+    // 2. 文本切分划分策略选择弹窗
+    if (showSegmentationModeDialog) {
+        val segModes = listOf(
+            Triple("PARAGRAPH", "按换行自然段落", "保留小说作者自然意境段落，换行即分段"),
+            Triple("PUNCTUATION", "按句末标点断句", "遇到句号/问号/感叹号即切分，超长段落极速切碎播放"),
+            Triple("SMART_HYBRID", "智能对白角色混合", "自动识别引号内对话与叙述旁白混合划分")
+        )
+        AlertDialog(
+            onDismissRequest = { showSegmentationModeDialog = false },
+            title = { Text("选择文本切分策略", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    segModes.forEach { (modeKey, title, desc) ->
+                        val isCurrent = settings.textSegmentationMode == modeKey
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    configDataStore.updateSettings(settings.copy(textSegmentationMode = modeKey))
+                                    showSegmentationModeDialog = false
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isCurrent) colors.primaryContainer else colors.surfaceContainerHigh,
+                            border = if (isCurrent) BorderStroke(1.2.dp, colors.primary) else null
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(title, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, fontSize = 13.5.sp, color = if (isCurrent) colors.onPrimaryContainer else colors.textPrimary)
+                                    Text(desc, fontSize = 11.5.sp, color = if (isCurrent) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.textSecondary)
+                                }
+                                if (isCurrent) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSegmentationModeDialog = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    // 3. 预加载前瞻深度选择弹窗
+    if (showPreloadDepthDialog) {
+        val depths = listOf(
+            1 to "提前 1 块 (省流量/低消耗)",
+            2 to "提前 2 块 (标准推荐，平衡流畅)",
+            3 to "提前 3 块 (深度预热，长篇连续朗读)",
+            4 to "提前 4 块 (强劲管线，极速网络直通)"
+        )
+        AlertDialog(
+            onDismissRequest = { showPreloadDepthDialog = false },
+            title = { Text("选择预加载前瞻深度", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    depths.forEach { (count, label) ->
+                        val isCurrent = settings.preloadAheadCount == count
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    configDataStore.updateSettings(settings.copy(preloadAheadCount = count))
+                                    showPreloadDepthDialog = false
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isCurrent) colors.primaryContainer else colors.surfaceContainerHigh,
+                            border = if (isCurrent) BorderStroke(1.2.dp, colors.primary) else null
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(label, fontSize = 13.sp, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal, color = if (isCurrent) colors.onPrimaryContainer else colors.textPrimary)
+                                if (isCurrent) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPreloadDepthDialog = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    // 4. 网络代理服务器配置弹窗
+    if (showProxyConfigDialog) {
+        AlertDialog(
+            onDismissRequest = { showProxyConfigDialog = false },
+            title = { Text("配置网络代理服务器", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("请选择代理协议并输入本地代理端口 (如 Clash / V2Ray / Sing-box)：", fontSize = 12.sp, color = colors.textSecondary)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("HTTP", "SOCKS").forEach { type ->
+                            val isCur = tempProxyType.uppercase() == type
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { tempProxyType = type },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isCur) colors.primaryContainer else colors.surfaceContainerHigh,
+                                border = if (isCur) BorderStroke(1.2.dp, colors.primary) else null
+                            ) {
+                                Text(
+                                    text = "$type 代理",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isCur) colors.onPrimaryContainer else colors.textSecondary,
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = tempProxyHost,
+                        onValueChange = { tempProxyHost = it },
+                        label = { Text("代理 Host") },
+                        placeholder = { Text("127.0.0.1") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = tempProxyPort,
+                        onValueChange = { tempProxyPort = it },
+                        label = { Text("代理端口 (Port)") },
+                        placeholder = { Text("7890") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val port = tempProxyPort.toIntOrNull() ?: 7890
+                    configDataStore.updateSettings(
+                        settings.copy(
+                            proxyType = tempProxyType,
+                            proxyHost = tempProxyHost.ifBlank { "127.0.0.1" },
+                            proxyPort = port,
+                            proxyEnabled = true
+                        )
+                    )
+                    showProxyConfigDialog = false
+                    Toast.makeText(context, "代理配置已更新", Toast.LENGTH_SHORT).show()
+                }) {
+                    Text("保存")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showProxyConfigDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // 5. 请求连接超时选择弹窗
+    if (showTimeoutDialog) {
+        val timeouts = listOf(
+            10 to "10 秒 (超快失败，快速降级)",
+            15 to "15 秒 (标准推荐，适用绝大多数场景)",
+            30 to "30 秒 (弱网宽松，应对偶发波动)",
+            60 to "60 秒 (超长文本，大模型慢速推理)"
+        )
+        AlertDialog(
+            onDismissRequest = { showTimeoutDialog = false },
+            title = { Text("设置连接超时", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    timeouts.forEach { (sec, label) ->
+                        val isSel = settings.connectTimeoutSeconds == sec
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    configDataStore.updateSettings(settings.copy(connectTimeoutSeconds = sec))
+                                    showTimeoutDialog = false
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSel) colors.primaryContainer else colors.surfaceContainerHigh,
+                            border = if (isSel) BorderStroke(1.2.dp, colors.primary) else null
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(label, fontSize = 13.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal, color = if (isSel) colors.onPrimaryContainer else colors.textPrimary)
+                                if (isSel) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTimeoutDialog = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    // 6. 界面设计系统切换弹窗
+    if (showThemeStyleDialog) {
+        val uiStyles = listOf(
+            Triple("MATERIAL", "Google 官方样式 (Material 3)", "Google Recorder / Pixel 原生设计，极简纯净"),
+            Triple("PULSE", "极光微胶囊 (Pulse)", "经典极光流动微胶囊主控，灵动光效"),
+            Triple("BENTO", "全景网格 (Bento)", "模块化网格矩阵工作台，全信息聚合"),
+            Triple("STUDIO", "专业调音台 (Studio)", "DAW 多轨音频控制台，高密专业掌控"),
+            Triple("VINYL", "复古黑胶 (Vinyl)", "经典黑胶唱片阅览舱，优雅典藏黑胶质感")
+        )
+        AlertDialog(
+            onDismissRequest = { showThemeStyleDialog = false },
+            title = { Text("切换界面设计系统", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    uiStyles.forEach { (key, name, desc) ->
+                        val isCurrent = settings.appUiStyle == key
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    configDataStore.updateSettings(settings.copy(appUiStyle = key))
+                                    showThemeStyleDialog = false
+                                    Toast.makeText(context, "已切换为: $name", Toast.LENGTH_SHORT).show()
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isCurrent) colors.primaryContainer else colors.surfaceContainerHigh,
+                            border = if (isCurrent) BorderStroke(1.2.dp, colors.primary) else null
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(name, fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, fontSize = 13.sp, color = if (isCurrent) colors.onPrimaryContainer else colors.textPrimary)
+                                    Text(desc, fontSize = 11.sp, color = if (isCurrent) colors.onPrimaryContainer.copy(alpha = 0.8f) else colors.textSecondary)
+                                }
+                                if (isCurrent) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showThemeStyleDialog = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    // 7. 明暗外观模式选择弹窗
+    if (showThemeModeDialog) {
+        val modes = listOf("SYSTEM" to "跟随系统", "LIGHT" to "浅色模式", "DARK" to "深色模式")
+        AlertDialog(
+            onDismissRequest = { showThemeModeDialog = false },
+            title = { Text("选择明暗外观模式", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    modes.forEach { (modeKey, modeTitle) ->
+                        val isSel = settings.appThemeMode.uppercase() == modeKey
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    configDataStore.updateSettings(settings.copy(appThemeMode = modeKey))
+                                    showThemeModeDialog = false
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSel) colors.primaryContainer else colors.surfaceContainerHigh,
+                            border = if (isSel) BorderStroke(1.2.dp, colors.primary) else null
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(modeTitle, fontSize = 13.5.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal, color = if (isSel) colors.onPrimaryContainer else colors.textPrimary)
+                                if (isSel) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showThemeModeDialog = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    // 8. 粘贴 JSON 文本恢复配置弹窗
     if (showImportTextDialog) {
         AlertDialog(
             onDismissRequest = { showImportTextDialog = false },
@@ -1190,7 +1244,7 @@ fun GoogleSettingsScreen(
         )
     }
 
-    // 4. 清理本地音频缓存二次确认弹窗
+    // 9. 清理本地音频缓存二次确认弹窗
     if (showClearCacheDialog) {
         AlertDialog(
             onDismissRequest = { showClearCacheDialog = false },
@@ -1221,7 +1275,7 @@ fun GoogleSettingsScreen(
         )
     }
 
-    // 5. 恢复出厂设置第 1 步确认
+    // 10. 恢复出厂设置第 1 步确认
     if (showResetStep1Dialog) {
         AlertDialog(
             onDismissRequest = { showResetStep1Dialog = false },
@@ -1250,7 +1304,7 @@ fun GoogleSettingsScreen(
         )
     }
 
-    // 6. 恢复出厂设置第 2 步高危最终确认
+    // 11. 恢复出厂设置第 2 步高危最终确认
     if (showResetStep2Dialog) {
         AlertDialog(
             onDismissRequest = { showResetStep2Dialog = false },
@@ -1280,7 +1334,7 @@ fun GoogleSettingsScreen(
         )
     }
 
-    // 7. 实时诊断日志抽屉 (Material 3 标准组件，支持生命周期聚合、单次独立复制与二次清空确认)
+    // 12. 实时诊断日志抽屉 (Material 3 标准组件，支持生命周期聚合、单次独立复制与二次清空确认)
     if (showLogsSheet) {
         GoogleLogViewerSheet(
             configDataStore = configDataStore,
