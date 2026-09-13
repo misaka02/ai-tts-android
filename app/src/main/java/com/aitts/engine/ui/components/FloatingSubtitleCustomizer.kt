@@ -19,13 +19,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.FormatAlignLeft
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Preview
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -39,6 +42,10 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,12 +62,13 @@ import com.aitts.engine.service.FloatingSubtitleManager
 
 /**
  * 前台小说悬浮文字个性化定制面板：
- * 1. 实时排版所见即所得效果预览 (Live Preview)；
- * 2. 4 大背景风格质感预设 (深色磨砂 / 纯粹全透 / 暖阳羊皮纸 / 纯黑极夜)；
- * 3. 背景透明度细调 (0% ~ 100%)；
- * 4. 字体字号自由缩放 (11sp ~ 24sp) 与 5 大护眼高对比配色方案；
- * 5. 排版对齐 (居左/居中) 与默认折叠行数 (1/2/3/5 行)；
- * 6. 悬浮窗物理锁定开关（防听书翻页手滑误触移位）与动态发音图标显隐。
+ * 1. 实时排版所见即所得效果预览 (Live Preview，支持模拟白天书页与极夜暗色)；
+ * 2. 背景风格质感预设 (智能自适应 / 深色磨砂 / 晨曦浅白 / 纯粹全透 / 暖阳羊皮纸 / 纯黑极夜)；
+ * 3. 全场景万能高反差抗干扰轮廓 (白底深阴影、黑底微光，确保文字在任意书页上清晰立显)；
+ * 4. 背景透明度细调 (0% ~ 100%)；
+ * 5. 字体字号自由缩放 (11sp ~ 24sp) 与 5 大护眼高对比配色方案；
+ * 6. 排版对齐 (居左/居中) 与默认折叠行数 (1/2/3/5 行)；
+ * 7. 悬浮窗物理锁定开关（防翻页误触）与发音动态图标轻触反转交互。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -71,6 +79,7 @@ fun FloatingSubtitleCustomizer(
 ) {
     val context = LocalContext.current
     val primaryColor = MaterialTheme.colorScheme.primary
+    var simulatedDark by remember { mutableStateOf(false) }
 
     fun updateAndApply(newSettings: GlobalSettings) {
         configDataStore.updateSettings(newSettings)
@@ -90,38 +99,86 @@ fun FloatingSubtitleCustomizer(
             shape = RoundedCornerShape(14.dp)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Preview,
-                        contentDescription = null,
-                        tint = primaryColor,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "排版效果实时预览",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Preview,
+                            contentDescription = null,
+                            tint = primaryColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "排版效果实时预览",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // 模拟书页底色切换
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        FilterChip(
+                            selected = !simulatedDark,
+                            onClick = { simulatedDark = false },
+                            label = { Text("📖 白天纸张", fontSize = 10.sp) },
+                            modifier = Modifier.height(28.dp)
+                        )
+                        FilterChip(
+                            selected = simulatedDark,
+                            onClick = { simulatedDark = true },
+                            label = { Text("🌙 夜间暗色", fontSize = 10.sp) },
+                            modifier = Modifier.height(28.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // 模拟壁纸/书本背景底板
+                val canvasBg = if (simulatedDark) Color(0xFF12141A) else Color(0xFFF7F3E9)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (settings.floatingSubtitleBgStyle == "PARCHMENT") Color(0xFF1E1A16) else Color(0xFF0F1115)
-                        )
-                        .padding(12.dp),
+                        .background(canvasBg)
+                        .border(1.dp, if (simulatedDark) Color(0xFF262933) else Color(0xFFE2DDD1), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    // 模拟悬浮字幕胶囊卡片
+                    // 底层模拟小说段落文字 (让用户直观感受浮窗透底与自适应对比度)
+                    Text(
+                        text = if (simulatedDark)
+                            "【章节试读】夜色如墨，长风卷起千堆雪。剑气如霜，破空而至。万籁俱寂之中，忽闻孤鹜长鸣，声震九天。"
+                        else
+                            "【章节试读】江南春色正浓，微风拂过水面泛起涟漪。两岸垂柳依依，落英缤纷。书生驻足桥头，忽闻远处琴声悠扬。",
+                        color = if (simulatedDark) Color(0xFF333846) else Color(0xFFD4CDC1),
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                    )
+
+                    // 浮窗计算
+                    val isAdaptiveDark = if (settings.floatingSubtitleBgStyle == "AUTO_ADAPTIVE") {
+                        simulatedDark
+                    } else if (settings.floatingSubtitleBgStyle == "LIGHT_FROST") {
+                        false
+                    } else if (settings.floatingSubtitleBgStyle == "DARK_FROST" || settings.floatingSubtitleBgStyle == "AMOLED_BLACK") {
+                        true
+                    } else if (settings.floatingSubtitleBgStyle == "PARCHMENT") {
+                        false
+                    } else {
+                        simulatedDark
+                    }
+
                     val previewBgColor = when (settings.floatingSubtitleBgStyle) {
                         "PURE_TRANSPARENT" -> Color.Transparent
+                        "AUTO_ADAPTIVE" -> if (isAdaptiveDark) Color(0xFF181A20).copy(alpha = settings.floatingSubtitleOpacity) else Color(0xFFFFFFFF).copy(alpha = settings.floatingSubtitleOpacity)
+                        "LIGHT_FROST" -> Color(0xFFF8FAFC).copy(alpha = settings.floatingSubtitleOpacity)
                         "PARCHMENT" -> Color(0xFF2B231D).copy(alpha = settings.floatingSubtitleOpacity)
                         "AMOLED_BLACK" -> Color(0xFF000000).copy(alpha = settings.floatingSubtitleOpacity)
                         else -> Color(0xFF181A20).copy(alpha = settings.floatingSubtitleOpacity)
@@ -129,21 +186,45 @@ fun FloatingSubtitleCustomizer(
 
                     val previewStrokeColor = when (settings.floatingSubtitleBgStyle) {
                         "PURE_TRANSPARENT" -> Color.Transparent
+                        "AUTO_ADAPTIVE" -> if (isAdaptiveDark) Color.White.copy(alpha = settings.floatingSubtitleOpacity * 0.35f) else Color(0xFF0F172A).copy(alpha = settings.floatingSubtitleOpacity * 0.25f)
+                        "LIGHT_FROST" -> Color(0xFF0F172A).copy(alpha = settings.floatingSubtitleOpacity * 0.25f)
                         "PARCHMENT" -> Color(0xFFFFD54F).copy(alpha = settings.floatingSubtitleOpacity * 0.4f)
                         else -> Color.White.copy(alpha = settings.floatingSubtitleOpacity * 0.35f)
                     }
 
-                    val previewTextColor = try {
-                        Color(android.graphics.Color.parseColor(settings.floatingSubtitleTextColor))
-                    } catch (e: Exception) {
-                        Color(0xFFF5F5F7)
+                    val previewTextColor = if (settings.floatingSubtitleBgStyle == "AUTO_ADAPTIVE" || settings.floatingSubtitleBgStyle == "LIGHT_FROST") {
+                        if (!isAdaptiveDark && settings.floatingSubtitleTextColor.equals("#F5F5F7", ignoreCase = true)) {
+                            Color(0xFF0F172A)
+                        } else if (isAdaptiveDark && settings.floatingSubtitleTextColor.equals("#0F172A", ignoreCase = true)) {
+                            Color(0xFFF5F5F7)
+                        } else {
+                            try {
+                                Color(android.graphics.Color.parseColor(settings.floatingSubtitleTextColor))
+                            } catch (e: Exception) {
+                                if (isAdaptiveDark) Color(0xFFF5F5F7) else Color(0xFF0F172A)
+                            }
+                        }
+                    } else {
+                        try {
+                            Color(android.graphics.Color.parseColor(settings.floatingSubtitleTextColor))
+                        } catch (e: Exception) {
+                            Color(0xFFF5F5F7)
+                        }
+                    }
+
+                    val previewCloseColor = if (!isAdaptiveDark && (settings.floatingSubtitleBgStyle == "AUTO_ADAPTIVE" || settings.floatingSubtitleBgStyle == "LIGHT_FROST")) {
+                        Color(0xFF475569)
+                    } else if (settings.floatingSubtitleBgStyle == "PARCHMENT") {
+                        Color(0xFFD7CCC8)
+                    } else {
+                        Color(0xFFB0B5C5)
                     }
 
                     val previewTextAlign = if (settings.floatingSubtitleAlignment == "CENTER") TextAlign.Center else TextAlign.Start
 
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth(0.95f)
+                            .fillMaxWidth(0.96f)
                             .shadow(
                                 elevation = if (settings.floatingSubtitleBgStyle == "PURE_TRANSPARENT") 0.dp else 4.dp,
                                 shape = RoundedCornerShape(14.dp)
@@ -165,7 +246,7 @@ fun FloatingSubtitleCustomizer(
                         }
 
                         Text(
-                            text = "正在朗读：江南好，风景旧曾谙。日出江花红胜火，春来江水绿如蓝。能不忆江南？",
+                            text = "正在朗读：日出江花红胜火，春来江水绿如蓝。能不忆江南？",
                             color = previewTextColor,
                             fontSize = settings.floatingSubtitleFontSize.sp,
                             maxLines = settings.floatingSubtitleMaxLines,
@@ -179,7 +260,7 @@ fun FloatingSubtitleCustomizer(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = null,
-                            tint = Color(0xFFB0B5C5),
+                            tint = previewCloseColor,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -197,7 +278,9 @@ fun FloatingSubtitleCustomizer(
             Spacer(modifier = Modifier.height(6.dp))
 
             val bgStyles = listOf(
+                "AUTO_ADAPTIVE" to "✨ 智能自适应",
                 "DARK_FROST" to "🌫️ 深色磨砂",
+                "LIGHT_FROST" to "☀️ 晨曦浅白",
                 "PURE_TRANSPARENT" to "🪟 纯粹全透",
                 "PARCHMENT" to "📜 暖阳羊皮纸",
                 "AMOLED_BLACK" to "🖤 纯黑极夜"
@@ -426,6 +509,92 @@ fun FloatingSubtitleCustomizer(
                 checked = settings.floatingSubtitleShowIcon,
                 onCheckedChange = { updateAndApply(settings.copy(floatingSubtitleShowIcon = it)) }
             )
+        }
+
+        HorizontalDivider(thickness = 0.6.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+        // ==================== 9. 全场景万能高反差抗干扰轮廓 ====================
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Contrast,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text("万能高反差抗干扰轮廓", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+                    Text(
+                        "文字底层自动衬托互补立体阴影与微光（白底衬深阴影、黑底衬微光），确保在任意小说书页下均清晰立显",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Switch(
+                checked = settings.floatingSubtitleAdaptiveContrast,
+                onCheckedChange = { updateAndApply(settings.copy(floatingSubtitleAdaptiveContrast = it)) }
+            )
+        }
+
+        // ==================== 10. 联动系统昼夜深浅色 ====================
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text("智能联动系统昼夜深浅色", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+                    Text(
+                        "在自适应模式下自动感知系统深浅色主题，随时间流转在白天通透白与夜间深色之间动态平滑切换",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Switch(
+                checked = settings.floatingSubtitleFollowSystemTheme,
+                onCheckedChange = { updateAndApply(settings.copy(floatingSubtitleFollowSystemTheme = it)) }
+            )
+        }
+
+        // ==================== 11. 实用贴士：轻触反转提示卡片 ====================
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = primaryColor.copy(alpha = 0.08f)),
+            shape = RoundedCornerShape(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.TouchApp,
+                    contentDescription = null,
+                    tint = primaryColor,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "💡 极速交互贴士：在看书时，随时轻触悬浮窗左侧喇叭图标或双击浮窗空白处，即可秒速翻转黑白自适应模式，无需跳出小说！",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 16.sp
+                )
+            }
         }
     }
 }

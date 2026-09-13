@@ -252,11 +252,13 @@ data class GlobalSettings(
     val floatingSubtitleOpacity: Float = 0.90f, // 悬浮窗背景不透明度 (0.0f: 纯透浮空文字 ~ 1.0f: 100%纯色实底)
     val floatingSubtitleFontSize: Int = 14, // 悬浮文字大小 (11 ~ 24 sp)
     val floatingSubtitleTextColor: String = "#F5F5F7", // 悬浮文字颜色 (#F5F5F7 象牙白, #80DEEA 极光青, #FFE082 暖阳杏, #A7F3D0 护眼绿, #FF8A80 珊瑚粉)
-    val floatingSubtitleBgStyle: String = "DARK_FROST", // 背景质感: DARK_FROST (深色磨砂), PURE_TRANSPARENT (纯粹全透), PARCHMENT (暖色纸褐), AMOLED_BLACK (纯黑极夜)
+    val floatingSubtitleBgStyle: String = "AUTO_ADAPTIVE", // 背景质感: AUTO_ADAPTIVE (智能自适应), DARK_FROST (深色磨砂), LIGHT_FROST (晨曦浅白), PURE_TRANSPARENT (纯粹全透), PARCHMENT (暖色纸褐), AMOLED_BLACK (纯黑极夜)
     val floatingSubtitleAlignment: String = "LEFT", // 文本对齐方式: LEFT (居左自然段落), CENTER (居中歌词字幕)
     val floatingSubtitleMaxLines: Int = 3, // 默认折叠行数 (1, 2, 3, 5 行)
     val floatingSubtitleLockPosition: Boolean = false, // 锁定悬浮窗位置 (禁止手指拖动，防小说翻页误触)
-    val floatingSubtitleShowIcon: Boolean = true // 是否显示左侧发音状态动态图标
+    val floatingSubtitleShowIcon: Boolean = true, // 是否显示左侧发音状态动态图标
+    val floatingSubtitleAdaptiveContrast: Boolean = true, // 全场景万能高反差抗干扰轮廓 (白底黑晕/黑底白光，无论小说背景深浅皆清晰)
+    val floatingSubtitleFollowSystemTheme: Boolean = true // 自适应模式下联动系统深浅色与配置流转
 )
 
 /**
