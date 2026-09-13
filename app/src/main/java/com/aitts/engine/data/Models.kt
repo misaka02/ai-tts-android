@@ -248,7 +248,8 @@ data class GlobalSettings(
     val isFloatingDockEnabled: Boolean = true, // 是否启用全局悬浮主控坞
     val floatingDockMode: String = "EXPANDED_HORIZONTAL", // 悬浮主控坞形态 (EXPANDED_HORIZONTAL, SIDEBAR_VERTICAL, PIE_RADIAL, EDGE_STASHED)
     val floatingDockX: Float = 0f, // 悬浮坞持久化 X 坐标
-    val floatingDockY: Float = 0f  // 悬浮坞持久化 Y 坐标
+    val floatingDockY: Float = 0f, // 悬浮坞持久化 Y 坐标
+    val isFloatingSubtitleEnabled: Boolean = false // 前台小说悬浮字幕开关 (听书时在前台悬浮显示正在朗读的文本)
 )
 
 /**

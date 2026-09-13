@@ -49,10 +49,31 @@ class AiTextToSpeechService : TextToSpeechService() {
         }
     }
 
-    private val stopReceiver = object : BroadcastReceiver() {
+    private val serviceReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == TtsNotificationManager.ACTION_STOP_TTS) {
-                onStop()
+            when (intent?.action) {
+                TtsNotificationManager.ACTION_STOP_TTS -> {
+                    onStop()
+                }
+                TtsNotificationManager.ACTION_TOGGLE_FLOATING_SUBTITLE -> {
+                    val forceDisable = intent.getBooleanExtra("EXTRA_FORCE_DISABLE", false)
+                    val currentSettings = configDataStore.settingsFlow.value
+                    val targetState = if (forceDisable) false else !currentSettings.isFloatingSubtitleEnabled
+
+                    if (targetState) {
+                        if (!com.aitts.engine.permission.PermissionManager.hasOverlayPermission(this@AiTextToSpeechService)) {
+                            com.aitts.engine.permission.PermissionManager.requestOverlayPermission(this@AiTextToSpeechService)
+                            configDataStore.log("未授予前台悬浮窗权限，已唤起系统权限申请页")
+                            return
+                        }
+                        configDataStore.updateSettings(currentSettings.copy(isFloatingSubtitleEnabled = true))
+                        FloatingSubtitleManager.getInstance(this@AiTextToSpeechService).show()
+                    } else {
+                        configDataStore.updateSettings(currentSettings.copy(isFloatingSubtitleEnabled = false))
+                        FloatingSubtitleManager.getInstance(this@AiTextToSpeechService).hide()
+                    }
+                    TtsNotificationManager.refreshNotification(this@AiTextToSpeechService)
+                }
             }
         }
     }
@@ -64,11 +85,14 @@ class AiTextToSpeechService : TextToSpeechService() {
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         try {
-            val filter = IntentFilter(TtsNotificationManager.ACTION_STOP_TTS)
+            val filter = IntentFilter().apply {
+                addAction(TtsNotificationManager.ACTION_STOP_TTS)
+                addAction(TtsNotificationManager.ACTION_TOGGLE_FLOATING_SUBTITLE)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(stopReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                registerReceiver(serviceReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
-                registerReceiver(stopReceiver, filter)
+                registerReceiver(serviceReceiver, filter)
             }
         } catch (e: Exception) {
             // ignore
@@ -79,14 +103,15 @@ class AiTextToSpeechService : TextToSpeechService() {
     override fun onDestroy() {
         super.onDestroy()
         try {
-            unregisterReceiver(stopReceiver)
+            unregisterReceiver(serviceReceiver)
         } catch (e: Exception) {
             // ignore
         }
         val currentSession = configDataStore.activeSessionId
         synthesizer.stop(currentSession)
         configDataStore.activeSessionId = null
-        TtsNotificationManager.cancelPlaybackNotification(this)
+        TtsNotificationManager.cancelPlaybackNotificationImmediately(this)
+        FloatingSubtitleManager.getInstance(this).destroy()
         configDataStore.log("AiTextToSpeechService 系统服务已销毁")
     }
 
@@ -164,7 +189,7 @@ class AiTextToSpeechService : TextToSpeechService() {
         try {
             val sessionToCancel = configDataStore.activeSessionId ?: ""
             synthesizer.stop(sessionToCancel)
-            TtsNotificationManager.cancelPlaybackNotification(this)
+            TtsNotificationManager.cancelPlaybackNotificationImmediately(this)
             if (sessionToCancel.isNotBlank()) {
                 configDataStore.log("收到系统 onStop() 信号，已精准中断会话 [$sessionToCancel]", sessionId = sessionToCancel)
                 configDataStore.compareAndClearActiveSession(sessionToCancel)

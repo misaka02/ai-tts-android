@@ -255,6 +255,11 @@ class TtsSynthesizer(private val context: Context) {
                     )
                 }
 
+                // 实时更新前台小说悬浮文本字幕
+                if (settings.isFloatingSubtitleEnabled) {
+                    FloatingSubtitleManager.getInstance(context).updateText(segments[i].text)
+                }
+
                 // 随着播放进度推进，按照分段规则自动提前异步预拉取前方分块音频
                 if (settings.enableSegmentPreload) {
                     for (ahead in 1..prefetchWindow) {
@@ -501,7 +506,8 @@ class TtsSynthesizer(private val context: Context) {
             sessionCache.values.forEach { it.cancel() }
             sessionCache.clear()
             if (settings.playbackNotificationEnabled) {
-                TtsNotificationManager.cancelPlaybackNotification(context)
+                // 采用防抖平滑注销，保留 4 秒窗口，避免阅读器相邻两句之间频繁删除与新建通知
+                TtsNotificationManager.scheduleDelayedDismiss(context, 4000L)
             }
         }
     }

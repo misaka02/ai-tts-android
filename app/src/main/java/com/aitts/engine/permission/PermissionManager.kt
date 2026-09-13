@@ -22,7 +22,8 @@ object PermissionManager {
         val hasStoragePermission: Boolean,
         val hasAllFilesAccess: Boolean,
         val isIgnoringBatteryOptimizations: Boolean,
-        val hasNotificationPermission: Boolean
+        val hasNotificationPermission: Boolean,
+        val hasOverlayPermission: Boolean
     ) {
         val isAllGranted: Boolean
             get() = (hasStoragePermission || hasAllFilesAccess) && isIgnoringBatteryOptimizations
@@ -63,11 +64,18 @@ object PermissionManager {
             true
         }
 
+        val hasOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+
         return PermissionState(
             hasStoragePermission = hasStorage,
             hasAllFilesAccess = hasAllFiles,
             isIgnoringBatteryOptimizations = isIgnoringBattery,
-            hasNotificationPermission = hasNotification
+            hasNotificationPermission = hasNotification,
+            hasOverlayPermission = hasOverlay
         )
     }
 
@@ -147,6 +155,37 @@ object PermissionManager {
                 return
             } catch (e: Exception) {
                 // try next
+            }
+        }
+    }
+
+    /**
+     * 检测是否拥有前台悬浮窗权限 (SYSTEM_ALERT_WINDOW)
+     */
+    fun hasOverlayPermission(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+    }
+
+    /**
+     * 一键跳转系统「显示在其他应用的上层」(悬浮窗) 权限设置页
+     */
+    fun requestOverlayPermission(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(fallbackIntent)
             }
         }
     }

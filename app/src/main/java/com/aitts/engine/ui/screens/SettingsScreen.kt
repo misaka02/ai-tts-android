@@ -853,6 +853,27 @@ private fun HapticSettingsCard(settings: com.aitts.engine.data.GlobalSettings, c
                     onCheckedChange = { configDataStore.updateSettings(settings.copy(playbackNotificationEnabled = it)) }
                 )
             }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("后台朗读前台悬浮字幕", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "后台听书时在前台悬浮显示正在朗读的文本，支持通知栏一键开关与拖拽定位",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = settings.isFloatingSubtitleEnabled,
+                    onCheckedChange = { configDataStore.updateSettings(settings.copy(isFloatingSubtitleEnabled = it)) }
+                )
+            }
         }
     }
 }

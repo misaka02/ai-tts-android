@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Spellcheck
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Timer
@@ -71,6 +72,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -129,6 +131,19 @@ fun GoogleSettingsScreen(
 
     var cacheSizeText by remember { mutableStateOf("计算中...") }
     var permState by remember { mutableStateOf(PermissionManager.checkPermissions(context)) }
+
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                permState = PermissionManager.checkPermissions(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // 弹窗状态管理 (规范收纳)
     var showFallbackSelectorDialog by remember { mutableStateOf(false) }
@@ -355,6 +370,25 @@ fun GoogleSettingsScreen(
                     checked = settings.playbackNotificationEnabled,
                     colors = colors,
                     onCheckedChange = { configDataStore.updateSettings(settings.copy(playbackNotificationEnabled = it)) }
+                )
+
+                HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
+
+                // 前台小说悬浮文本字幕
+                SettingsSwitchRow(
+                    icon = Icons.Default.Subtitles,
+                    title = "后台朗读前台悬浮字幕",
+                    subtitle = if (!permState.hasOverlayPermission) "需开启悬浮窗权限 · 听书时在前台悬浮显示小说字幕"
+                               else "听书时在前台悬浮显示正在朗读的文本，支持通知栏一键开关与拖动",
+                    checked = settings.isFloatingSubtitleEnabled,
+                    colors = colors,
+                    onCheckedChange = { enabled ->
+                        if (enabled && !permState.hasOverlayPermission) {
+                            activity?.let { PermissionManager.requestOverlayPermission(it) }
+                        } else {
+                            configDataStore.updateSettings(settings.copy(isFloatingSubtitleEnabled = enabled))
+                        }
+                    }
                 )
             }
         }
