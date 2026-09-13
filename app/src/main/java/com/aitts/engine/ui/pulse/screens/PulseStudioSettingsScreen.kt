@@ -583,6 +583,51 @@ fun PulseStudioSettingsScreen(
                                     }
                                 }
                             }
+
+                            // 2. 后台朗读通知栏与前台悬浮字幕个性化定制
+                            item {
+                                PulseCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                        Text("后台朗读与悬浮字幕", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PulseTokens.CyanElectric)
+
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("后台朗读通知栏持久化状态", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PulseTokens.TextPrimary)
+                                                Text("在通知栏保持单条常驻展示正在朗读的句子与停止按键", fontSize = 11.5.sp, color = PulseTokens.TextSecondary)
+                                            }
+                                            Switch(
+                                                checked = settings.playbackNotificationEnabled,
+                                                onCheckedChange = { configDataStore.updateSettings(settings.copy(playbackNotificationEnabled = it)) },
+                                                colors = SwitchDefaults.colors(checkedThumbColor = PulseTokens.CyanElectric, checkedTrackColor = PulseTokens.SurfaceElevated)
+                                            )
+                                        }
+
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("后台朗读前台悬浮字幕", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PulseTokens.TextPrimary)
+                                                Text("听书时在前台悬浮显示正在朗读的文本", fontSize = 11.5.sp, color = PulseTokens.TextSecondary)
+                                            }
+                                            Switch(
+                                                checked = settings.isFloatingSubtitleEnabled,
+                                                onCheckedChange = { enabled ->
+                                                    if (enabled && !com.aitts.engine.permission.PermissionManager.hasOverlayPermission(context)) {
+                                                        com.aitts.engine.permission.PermissionManager.requestOverlayPermission(context)
+                                                    }
+                                                    configDataStore.updateSettings(settings.copy(isFloatingSubtitleEnabled = enabled))
+                                                },
+                                                colors = SwitchDefaults.colors(checkedThumbColor = PulseTokens.CyanElectric, checkedTrackColor = PulseTokens.SurfaceElevated)
+                                            )
+                                        }
+
+                                        if (settings.isFloatingSubtitleEnabled) {
+                                            com.aitts.engine.ui.components.FloatingSubtitleCustomizer(
+                                                settings = settings,
+                                                configDataStore = configDataStore
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 

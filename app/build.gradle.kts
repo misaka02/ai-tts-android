@@ -13,7 +13,7 @@ android {
         applicationId = "com.aitts.engine"
         minSdk = 26
         targetSdk = 34
-        versionCode = 48
+        versionCode = 49
         versionName = "3.9.1-test"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

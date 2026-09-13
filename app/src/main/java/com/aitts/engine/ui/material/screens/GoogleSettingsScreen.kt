@@ -374,7 +374,6 @@ fun GoogleSettingsScreen(
 
                 HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
 
-                // 前台小说悬浮文本字幕
                 SettingsSwitchRow(
                     icon = Icons.Default.Subtitles,
                     title = "后台朗读前台悬浮字幕",
@@ -389,6 +388,16 @@ fun GoogleSettingsScreen(
                         configDataStore.updateSettings(settings.copy(isFloatingSubtitleEnabled = enabled))
                     }
                 )
+
+                if (settings.isFloatingSubtitleEnabled) {
+                    HorizontalDivider(color = colors.outlineSubtle, thickness = 0.8.dp)
+                    Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                        com.aitts.engine.ui.components.FloatingSubtitleCustomizer(
+                            settings = settings,
+                            configDataStore = configDataStore
+                        )
+                    }
+                }
             }
         }
 

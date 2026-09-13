@@ -896,6 +896,14 @@ private fun HapticSettingsCard(settings: com.aitts.engine.data.GlobalSettings, c
                     }
                 )
             }
+
+            if (settings.isFloatingSubtitleEnabled) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+                com.aitts.engine.ui.components.FloatingSubtitleCustomizer(
+                    settings = settings,
+                    configDataStore = configDataStore
+                )
+            }
         }
     }
 }

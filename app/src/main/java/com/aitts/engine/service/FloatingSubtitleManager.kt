@@ -19,15 +19,17 @@ import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.aitts.engine.data.ConfigDataStore
+import com.aitts.engine.data.GlobalSettings
 import com.aitts.engine.permission.PermissionManager
 
 /**
  * 前台小说悬浮文本字幕管理器：
  * 1. 后台听书时在系统顶层悬浮展示当前正在朗读的小说文本；
  * 2. 采用 Gravity.TOP or Gravity.START 绝对坐标系与 FLAG_LAYOUT_IN_SCREEN，杜绝屏外渲染与各厂商 ROM 适配异常；
- * 3. 边界限定拖拽，手指随心拖动不飞出屏幕；
- * 4. 支持点击文本区域展开/折叠长文本 (3行 <-> 12行)，专属关闭按钮防冲突退出；
- * 5. 极轻量 (<50KB)，生命周期稳定安全。
+ * 3. 边界限定拖拽，支持位置锁定（防翻页误触）；
+ * 4. 支持个性化定制：背景不透明度 (0%~100%)、字体大小 (11~28sp)、配色方案、对齐方式、折叠行数、图标显隐等；
+ * 5. 点击文本区域展开/折叠长文本 (默认行数 <-> 14行)，专属关闭按钮防冲突退出。
  */
 class FloatingSubtitleManager private constructor(private val appContext: Context) {
 
@@ -35,7 +37,10 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var rootView: View? = null
+    private var containerView: LinearLayout? = null
+    private var iconView: ImageView? = null
     private var textView: TextView? = null
+    private var closeBtn: ImageView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
 
     private var isViewAttached = false
@@ -59,8 +64,11 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
     fun updateText(text: String) {
         lastSpokenText = text
         mainHandler.post {
+            val settings = ConfigDataStore.getInstance(appContext).settingsFlow.value
             if (rootView == null) {
-                initView()
+                initView(settings)
+            } else {
+                applySettings(settings)
             }
             textView?.text = text.ifBlank { "正在准备音频流..." }
 
@@ -75,8 +83,11 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
      */
     fun show() {
         mainHandler.post {
+            val settings = ConfigDataStore.getInstance(appContext).settingsFlow.value
             if (rootView == null) {
-                initView()
+                initView(settings)
+            } else {
+                applySettings(settings)
             }
             if (lastSpokenText.isNotBlank()) {
                 textView?.text = lastSpokenText
@@ -102,10 +113,81 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
     fun isShowing(): Boolean = isViewAttached
 
     /**
+     * 动态应用个性化定制配置（背景透明度、字体大小、文字颜色、对齐方式、折叠行数等）
+     */
+    fun applySettings(settings: GlobalSettings) {
+        mainHandler.post {
+            val dpToPx = { dp: Float ->
+                TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, appContext.resources.displayMetrics).toInt()
+            }
+
+            // 1. 背景材质与透明度
+            val alpha = (settings.floatingSubtitleOpacity.coerceIn(0f, 1f) * 255).toInt()
+            if (settings.floatingSubtitleBgStyle == "PURE_TRANSPARENT" || alpha <= 5) {
+                containerView?.background = null
+                containerView?.elevation = 0f
+                textView?.setShadowLayer(dpToPx(4f).toFloat(), 0f, dpToPx(1f).toFloat(), Color.BLACK)
+            } else {
+                val baseColor = when (settings.floatingSubtitleBgStyle) {
+                    "PARCHMENT" -> Color.parseColor("#2B231D")
+                    "AMOLED_BLACK" -> Color.parseColor("#000000")
+                    else -> Color.parseColor("#181A20")
+                }
+                val bgColor = Color.argb(alpha, Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor))
+                val strokeColor = if (settings.floatingSubtitleBgStyle == "PARCHMENT") {
+                    Color.argb((alpha * 0.4f).toInt().coerceIn(0, 255), 255, 215, 120)
+                } else {
+                    Color.argb((alpha * 0.35f).toInt().coerceIn(0, 255), 255, 255, 255)
+                }
+                val bg = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dpToPx(16f).toFloat()
+                    setColor(bgColor)
+                    setStroke(dpToPx(1f), strokeColor)
+                }
+                containerView?.background = bg
+                containerView?.elevation = dpToPx(6f).toFloat()
+                textView?.setShadowLayer(dpToPx(2f).toFloat(), 0f, dpToPx(1f).toFloat(), Color.parseColor("#99000000"))
+            }
+
+            // 2. 文字颜色
+            val textColor = try {
+                Color.parseColor(settings.floatingSubtitleTextColor)
+            } catch (e: Exception) {
+                Color.parseColor("#F5F5F7")
+            }
+            textView?.setTextColor(textColor)
+
+            // 3. 文字大小
+            val sp = settings.floatingSubtitleFontSize.coerceIn(11, 28)
+            textView?.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp.toFloat())
+
+            // 4. 文字对齐
+            val align = if (settings.floatingSubtitleAlignment == "CENTER") {
+                Gravity.CENTER
+            } else {
+                Gravity.START or Gravity.CENTER_VERTICAL
+            }
+            textView?.gravity = align
+
+            // 5. 折叠行数
+            textView?.maxLines = if (isExpanded) 14 else settings.floatingSubtitleMaxLines.coerceIn(1, 8)
+
+            // 6. 图标显示与色调
+            val showIcon = settings.floatingSubtitleShowIcon
+            iconView?.visibility = if (showIcon) View.VISIBLE else View.GONE
+            iconView?.setColorFilter(textColor)
+
+            // 7. 关闭按钮风格
+            closeBtn?.setColorFilter(if (settings.floatingSubtitleBgStyle == "PARCHMENT") Color.parseColor("#D7CCC8") else Color.parseColor("#B0B5C5"))
+        }
+    }
+
+    /**
      * 初始化悬浮窗 View 与布局参数
      */
     @SuppressLint("ClickableViewAccessibility")
-    private fun initView() {
+    private fun initView(settings: GlobalSettings) {
         val wm = windowManager ?: return
 
         val dpToPx = { dp: Float ->
@@ -145,43 +227,31 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dpToPx(12f), dpToPx(10f), dpToPx(8f), dpToPx(10f))
-
-            // 现代深色磨砂质感圆角高亮背景
-            val bg = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpToPx(16f).toFloat()
-                setColor(Color.parseColor("#EE181A20")) // 93% 不透明度暗夜极光灰
-                setStroke(dpToPx(1f), Color.parseColor("#4DFFFFFF")) // 30% 白银微光边框
-            }
-            background = bg
-            elevation = dpToPx(8f).toFloat()
         }
+        containerView = container
 
         // 左侧听书/字幕指示图标
-        val iconView = ImageView(appContext).apply {
+        val icon = ImageView(appContext).apply {
             setImageResource(android.R.drawable.ic_btn_speak_now)
-            setColorFilter(Color.parseColor("#80DEEA")) // 青色微光点缀
             val iconSize = dpToPx(20f)
             layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
                 marginEnd = dpToPx(8f)
             }
         }
+        iconView = icon
 
         // 核心文字显示区
-        textView = TextView(appContext).apply {
-            setTextColor(Color.parseColor("#F5F5F7"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            maxLines = 3
+        val tv = TextView(appContext).apply {
             ellipsize = TextUtils.TruncateAt.END
-            setLineSpacing(dpToPx(2f).toFloat(), 1.15f)
+            setLineSpacing(dpToPx(2.5f).toFloat(), 1.2f)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             text = lastSpokenText.ifBlank { "AI 听书字幕准备就绪" }
         }
+        textView = tv
 
         // 右侧一键关闭按钮 (拥有充足的 38dp 点击热区)
-        val closeBtn = ImageView(appContext).apply {
+        val close = ImageView(appContext).apply {
             setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-            setColorFilter(Color.parseColor("#B0B5C5"))
             val btnSize = dpToPx(38f)
             val iconPadding = dpToPx(8f)
             setPadding(iconPadding, iconPadding, iconPadding, iconPadding)
@@ -200,10 +270,14 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
                 appContext.sendBroadcast(intent)
             }
         }
+        closeBtn = close
 
-        container.addView(iconView)
-        container.addView(textView)
-        container.addView(closeBtn)
+        container.addView(icon)
+        container.addView(tv)
+        container.addView(close)
+
+        // 应用个性化配置属性
+        applySettings(settings)
 
         // 触摸拖动与点击展开监听
         var initialX = 0
@@ -217,10 +291,21 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
             val lp = layoutParams ?: return@setOnTouchListener false
 
             // 若点击落在关闭按钮区域，将事件让渡给 closeBtn 处理
-            closeBtn.getHitRect(closeHitRect)
+            close.getHitRect(closeHitRect)
             closeHitRect.inset(-dpToPx(6f), -dpToPx(6f))
             if (closeHitRect.contains(event.x.toInt(), event.y.toInt())) {
                 return@setOnTouchListener false
+            }
+
+            val currentSettings = ConfigDataStore.getInstance(appContext).settingsFlow.value
+
+            // 若开启了「锁定悬浮窗位置」，则禁止拖拽移位，避免听书翻页误触
+            if (currentSettings.floatingSubtitleLockPosition) {
+                if (event.action == MotionEvent.ACTION_UP) {
+                    isExpanded = !isExpanded
+                    tv.maxLines = if (isExpanded) 14 else currentSettings.floatingSubtitleMaxLines.coerceIn(1, 8)
+                }
+                return@setOnTouchListener true
             }
 
             when (event.action) {
@@ -258,7 +343,7 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
                     if (!isMoved) {
                         // 点击切换展开 / 折叠全文
                         isExpanded = !isExpanded
-                        textView?.maxLines = if (isExpanded) 12 else 3
+                        tv.maxLines = if (isExpanded) 14 else currentSettings.floatingSubtitleMaxLines.coerceIn(1, 8)
                     }
                     true
                 }
@@ -314,7 +399,10 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
     fun destroy() {
         hide()
         rootView = null
+        containerView = null
+        iconView = null
         textView = null
+        closeBtn = null
         layoutParams = null
     }
 }
