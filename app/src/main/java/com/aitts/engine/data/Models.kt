@@ -258,7 +258,9 @@ data class GlobalSettings(
     val floatingSubtitleLockPosition: Boolean = false, // 锁定悬浮窗位置 (禁止手指拖动，防小说翻页误触)
     val floatingSubtitleShowIcon: Boolean = true, // 是否显示左侧发音状态动态图标
     val floatingSubtitleAdaptiveContrast: Boolean = true, // 全场景万能高反差抗干扰轮廓 (白底黑晕/黑底白光，无论小说背景深浅皆清晰)
-    val floatingSubtitleFollowSystemTheme: Boolean = true // 自适应模式下联动系统深浅色与配置流转
+    val floatingSubtitleFollowSystemTheme: Boolean = true, // 自适应模式下联动系统深浅色与配置流转
+    val isRealScreenSamplingEnabled: Boolean = false, // 屏幕背后真实像素实时取色开关 (通过 MediaProjection 获取悬浮窗背后真实屏幕 RGB 与亮度)
+    val floatingSubtitleNovelPreset: String = "AUTO" // 小说底色契合预设: AUTO (自动感知), WHITE (纯白书页), PARCHMENT (米黄羊皮纸), GREEN (豆沙绿), INK_GREY (水墨灰), NIGHT (暗夜极黑)
 )
 
 /**

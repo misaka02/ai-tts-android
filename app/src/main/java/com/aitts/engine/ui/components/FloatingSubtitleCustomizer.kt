@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import com.aitts.engine.data.ConfigDataStore
 import com.aitts.engine.data.GlobalSettings
 import com.aitts.engine.service.FloatingSubtitleManager
+import com.aitts.engine.service.ScreenColorSampler
 
 /**
  * 前台小说悬浮文字个性化定制面板：
@@ -163,58 +164,80 @@ fun FloatingSubtitleCustomizer(
                     )
 
                     // 浮窗计算
-                    val isAdaptiveDark = if (settings.floatingSubtitleBgStyle == "AUTO_ADAPTIVE") {
-                        simulatedDark
-                    } else if (settings.floatingSubtitleBgStyle == "LIGHT_FROST") {
-                        false
-                    } else if (settings.floatingSubtitleBgStyle == "DARK_FROST" || settings.floatingSubtitleBgStyle == "AMOLED_BLACK") {
-                        true
-                    } else if (settings.floatingSubtitleBgStyle == "PARCHMENT") {
-                        false
-                    } else {
-                        simulatedDark
+                    val isNovelPresetActive = settings.floatingSubtitleNovelPreset != "AUTO"
+                    val isAdaptiveDark = when (settings.floatingSubtitleNovelPreset) {
+                        "WHITE", "PARCHMENT", "GREEN", "INK_GREY" -> false
+                        "NIGHT" -> true
+                        else -> when (settings.floatingSubtitleBgStyle) {
+                            "AUTO_ADAPTIVE" -> simulatedDark
+                            "LIGHT_FROST" -> false
+                            "DARK_FROST", "AMOLED_BLACK" -> true
+                            "PARCHMENT" -> false
+                            else -> simulatedDark
+                        }
                     }
 
-                    val previewBgColor = when (settings.floatingSubtitleBgStyle) {
-                        "PURE_TRANSPARENT" -> Color.Transparent
-                        "AUTO_ADAPTIVE" -> if (isAdaptiveDark) Color(0xFF181A20).copy(alpha = settings.floatingSubtitleOpacity) else Color(0xFFFFFFFF).copy(alpha = settings.floatingSubtitleOpacity)
-                        "LIGHT_FROST" -> Color(0xFFF8FAFC).copy(alpha = settings.floatingSubtitleOpacity)
-                        "PARCHMENT" -> Color(0xFF2B231D).copy(alpha = settings.floatingSubtitleOpacity)
-                        "AMOLED_BLACK" -> Color(0xFF000000).copy(alpha = settings.floatingSubtitleOpacity)
-                        else -> Color(0xFF181A20).copy(alpha = settings.floatingSubtitleOpacity)
+                    val previewBgColor = when (settings.floatingSubtitleNovelPreset) {
+                        "WHITE" -> Color.White.copy(alpha = settings.floatingSubtitleOpacity)
+                        "PARCHMENT" -> Color(0xFFF6EED8).copy(alpha = settings.floatingSubtitleOpacity)
+                        "GREEN" -> Color(0xFFD3E7D5).copy(alpha = settings.floatingSubtitleOpacity)
+                        "INK_GREY" -> Color(0xFFE2E8F0).copy(alpha = settings.floatingSubtitleOpacity)
+                        "NIGHT" -> Color(0xFF121316).copy(alpha = settings.floatingSubtitleOpacity)
+                        else -> when (settings.floatingSubtitleBgStyle) {
+                            "PURE_TRANSPARENT" -> Color.Transparent
+                            "AUTO_ADAPTIVE" -> if (isAdaptiveDark) Color(0xFF181A20).copy(alpha = settings.floatingSubtitleOpacity) else Color(0xFFFFFFFF).copy(alpha = settings.floatingSubtitleOpacity)
+                            "LIGHT_FROST" -> Color(0xFFF8FAFC).copy(alpha = settings.floatingSubtitleOpacity)
+                            "PARCHMENT" -> Color(0xFF2B231D).copy(alpha = settings.floatingSubtitleOpacity)
+                            "AMOLED_BLACK" -> Color(0xFF000000).copy(alpha = settings.floatingSubtitleOpacity)
+                            else -> Color(0xFF181A20).copy(alpha = settings.floatingSubtitleOpacity)
+                        }
                     }
 
-                    val previewStrokeColor = when (settings.floatingSubtitleBgStyle) {
-                        "PURE_TRANSPARENT" -> Color.Transparent
-                        "AUTO_ADAPTIVE" -> if (isAdaptiveDark) Color.White.copy(alpha = settings.floatingSubtitleOpacity * 0.35f) else Color(0xFF0F172A).copy(alpha = settings.floatingSubtitleOpacity * 0.25f)
-                        "LIGHT_FROST" -> Color(0xFF0F172A).copy(alpha = settings.floatingSubtitleOpacity * 0.25f)
-                        "PARCHMENT" -> Color(0xFFFFD54F).copy(alpha = settings.floatingSubtitleOpacity * 0.4f)
-                        else -> Color.White.copy(alpha = settings.floatingSubtitleOpacity * 0.35f)
+                    val previewStrokeColor = when (settings.floatingSubtitleNovelPreset) {
+                        "WHITE" -> Color(0xFF0F172A).copy(alpha = settings.floatingSubtitleOpacity * 0.22f)
+                        "PARCHMENT" -> Color(0xFFB48C5A).copy(alpha = settings.floatingSubtitleOpacity * 0.35f)
+                        "GREEN" -> Color(0xFF5AA06E).copy(alpha = settings.floatingSubtitleOpacity * 0.35f)
+                        "INK_GREY" -> Color(0xFF64748B).copy(alpha = settings.floatingSubtitleOpacity * 0.25f)
+                        "NIGHT" -> Color.White.copy(alpha = settings.floatingSubtitleOpacity * 0.35f)
+                        else -> when (settings.floatingSubtitleBgStyle) {
+                            "PURE_TRANSPARENT" -> Color.Transparent
+                            "AUTO_ADAPTIVE" -> if (isAdaptiveDark) Color.White.copy(alpha = settings.floatingSubtitleOpacity * 0.35f) else Color(0xFF0F172A).copy(alpha = settings.floatingSubtitleOpacity * 0.25f)
+                            "LIGHT_FROST" -> Color(0xFF0F172A).copy(alpha = settings.floatingSubtitleOpacity * 0.25f)
+                            "PARCHMENT" -> Color(0xFFFFD54F).copy(alpha = settings.floatingSubtitleOpacity * 0.4f)
+                            else -> Color.White.copy(alpha = settings.floatingSubtitleOpacity * 0.35f)
+                        }
                     }
 
-                    val previewTextColor = if (settings.floatingSubtitleBgStyle == "AUTO_ADAPTIVE" || settings.floatingSubtitleBgStyle == "LIGHT_FROST") {
-                        if (!isAdaptiveDark && settings.floatingSubtitleTextColor.equals("#F5F5F7", ignoreCase = true)) {
-                            Color(0xFF0F172A)
-                        } else if (isAdaptiveDark && settings.floatingSubtitleTextColor.equals("#0F172A", ignoreCase = true)) {
-                            Color(0xFFF5F5F7)
+                    val previewTextColor = when (settings.floatingSubtitleNovelPreset) {
+                        "WHITE" -> Color(0xFF0F172A)
+                        "PARCHMENT" -> Color(0xFF382314)
+                        "GREEN" -> Color(0xFF123524)
+                        "INK_GREY" -> Color.Black
+                        "NIGHT" -> Color(0xFFF5F5F7)
+                        else -> if (settings.floatingSubtitleBgStyle == "AUTO_ADAPTIVE" || settings.floatingSubtitleBgStyle == "LIGHT_FROST") {
+                            if (!isAdaptiveDark && settings.floatingSubtitleTextColor.equals("#F5F5F7", ignoreCase = true)) {
+                                Color(0xFF0F172A)
+                            } else if (isAdaptiveDark && settings.floatingSubtitleTextColor.equals("#0F172A", ignoreCase = true)) {
+                                Color(0xFFF5F5F7)
+                            } else {
+                                try {
+                                    Color(android.graphics.Color.parseColor(settings.floatingSubtitleTextColor))
+                                } catch (e: Exception) {
+                                    if (isAdaptiveDark) Color(0xFFF5F5F7) else Color(0xFF0F172A)
+                                }
+                            }
                         } else {
                             try {
                                 Color(android.graphics.Color.parseColor(settings.floatingSubtitleTextColor))
                             } catch (e: Exception) {
-                                if (isAdaptiveDark) Color(0xFFF5F5F7) else Color(0xFF0F172A)
+                                Color(0xFFF5F5F7)
                             }
-                        }
-                    } else {
-                        try {
-                            Color(android.graphics.Color.parseColor(settings.floatingSubtitleTextColor))
-                        } catch (e: Exception) {
-                            Color(0xFFF5F5F7)
                         }
                     }
 
-                    val previewCloseColor = if (!isAdaptiveDark && (settings.floatingSubtitleBgStyle == "AUTO_ADAPTIVE" || settings.floatingSubtitleBgStyle == "LIGHT_FROST")) {
+                    val previewCloseColor = if (!isAdaptiveDark && (!isNovelPresetActive && (settings.floatingSubtitleBgStyle == "AUTO_ADAPTIVE" || settings.floatingSubtitleBgStyle == "LIGHT_FROST") || settings.floatingSubtitleNovelPreset in listOf("WHITE", "PARCHMENT", "GREEN", "INK_GREY"))) {
                         Color(0xFF475569)
-                    } else if (settings.floatingSubtitleBgStyle == "PARCHMENT") {
+                    } else if (!isNovelPresetActive && settings.floatingSubtitleBgStyle == "PARCHMENT") {
                         Color(0xFFD7CCC8)
                     } else {
                         Color(0xFFB0B5C5)
@@ -300,6 +323,60 @@ fun FloatingSubtitleCustomizer(
                             updateAndApply(settings.copy(floatingSubtitleBgStyle = styleKey, floatingSubtitleOpacity = nextOpacity))
                         },
                         label = { Text(styleName, fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = primaryColor.copy(alpha = 0.2f),
+                            selectedLabelColor = primaryColor
+                        )
+                    )
+                }
+            }
+        }
+
+        // ==================== 2.5 小说常用阅读底色速配 (Novel Canvas Presets) ====================
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Palette, contentDescription = null, tint = primaryColor, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "小说常用阅读底色速配",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "针对主流阅读器（微信读书/开源阅读/静读天下）画布一键速配，0.05秒极速匹配当前小说纸张",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val novelPresets = listOf(
+                "AUTO" to "🎯 智能自动",
+                "WHITE" to "📄 纯白书页",
+                "PARCHMENT" to "📜 米黄羊皮纸",
+                "GREEN" to "🍃 护眼豆沙绿",
+                "INK_GREY" to "🌫️ 水墨浅灰",
+                "NIGHT" to "🖤 暗夜极黑"
+            )
+
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                novelPresets.forEach { (presetKey, presetName) ->
+                    val isSelected = settings.floatingSubtitleNovelPreset == presetKey
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            if (presetKey == "AUTO") {
+                                updateAndApply(settings.copy(floatingSubtitleNovelPreset = "AUTO"))
+                            } else {
+                                updateAndApply(settings.copy(floatingSubtitleNovelPreset = presetKey))
+                            }
+                        },
+                        label = { Text(presetName, fontSize = 12.sp) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = primaryColor.copy(alpha = 0.2f),
                             selectedLabelColor = primaryColor
@@ -571,7 +648,44 @@ fun FloatingSubtitleCustomizer(
             )
         }
 
-        // ==================== 11. 实用贴士：轻触反转提示卡片 ====================
+        // ==================== 10.5 真实屏幕背后像素取色自适应 (MediaProjection) ====================
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Tune,
+                    contentDescription = null,
+                    tint = if (settings.isRealScreenSamplingEnabled) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text("真实屏幕背后像素取色自适应", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+                    Text(
+                        "基于 MediaProjection 毫秒级采样悬浮窗背后小说书页的实际 RGB 像素与亮度，使文字与底色在纯白/米黄/豆沙绿书页上瞬间自动匹配（需授权一次录屏权限）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Switch(
+                checked = settings.isRealScreenSamplingEnabled,
+                onCheckedChange = { enabled ->
+                    if (enabled) {
+                        updateAndApply(settings.copy(isRealScreenSamplingEnabled = true, floatingSubtitleNovelPreset = "AUTO"))
+                        ScreenColorSampler.getInstance(context).requestPermission(context)
+                    } else {
+                        updateAndApply(settings.copy(isRealScreenSamplingEnabled = false))
+                        ScreenColorSampler.getInstance(context).stopSampling()
+                    }
+                }
+            )
+        }
+
+        // ==================== 11. 实用贴士：交互提示卡片 ====================
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = primaryColor.copy(alpha = 0.08f)),
@@ -589,7 +703,7 @@ fun FloatingSubtitleCustomizer(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "💡 极速交互贴士：在看书时，随时轻触悬浮窗左侧喇叭图标或双击浮窗空白处，即可秒速翻转黑白自适应模式，无需跳出小说！",
+                    text = "💡 极速交互贴士：看书时，轻触悬浮窗上的 🎨 调色盘可秒选 6 种主流小说底色（白纸/米黄/豆沙绿/水墨灰等）；轻触左侧小喇叭可原地翻转深浅；开启真实屏幕取色后更可全自动毫秒级吸色！",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 16.sp
