@@ -84,18 +84,38 @@ object TtsNotificationManager {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
+            val hasOverlayPerm = com.aitts.engine.permission.PermissionManager.hasOverlayPermission(context)
             val isFloatingActive = FloatingSubtitleManager.getInstance(context).isShowing()
-            val toggleSubtitleIntent = Intent(ACTION_TOGGLE_FLOATING_SUBTITLE).apply {
-                setPackage(context.packageName)
-            }
-            val toggleSubtitlePendingIntent = PendingIntent.getBroadcast(
-                context,
-                2,
-                toggleSubtitleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
 
-            val subtitleActionTitle = if (isFloatingActive) "🪟 隐藏字幕" else "🪟 开启字幕"
+            val toggleSubtitlePendingIntent = if (!hasOverlayPerm) {
+                // 未授予前台悬浮窗权限：使用 PendingIntent.getActivity 打开中转授权页，彻底绕过 Android 10+ 后台 BAL 限制
+                val permIntent = Intent(context, com.aitts.engine.ui.OverlayPermissionActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                PendingIntent.getActivity(
+                    context,
+                    2,
+                    permIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            } else {
+                // 已有权限：纯广播毫秒级无缝切换显隐，不弹出任何界面
+                val toggleSubtitleIntent = Intent(ACTION_TOGGLE_FLOATING_SUBTITLE).apply {
+                    setPackage(context.packageName)
+                }
+                PendingIntent.getBroadcast(
+                    context,
+                    2,
+                    toggleSubtitleIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            }
+
+            val subtitleActionTitle = when {
+                !hasOverlayPerm -> "🪟 开启字幕 (需授权)"
+                isFloatingActive -> "🪟 隐藏字幕"
+                else -> "🪟 开启字幕"
+            }
 
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
@@ -143,9 +163,9 @@ object TtsNotificationManager {
      * 防抖平滑注销机制：
      * 单句音频推流结束时，不立即强行 cancel 通知，而是保留 4 秒窗口。
      * 若后续句子在短时间内到达，则直接复用同一通知条刷新内容；
-     * 若超过 4 秒无新请求（真正暂停/退出），才平滑收起通知与悬浮窗。
+     * 若超过 5 秒无新请求（真正暂停/退出），才平滑收起通知与悬浮窗。
      */
-    fun scheduleDelayedDismiss(context: Context, delayMs: Long = 4000L) {
+    fun scheduleDelayedDismiss(context: Context, delayMs: Long = 5000L) {
         cancelDelayedDismiss()
         val appContext = context.applicationContext
         val runnable = Runnable {

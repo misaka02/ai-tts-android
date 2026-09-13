@@ -245,8 +245,9 @@ class TtsSynthesizer(private val context: Context) {
                     return@withContext
                 }
 
+                val liveSettings = configDataStore.settingsFlow.value
                 // 实时更新后台播报通知栏中的当前句子内容
-                if (settings.playbackNotificationEnabled) {
+                if (liveSettings.playbackNotificationEnabled) {
                     TtsNotificationManager.showPlaybackNotification(
                         context = context,
                         providerName = mergedConfig.name,
@@ -256,7 +257,7 @@ class TtsSynthesizer(private val context: Context) {
                 }
 
                 // 实时更新前台小说悬浮文本字幕
-                if (settings.isFloatingSubtitleEnabled) {
+                if (liveSettings.isFloatingSubtitleEnabled) {
                     FloatingSubtitleManager.getInstance(context).updateText(segments[i].text)
                 }
 
@@ -505,9 +506,9 @@ class TtsSynthesizer(private val context: Context) {
         } finally {
             sessionCache.values.forEach { it.cancel() }
             sessionCache.clear()
-            if (settings.playbackNotificationEnabled) {
-                // 采用防抖平滑注销，保留 4 秒窗口，避免阅读器相邻两句之间频繁删除与新建通知
-                TtsNotificationManager.scheduleDelayedDismiss(context, 4000L)
+            if (configDataStore.settingsFlow.value.playbackNotificationEnabled) {
+                // 采用防抖平滑注销，保留 5 秒窗口，避免阅读器相邻两句之间频繁删除与新建通知
+                TtsNotificationManager.scheduleDelayedDismiss(context, 5000L)
             }
         }
     }

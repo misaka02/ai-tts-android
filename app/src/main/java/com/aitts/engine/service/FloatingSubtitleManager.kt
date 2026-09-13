@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
@@ -15,7 +16,6 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -24,9 +24,10 @@ import com.aitts.engine.permission.PermissionManager
 /**
  * 前台小说悬浮文本字幕管理器：
  * 1. 后台听书时在系统顶层悬浮展示当前正在朗读的小说文本；
- * 2. 支持手指在屏幕任意位置随心拖动；
- * 3. 支持点击展开/折叠长文本，支持快捷关闭按钮；
- * 4. 采用原生极轻量组件构建，内存开销极低 (<50KB)，生命周期稳定安全。
+ * 2. 采用 Gravity.TOP or Gravity.START 绝对坐标系与 FLAG_LAYOUT_IN_SCREEN，杜绝屏外渲染与各厂商 ROM 适配异常；
+ * 3. 边界限定拖拽，手指随心拖动不飞出屏幕；
+ * 4. 支持点击文本区域展开/折叠长文本 (3行 <-> 12行)，专属关闭按钮防冲突退出；
+ * 5. 极轻量 (<50KB)，生命周期稳定安全。
  */
 class FloatingSubtitleManager private constructor(private val appContext: Context) {
 
@@ -77,6 +78,9 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
             if (rootView == null) {
                 initView()
             }
+            if (lastSpokenText.isNotBlank()) {
+                textView?.text = lastSpokenText
+            }
             if (!isViewAttached) {
                 attachToWindow()
             }
@@ -115,32 +119,39 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+        val displayMetrics = appContext.resources.displayMetrics
+        val calculatedWidth = minOf(
+            (displayMetrics.widthPixels * 0.92f).toInt(),
+            displayMetrics.widthPixels - dpToPx(24f)
+        )
+        val defaultX = ((displayMetrics.widthPixels - calculatedWidth) / 2).coerceAtLeast(0)
+        val defaultY = (displayMetrics.heightPixels - dpToPx(180f)).coerceAtLeast(dpToPx(60f))
+
         layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            calculatedWidth,
             WindowManager.LayoutParams.WRAP_CONTENT,
             windowType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            x = 0
-            y = dpToPx(100f) // 默认距离屏幕底部 100dp
-            width = (appContext.resources.displayMetrics.widthPixels * 0.92).toInt()
+            gravity = Gravity.TOP or Gravity.START
+            x = defaultX
+            y = defaultY
         }
 
         // 外层卡片容器
         val container = LinearLayout(appContext).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dpToPx(12f), dpToPx(10f), dpToPx(10f), dpToPx(10f))
+            setPadding(dpToPx(12f), dpToPx(10f), dpToPx(8f), dpToPx(10f))
 
-            // 现代深色半透磨砂质感圆角背景
+            // 现代深色磨砂质感圆角高亮背景
             val bg = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpToPx(16f).toFloat()
-                setColor(Color.parseColor("#E6181A20")) // 90% 不透明度暗夜黑
-                setStroke(dpToPx(1f), Color.parseColor("#33FFFFFF")) // 20% 高光细边框
+                setColor(Color.parseColor("#EE181A20")) // 93% 不透明度暗夜极光灰
+                setStroke(dpToPx(1f), Color.parseColor("#4DFFFFFF")) // 30% 白银微光边框
             }
             background = bg
             elevation = dpToPx(8f).toFloat()
@@ -167,17 +178,21 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
             text = lastSpokenText.ifBlank { "AI 听书字幕准备就绪" }
         }
 
-        // 右侧一键关闭按钮
+        // 右侧一键关闭按钮 (拥有充足的 38dp 点击热区)
         val closeBtn = ImageView(appContext).apply {
             setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-            setColorFilter(Color.parseColor("#A0A5B5"))
-            val btnSize = dpToPx(24f)
+            setColorFilter(Color.parseColor("#B0B5C5"))
+            val btnSize = dpToPx(38f)
+            val iconPadding = dpToPx(8f)
+            setPadding(iconPadding, iconPadding, iconPadding, iconPadding)
+            isClickable = true
+            isFocusable = false
             layoutParams = LinearLayout.LayoutParams(btnSize, btnSize).apply {
-                marginStart = dpToPx(6f)
+                marginStart = dpToPx(4f)
             }
             setOnClickListener {
                 hide()
-                // 发送关闭广播同步通知栏
+                // 发送关闭广播同步通知栏与配置
                 val intent = Intent(TtsNotificationManager.ACTION_TOGGLE_FLOATING_SUBTITLE).apply {
                     setPackage(appContext.packageName)
                     putExtra("EXTRA_FORCE_DISABLE", true)
@@ -196,9 +211,18 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
         var initialTouchX = 0f
         var initialTouchY = 0f
         var isMoved = false
+        val closeHitRect = Rect()
 
         container.setOnTouchListener { _, event ->
             val lp = layoutParams ?: return@setOnTouchListener false
+
+            // 若点击落在关闭按钮区域，将事件让渡给 closeBtn 处理
+            closeBtn.getHitRect(closeHitRect)
+            closeHitRect.inset(-dpToPx(6f), -dpToPx(6f))
+            if (closeHitRect.contains(event.x.toInt(), event.y.toInt())) {
+                return@setOnTouchListener false
+            }
+
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialX = lp.x
@@ -210,11 +234,16 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (event.rawX - initialTouchX).toInt()
-                    val dy = (initialTouchY - event.rawY).toInt() // Y 轴由下往上
-                    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                    val dy = (event.rawY - initialTouchY).toInt()
+                    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
                         isMoved = true
-                        lp.x = initialX + dx
-                        lp.y = (initialY + dy).coerceAtLeast(dpToPx(20f))
+                        val screenW = appContext.resources.displayMetrics.widthPixels
+                        val screenH = appContext.resources.displayMetrics.heightPixels
+                        val currentW = container.width.takeIf { it > 0 } ?: lp.width
+                        val currentH = container.height.takeIf { it > 0 } ?: dpToPx(60f)
+
+                        lp.x = (initialX + dx).coerceIn(0, maxOf(0, screenW - currentW))
+                        lp.y = (initialY + dy).coerceIn(dpToPx(20f), maxOf(dpToPx(20f), screenH - currentH))
                         try {
                             if (isViewAttached) {
                                 wm.updateViewLayout(container, lp)
@@ -250,10 +279,15 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
         }
 
         try {
-            if (!isViewAttached) {
-                wm.addView(view, lp)
-                isViewAttached = true
+            if (view.parent != null) {
+                try {
+                    wm.removeViewImmediate(view)
+                } catch (e: Exception) {
+                    // ignore
+                }
             }
+            wm.addView(view, lp)
+            isViewAttached = true
         } catch (e: Exception) {
             isViewAttached = false
         }
@@ -264,9 +298,8 @@ class FloatingSubtitleManager private constructor(private val appContext: Contex
         val view = rootView ?: return
 
         try {
-            if (isViewAttached) {
+            if (isViewAttached || view.parent != null) {
                 wm.removeViewImmediate(view)
-                isViewAttached = false
             }
         } catch (e: Exception) {
             // ignore

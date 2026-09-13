@@ -53,7 +53,12 @@ class AiTextToSpeechService : TextToSpeechService() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 TtsNotificationManager.ACTION_STOP_TTS -> {
-                    onStop()
+                    val sessionToCancel = configDataStore.activeSessionId ?: ""
+                    synthesizer.stop(sessionToCancel)
+                    if (sessionToCancel.isNotBlank()) {
+                        configDataStore.compareAndClearActiveSession(sessionToCancel)
+                    }
+                    TtsNotificationManager.cancelPlaybackNotificationImmediately(this@AiTextToSpeechService)
                 }
                 TtsNotificationManager.ACTION_TOGGLE_FLOATING_SUBTITLE -> {
                     val forceDisable = intent.getBooleanExtra("EXTRA_FORCE_DISABLE", false)
@@ -62,8 +67,15 @@ class AiTextToSpeechService : TextToSpeechService() {
 
                     if (targetState) {
                         if (!com.aitts.engine.permission.PermissionManager.hasOverlayPermission(this@AiTextToSpeechService)) {
-                            com.aitts.engine.permission.PermissionManager.requestOverlayPermission(this@AiTextToSpeechService)
-                            configDataStore.log("未授予前台悬浮窗权限，已唤起系统权限申请页")
+                            try {
+                                val permIntent = Intent(this@AiTextToSpeechService, com.aitts.engine.ui.OverlayPermissionActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                }
+                                startActivity(permIntent)
+                            } catch (e: Exception) {
+                                // fallback
+                            }
+                            configDataStore.log("未授予前台悬浮窗权限，已唤起权限申请交互")
                             return
                         }
                         configDataStore.updateSettings(currentSettings.copy(isFloatingSubtitleEnabled = true))
@@ -189,7 +201,9 @@ class AiTextToSpeechService : TextToSpeechService() {
         try {
             val sessionToCancel = configDataStore.activeSessionId ?: ""
             synthesizer.stop(sessionToCancel)
-            TtsNotificationManager.cancelPlaybackNotificationImmediately(this)
+            // 核心关键：小说阅读器在每一句合成前均通过 QUEUE_FLUSH 触发系统 onStop()。
+            // 绝不能在此立即注销通知和隐藏悬浮字幕，必须通过防抖平滑过渡机制维持同一个通知条与字幕常驻！
+            TtsNotificationManager.scheduleDelayedDismiss(this, 5000L)
             if (sessionToCancel.isNotBlank()) {
                 configDataStore.log("收到系统 onStop() 信号，已精准中断会话 [$sessionToCancel]", sessionId = sessionToCancel)
                 configDataStore.compareAndClearActiveSession(sessionToCancel)

@@ -107,6 +107,19 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
     var searchQuery by remember { mutableStateOf("") }
     var permissionState by remember { mutableStateOf(PermissionManager.checkPermissions(context)) }
 
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                permissionState = PermissionManager.checkPermissions(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     val pagerState = rememberPagerState(pageCount = { 5 })
     var pendingExportJson by remember { mutableStateOf<String?>(null) }
 
@@ -237,6 +250,9 @@ fun SettingsScreen(configDataStore: ConfigDataStore) {
                                             PermissionManager.requestBasicPermissions(it)
                                             PermissionManager.requestAllFilesAccess(it)
                                             PermissionManager.requestIgnoreBatteryOptimizations(it)
+                                            if (!permissionState.hasOverlayPermission) {
+                                                PermissionManager.requestOverlayPermission(it)
+                                            }
                                             permissionState = PermissionManager.checkPermissions(context)
                                         }
                                     },
@@ -856,6 +872,7 @@ private fun HapticSettingsCard(settings: com.aitts.engine.data.GlobalSettings, c
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+            val context = LocalContext.current
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -871,7 +888,12 @@ private fun HapticSettingsCard(settings: com.aitts.engine.data.GlobalSettings, c
                 }
                 Switch(
                     checked = settings.isFloatingSubtitleEnabled,
-                    onCheckedChange = { configDataStore.updateSettings(settings.copy(isFloatingSubtitleEnabled = it)) }
+                    onCheckedChange = { enabled ->
+                        if (enabled && !PermissionManager.hasOverlayPermission(context)) {
+                            PermissionManager.requestOverlayPermission(context)
+                        }
+                        configDataStore.updateSettings(settings.copy(isFloatingSubtitleEnabled = enabled))
+                    }
                 )
             }
         }

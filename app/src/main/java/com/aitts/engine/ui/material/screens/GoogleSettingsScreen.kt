@@ -385,9 +385,8 @@ fun GoogleSettingsScreen(
                     onCheckedChange = { enabled ->
                         if (enabled && !permState.hasOverlayPermission) {
                             activity?.let { PermissionManager.requestOverlayPermission(it) }
-                        } else {
-                            configDataStore.updateSettings(settings.copy(isFloatingSubtitleEnabled = enabled))
                         }
+                        configDataStore.updateSettings(settings.copy(isFloatingSubtitleEnabled = enabled))
                     }
                 )
             }

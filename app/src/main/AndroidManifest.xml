@@ -79,6 +79,16 @@
             </intent-filter>
         </activity>
 
+        <!-- 悬浮窗权限交互透明中转 Activity -->
+        <activity
+            android:name=".ui.OverlayPermissionActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance" />
+
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
